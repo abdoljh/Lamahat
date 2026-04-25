@@ -36,6 +36,8 @@ import unicodedata
 import logging
 from typing import Literal
 
+from .footer_detector import FooterDetector
+
 logger = logging.getLogger(__name__)
 
 Source = Literal["digital", "scanned"]
@@ -196,21 +198,7 @@ class ArabicTextNormalizer:
         re.compile(r"\n{4,}", re.MULTILINE),                # excessive blank lines
     ]
 
-    # Running header pattern: a short line (≤ 60 chars) that contains a
-    # digit — typical of "Book Title  17" or "17  Chapter Name" headers
-    # that Tesseract picks up at the top of each scanned page.
-    _HEADER_PATTERN = re.compile(
-        r"^[^\n]{1,60}\d[^\n]{0,30}\n",
-        re.MULTILINE,
-    )
 
-    # Footnote pattern: lines starting with (n) or * followed by content,
-    # OR a horizontal rule (─────) followed by footnote text.
-    _FOOTNOTE_PATTERN = re.compile(
-        r"(?:^[─━═\-]{4,}.*$\n?(?:^.+\n?)*)"   # separator + following lines
-        r"|(?:^\s*[\(\[（【]\d+[\)\]）】][^\n]*\n?)",  # (1) ... footnote lines
-        re.MULTILINE,
-    )
 
     # Matches contiguous Arabic / Arabic-Indic characters in a line.
     _ARABIC_WORD_RE = re.compile(r'[\u0600-\u06FF]+')
@@ -220,9 +208,8 @@ class ArabicTextNormalizer:
             return ""
 
         if source == "scanned":
-            text = self._strip_page_furniture(text)
-            if not text.strip():
-                return ""
+            # Footer/header stripping is now done in normalize_pages() via
+            # FooterDetector before this method is called.
             text = self._join_ocr_lines(text)
             # Tesseract frequently misreads Arabic comma ، (U+060C) as » (U+00BB).
             # Replace » with ، when surrounded by Arabic text (mid-sentence position).
@@ -307,11 +294,21 @@ class ArabicTextNormalizer:
         return frozenset(w for w, pg in word_pages.items() if len(pg) >= 2)
 
     def normalize_pages(self, pages: list) -> list:
-        # Pre-pass: collect running-header words across all scanned pages.
-        # Words that appear in short (≤ 60 char) page-start lines on 2+
-        # pages are almost certainly part of the book's running header
-        # (title + page-number), even when OCR drops or corrupts the digits.
+        # Pre-pass: collect cross-page running-header words (digit-free headers
+        # whose repeated presence across pages identifies them as furniture).
         self._hdr_words: frozenset[str] = self._detect_header_words(pages)
+
+        # Footer/header detection — runs on raw OCR text before normalisation.
+        # FooterDetector classifies page-number lines, footnote markers,
+        # separator lines, and running headers for each scanned page, then
+        # strips them so only body text reaches the normaliser.
+        detector = FooterDetector()
+        for page in pages:
+            if page.pdf_type == "scanned" and page.raw_text.strip():
+                footers = detector.analyze_page(page.raw_text, page.page_number)
+                page.raw_text = detector.strip_footers(page.raw_text, footers)
+                detector.reset()
+
         for page in pages:
             source: Source = "scanned" if page.pdf_type == "scanned" else "digital"
             before = len(page.raw_text)
@@ -328,53 +325,6 @@ class ArabicTextNormalizer:
             logger.info("normalize_pages: %d/%d pages empty after normalisation.",
                         empty, len(pages))
         return pages
-
-    def _strip_page_furniture(self, text: str) -> str:
-        """
-        Remove running headers and footnotes from scanned OCR output.
-
-        Running headers: short lines containing a digit that appear at the
-        very start of a page block (e.g. "مذكرات جعفر العسكري  17").
-        We strip only the FIRST such line in each page section to avoid
-        removing legitimate short sentences in the body.
-
-        Footnotes: blocks starting with (n) or a horizontal separator line.
-        """
-        lines = text.splitlines()
-        cleaned = []
-        skip_next = False
-        for i, line in enumerate(lines):
-            if skip_next:
-                skip_next = False
-                continue
-            stripped = line.strip()
-            # Skip standalone page numbers
-            if re.match(r'^\d+$', stripped):
-                continue
-            # Drop running headers at the very start of each scanned page.
-            # A line qualifies if it is the first non-empty line AND is short
-            # (≤ 60 chars) AND either:
-            #   (a) contains a digit (ASCII or Arabic-Indic), or
-            #   (b) contains a word that cross-page frequency analysis marked
-            #       as a running-header word (set by normalize_pages pre-pass).
-            is_page_start = i == 0 or all(not lines[j].strip() for j in range(i))
-            if is_page_start and len(stripped) <= 60:
-                hdr_words = getattr(self, '_hdr_words', frozenset())
-                has_digit = bool(re.search(r'[0-9\u0660-\u0669]', stripped))
-                has_hdr_word = bool(hdr_words) and any(
-                    w in hdr_words
-                    for w in self._ARABIC_WORD_RE.findall(stripped)
-                )
-                if has_digit or has_hdr_word:
-                    continue
-            # Skip footnote separator lines
-            if re.match(r'^[─━═\-─]{4,}', stripped):
-                continue
-            # Skip footnote content lines: (1) or [1] at line start
-            if re.match(r'^[\(\[（【]\d+[\)\]）】]', stripped):
-                continue
-            cleaned.append(line)
-        return "\n".join(cleaned)
 
     _SENT_END = re.compile(r'[.؟!]\s*$')
     # Soft word cap per OCR paragraph.  Arabic prose rarely uses sentence

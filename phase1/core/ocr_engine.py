@@ -202,7 +202,12 @@ class OCREngine:
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         arr = np.array(img)
         try:
-            return self._reader.image_to_string(arr, lang="ara", config=f"--psm 3 --dpi {self.dpi}")
+            # Do NOT pass --dpi here: the numpy array carries no DPI metadata, so
+            # Tesseract uses its 70-dpi default which applies permissive line-height
+            # thresholds and correctly captures lines near the page margins.
+            # Passing --dpi 300 would restore the strict threshold and silently drop
+            # those edge lines — defeating the purpose of using a numpy array.
+            return self._reader.image_to_string(arr, lang="ara", config="--psm 3")
         except Exception as exc:
             logger.warning("Tesseract OCR failed on page: %s", exc)
             return ""
