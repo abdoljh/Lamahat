@@ -165,7 +165,7 @@ with st.sidebar:
         ),
     )
     ocr_gpu = st.toggle("Use GPU for OCR", value=False)
-    ocr_dpi = st.slider("Scan DPI", 150, 400, 300, step=50)
+    ocr_dpi = st.slider("Scan DPI", 150, 500, 400, step=50)
     ocr_correction = st.toggle(
         "LLM OCR correction (scanned pages)",
         value=True,
