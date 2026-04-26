@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 class Phase1Config:
     ocr_gpu:        bool   = False
     ocr_backend:    str    = "tesseract"
-    ocr_dpi:        int    = 300
+    ocr_dpi:        int    = 400
     max_tokens:     int    = 1500
     overlap_tokens: int    = 200
     output_dir:     str    = "output"
