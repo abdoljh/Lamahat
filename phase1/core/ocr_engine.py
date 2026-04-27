@@ -261,7 +261,7 @@ class OCREngine:
         Remove lines that are not predominantly Arabic.
 
         A non-empty line is kept only when it contains at least one Arabic
-        sequence of ≥ 3 chars AND Arabic chars form > 75 % of its
+        sequence of ≥ 3 chars AND Arabic chars form > 85 % of its
         non-whitespace content.  Empty lines (paragraph separators) are
         always preserved.
         """
@@ -271,7 +271,7 @@ class OCREngine:
             if not s:
                 clean.append(line)
                 continue
-            if cls._ARA_WORD_RE.search(s) and cls._arabic_ratio(s) > 0.75:
+            if cls._ARA_WORD_RE.search(s) and cls._arabic_ratio(s) > 0.85:
                 clean.append(line)
         return '\n'.join(clean)
 

@@ -88,7 +88,20 @@ class FooterDetector:
     @staticmethod
     def _clean_bidi_marks(text: str) -> str:
         """Strip invisible bidirectional-control characters before pattern matching."""
-        _BIDI = '‎‏‪‫‬‭‮‍‌'
+        _BIDI = (
+            '​'  # ZERO WIDTH SPACE
+            '‌'  # ZERO WIDTH NON-JOINER
+            '‍'  # ZERO WIDTH JOINER
+            '‎'  # LEFT-TO-RIGHT MARK
+            '‏'  # RIGHT-TO-LEFT MARK
+            '‪'  # LEFT-TO-RIGHT EMBEDDING
+            '‫'  # RIGHT-TO-LEFT EMBEDDING
+            '‬'  # POP DIRECTIONAL FORMATTING
+            '‭'  # LEFT-TO-RIGHT OVERRIDE
+            '‮'  # RIGHT-TO-LEFT OVERRIDE
+            '؜'  # ARABIC LETTER MARK
+            '﻿'  # BYTE ORDER MARK / ZERO WIDTH NO-BREAK SPACE
+        )
         return ''.join(c for c in text if c not in _BIDI)
 
     # ------------------------------------------------------------------ #
@@ -153,7 +166,8 @@ class FooterDetector:
         if re.match(r'^[\)\]\}]\s*[٠-٩۰-۹0-9؟\?]\s*[\(\[\{]', s):
             return True, 0.90
         # Asterisk, dagger, or similar typographic markers
-        if re.match(r'^[*†‡§¶#\+\-—]', s):
+        # Includes Unicode dash variants: en dash –, em dash —, horizontal bar ―
+        if re.match(r'^[*†‡§¶#\+\-–—―]', s):
             return True, 0.85
         # Arabic letter + closing paren  e.g.  أ)
         if re.match(r'^[ء-ي]\)', s):
@@ -284,18 +298,19 @@ class FooterDetector:
         # ── Cross-page footnote continuation from previous page ─────────
         # When the previous page ended with a footnote line containing the
         # Arabic page-break marker (line ending in ``=`` or `` -``), the
-        # continuation starts at the top of this page with ``=`` or ``- ``.
+        # continuation appears at the BOTTOM of the next page (same region as
+        # regular footnotes), starting with ``=`` or ``- /–/—/―``.
         cross_page_indices: set = set()
         if self._continuation_pending:
             self._continuation_pending = False
-            for idx in range(min(total, 12)):
+            for idx in range(footer_start, total):
                 line = lines[idx]
                 if not line.strip():
                     continue
                 s = self._clean_bidi_marks(line).strip()
                 is_cross = (
                     s.startswith('=') or
-                    (s.startswith('-') and len(s) > 1 and s[1] in ' \t')
+                    (s[:1] in '-–—―' and len(s) > 1 and s[1] in ' \t')
                 )
                 if is_cross:
                     cross = DetectedFooter(
@@ -392,12 +407,12 @@ class FooterDetector:
 
         footers = self._link_footnote_continuations(lines, footers, page_num)
 
-        # ── Set cross-page flag if a footnote line ends with = or `` -`` ─
+        # ── Set cross-page flag if a footnote line ends with = or `` -/–/—`` ─
         # This signals that the footnote continues on the next page.
         for f in footers:
             if f.footer_type == FooterType.FOOTNOTE:
                 tail = f.text.rstrip()
-                if tail.endswith('=') or tail.endswith(' -'):
+                if tail.endswith('=') or any(tail.endswith(' ' + d) for d in '-–—―'):
                     self._continuation_pending = True
                     break
 
