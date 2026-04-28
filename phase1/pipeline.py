@@ -72,6 +72,10 @@ class Phase1Config:
     # When False, the diacritized script file is not written and _script_diacritized.txt
     # is omitted.  Set to False when you don't need Mishkal output to save ~2 s per run.
     diacritize:     bool   = True
+    # Model used for the Scriptwriter step (the creative, expensive step).
+    # Haiku is the default — lowest cost (~$0.001 vs ~$0.04 for Sonnet).
+    # Reader, Consolidator, and Editor always use Haiku regardless of this setting.
+    scriptwriter_model: str = "claude-haiku-4-5-20251001"
 
 
 # ──────────────────────────────────────────────────────────────────────────── #
@@ -353,13 +357,14 @@ class Phase1bPipeline:
             try:
                 self._progress("Summarising book (Reader + Consolidator) …", 0.55)
                 summarizer = BookSummarizer(
-                    api_key        = self.cfg.anthropic_api_key,
-                    genre          = self.cfg.script_genre,
-                    output_dir     = self.cfg.output_dir,
-                    book_author    = self.cfg.book_author,
-                    book_pages     = self.cfg.book_pages,
-                    book_structure = self.cfg.book_structure,
-                    diacritize     = self.cfg.diacritize,
+                    api_key            = self.cfg.anthropic_api_key,
+                    genre              = self.cfg.script_genre,
+                    output_dir         = self.cfg.output_dir,
+                    book_author        = self.cfg.book_author,
+                    book_pages         = self.cfg.book_pages,
+                    book_structure     = self.cfg.book_structure,
+                    diacritize         = self.cfg.diacritize,
+                    scriptwriter_model = self.cfg.scriptwriter_model,
                 )
                 self._progress("Writing script (Scriptwriter) …", 0.80)
                 script_path, script_diac_path, script_meta_path = summarizer.run(
