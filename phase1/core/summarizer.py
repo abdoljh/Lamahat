@@ -74,17 +74,19 @@ class BookSummarizer:
         book_author:    str = "",
         book_pages:     int = 0,
         book_structure: str = "",
-        diacritize:     bool = True,
+        diacritize:          bool = True,
+        scriptwriter_model:  str  = "claude-haiku-4-5-20251001",
     ):
-        self.api_key        = api_key
-        self.genre          = genre
-        self.output_dir     = Path(output_dir)
+        self.api_key             = api_key
+        self.genre               = genre
+        self.output_dir          = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.book_author    = book_author
-        self.book_pages     = book_pages
-        self.book_structure = book_structure
-        self.diacritize     = diacritize
-        self._client        = None   # lazy
+        self.book_author         = book_author
+        self.book_pages          = book_pages
+        self.book_structure      = book_structure
+        self.diacritize          = diacritize
+        self.scriptwriter_model  = scriptwriter_model
+        self._client             = None   # lazy
 
     # ------------------------------------------------------------------ #
     #  Public API                                                          #
@@ -249,7 +251,7 @@ class BookSummarizer:
             f"{revision_note}"
             f"\nمخطط الكتاب:\n{outline}"
         )
-        return self._call(prompt, model=_SONNET, max_tokens=3500)
+        return self._call(prompt, model=self.scriptwriter_model, max_tokens=3500)
 
     # ------------------------------------------------------------------ #
     #  Step 6 — Editor / Scorer (Haiku, up to 2 retries)                  #

@@ -203,6 +203,17 @@ with st.sidebar:
         placeholder="e.g. مقدمة و١٦ فصلاً وملاحق",
         help="Brief Arabic description of chapters / sections / appendices.",
     )
+    scriptwriter_model = st.selectbox(
+        "Scriptwriter model",
+        ["claude-haiku-4-5-20251001", "claude-sonnet-4-20250514"],
+        index=0,
+        help=(
+            "Model used for the creative Scriptwriter step only. "
+            "Reader, Consolidator, and Editor always use Haiku.\n\n"
+            "**Haiku** — default, lowest cost (~$0.001 per script).\n\n"
+            "**Sonnet** — higher quality prose, ~40× more expensive (~$0.04 per script)."
+        ),
+    )
     diacritize_script = st.toggle(
         "Diacritise script (Mishkal)",
         value=True,
@@ -314,6 +325,7 @@ if uploaded:
                 book_pages=int(book_pages),
                 book_structure=book_structure,
                 diacritize=diacritize_script,
+                scriptwriter_model=scriptwriter_model,
             )
 
             try:
@@ -503,6 +515,7 @@ if _p1b_ready:
                 book_pages=int(book_pages),
                 book_structure=book_structure,
                 diacritize=diacritize_script,
+                scriptwriter_model=scriptwriter_model,
             )
 
             try:
