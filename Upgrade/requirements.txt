@@ -1,0 +1,10 @@
+streamlit
+anthropic
+torch>=2.4.0,<=2.10.0
+lightning @ ./lightning-compat
+kraken==7.0.1
+pdf2image
+pillow
+numpy
+pymupdf
+opencv-python-headless
