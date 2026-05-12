@@ -59,6 +59,21 @@ _MODEL_URL = (
 )
 _MODEL_PATH = os.path.expanduser("~/.kraken_models/apt-20221130.mlmodel")
 
+# Detect whether this build of kraken's blla.segment accepts no_legacy_polygons.
+# Kraken 7.0.x removed the parameter; guard against AttributeError at call time.
+def _supports_no_legacy_polygons() -> bool:
+    try:
+        import inspect
+        from kraken import blla
+        return "no_legacy_polygons" in inspect.signature(blla.segment).parameters
+    except Exception:
+        return False
+
+_NLP_ARG: dict = (
+    {"no_legacy_polygons": True} if _KRAKEN_AVAILABLE and _supports_no_legacy_polygons()
+    else {}
+)
+
 _BIDI_TO_RPRED: dict[str, object] = {
     "auto": True,
     "R": "R",
@@ -166,13 +181,18 @@ def ocr_page(
     seg = blla.segment(
         img_rgb,
         text_direction=text_direction,
-        no_legacy_polygons=no_legacy_polygons,
+        **(_NLP_ARG if no_legacy_polygons else {}),
+    )
+    import inspect as _inspect
+    _rpred_params = _inspect.signature(rpred.rpred).parameters
+    _bidi_kwarg = (
+        "bidi_reordering" if "bidi_reordering" in _rpred_params else "bidi_reorder"
     )
     predictions = rpred.rpred(
         model,
         img_rgb,
         seg,
-        bidi_reorder=bidi,
+        **{_bidi_kwarg: bidi},
         pad=pad,
         autocast=autocast,
     )
