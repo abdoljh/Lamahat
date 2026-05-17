@@ -1,0 +1,402 @@
+
+Plan   : output/al_askari_plan_v2.json  (51 shots)
+Audio  : output/al_askari_audio.mp3
+Output : output/final_cut.mp4
+Config : 1920×1080 @ 25 fps  captions=on
+Vision : on  Cache: on  User dir: –  Book extracts: –
+
+INFO  phase3.render  [render 6%] shot 1/51: title_card
+  [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   6%  shot 1/51: title_card                                                 INFO  phase3.render  [render 8%] shot 2/51: typography
+  [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   7%  shot 2/51: typography                                                 INFO  phase3.sources.loc  LoC: 0 candidates for 'Jafar al-Askari Iraqi officer historical portrait 1920s'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Jafar al-Askari Iraqi officer historical portrait 1920s'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Jafar al-Askari Iraqi officer historical portrait 1920s'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Jafar al-Askari Iraqi officer historical portrait 1920s'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/2  Man in a tuxedo smiling indoors in a lux  — Modern formal portrait with period styling but lacks histori
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  Portrait of a man in a historical milita  — Historically styled military portrait from correct era and r
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/2/2  A businessman in formal attire exits an   — Modern photograph of a man in formal attire boarding an airc
+INFO  phase3.sources  Shot 3: best=Portrait of a man in a historical military uniform (score 8)
+INFO  phase3.render  Shot 3: using fetched image from pexels
+INFO  phase3.render  [render 9%] shot 3/51: portrait
+  [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   9%  shot 3/51: portrait                                                   INFO  phase3.render  [render 10%] shot 4/51: typography
+  [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  10%  shot 4/51: typography                                                 INFO  phase3.sources.loc  LoC: 0 candidates for 'Ottoman Empire collapse 1918 historical photograph Arab officers'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Ottoman Empire collapse 1918 historical photograph Arab officers'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Ottoman Empire collapse 1918 historical photograph Arab officers'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Ottoman Empire collapse 1918 historical photograph Arab officers'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  Beautiful Islamic calligraphy decorates   — Stunning interior architectural photograph of Ottoman-era Is
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  Intricate archways of Hagia Sophia with   — Historic Ottoman architectural interior perfectly captures e
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  Elegant view of the Suleymaniye Mosque c  — Ottoman-era Islamic architecture perfectly contextualizes th
+INFO  phase3.sources  Shot 5: best=Elegant view of the Suleymaniye Mosque courtyard s (score 8)
+INFO  phase3.render  Shot 5: using fetched image from pexels
+INFO  phase3.render  [render 12%] shot 5/51: archive
+  [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  11%  shot 5/51: archive                                                    INFO  phase3.sources.loc  LoC: 0 candidates for 'Istanbul Ottoman military academy building 1900s historical'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Istanbul Ottoman military academy building 1900s historical'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Istanbul Ottoman military academy building 1900s historical'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Istanbul Ottoman military academy building 1900s historical'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Historic Kuleli Military School on the B  — Iconic Ottoman palace architecture on Bosphorus, perfectly m
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Stunning view of Kuleli Military High Sc  — Iconic Ottoman waterfront military barracks (Kuleli) matchin
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/2  Ornate 19th-century Ottoman architecture  — Grand Ottoman-era institutional building with period-appropr
+INFO  phase3.sources  Shot 6: best=Historic Kuleli Military School on the Bosphorus i (score 9)
+INFO  phase3.render  Shot 6: using fetched image from pexels
+INFO  phase3.render  [render 13%] shot 6/51: location
+  [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  13%  shot 6/51: location                                                   INFO  phase3.render  [render 15%] shot 7/51: typography
+  [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  14%  shot 7/51: typography                                                 INFO  phase3.sources.loc  LoC: 0 candidates for 'Arab independence movement 1916 flag banner historical'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Arab independence movement 1916 flag banner historical'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Arab independence movement 1916 flag banner historical'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Arab independence movement 1916 flag banner historical'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/2/2  Detailed close-up of the Saudi Arabian f  — Saudi flag with sword is historically accurate for Arab inde
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Detailed fabric texture of Iraq's nation  — Iraqi flag in close-up directly matches Arab independence mo
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/2/2  Detailed close-up of the United Arab Emi  — UAE flag directly represents Arab nationalism and independen
+INFO  phase3.sources  Shot 8: best=Detailed fabric texture of Iraq's national flag, s (score 9)
+INFO  phase3.render  Shot 8: using fetched image from pexels
+INFO  phase3.render  [render 16%] shot 8/51: broll
+  [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  15%  shot 8/51: broll                                                      INFO  phase3.render  [render 17%] shot 9/51: section_mark
+  [█████░░░░░░░░░░░░░░░░░░░░░░░░░]  17%  shot 9/51: section_mark                                               INFO  phase3.sources.loc  LoC: 0 candidates for 'Mosul Iraq 1904 historical photograph city'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Mosul Iraq 1904 historical photograph city'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Mosul Iraq 1904 historical photograph city'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Mosul Iraq 1904 historical photograph city'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/2/1  Breathtaking aerial view of Baghdad city  — Modern aerial photo of contemporary Baghdad/Iraqi cityscape;
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/2/2  Explore the historic ruins of ancient Ba  — Authentic aerial view of fortified structures and palm trees
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/2/2  A striking black and white aerial view s  — Black-and-white cityscape of early 20th century Middle Easte
+INFO  phase3.sources  Shot 10: best=Explore the historic ruins of ancient Babylon unde (score 6)
+INFO  phase3.render  Shot 10: using fetched image from pexels
+INFO  phase3.render  [render 19%] shot 10/51: location
+  [█████░░░░░░░░░░░░░░░░░░░░░░░░░]  18%  shot 10/51: location                                                  INFO  phase3.sources.loc  LoC: 0 candidates for 'Ottoman military academy Istanbul 1904 cadets photograph'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Ottoman military academy Istanbul 1904 cadets photograph'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Ottoman military academy Istanbul 1904 cadets photograph'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Ottoman military academy Istanbul 1904 cadets photograph'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/2  A group of men in military-style uniform  — Modern military group portrait with period uniforms, but con
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  A military officer oversees a formation   — Modern military ceremony with period-appropriate uniform ele
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  Historic Kuleli Military School on the B  — Ottoman-era waterfront palace architecture from correct peri
+INFO  phase3.sources  Shot 11: best=A military officer oversees a formation during a v (score 8)
+INFO  phase3.render  Shot 11: using fetched image from pexels
+INFO  phase3.render  [render 20%] shot 11/51: archive
+  [██████░░░░░░░░░░░░░░░░░░░░░░░░]  20%  shot 11/51: archive                                                   INFO  phase3.render  [render 21%] shot 12/51: typography
+  [██████░░░░░░░░░░░░░░░░░░░░░░░░]  21%  shot 12/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'Ottoman young officers group photograph Istanbul 1905 military uniform'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Ottoman young officers group photograph Istanbul 1905 military uniform'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Ottoman young officers group photograph Istanbul 1905 military uniform'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Ottoman young officers group photograph Istanbul 1905 military uniform'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/2  A military parade of the Chilean Carabin  — Modern military ceremony in formal uniforms and architecture
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/2  A group of men in military-style uniform  — Modern group photo with military-style uniforms, technically
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Historical actors in detailed military u  — Period-accurate Ottoman military uniforms with gold epaulett
+INFO  phase3.sources  Shot 13: best=Historical actors in detailed military uniforms en (score 9)
+INFO  phase3.render  Shot 13: using fetched image from pexels
+INFO  phase3.render  [render 23%] shot 13/51: broll
+  [██████░░░░░░░░░░░░░░░░░░░░░░░░]  22%  shot 13/51: broll                                                     INFO  phase3.sources.loc  LoC: 0 candidates for 'Arab Egyptian Syrian Iraqi officers Ottoman academy group portrait 1906'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Arab Egyptian Syrian Iraqi officers Ottoman academy group portrait 1906'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Arab Egyptian Syrian Iraqi officers Ottoman academy group portrait 1906'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Arab Egyptian Syrian Iraqi officers Ottoman academy group portrait 1906'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/2/2  Syrian army soldiers in a parade in Dama  — Modern military parade (wrong era) with ceremonial horse and
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/2  A group of men in military-style uniform  — Modern military group portrait with correct regional uniform
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/2/1  A diverse group of adults posing happily  — Modern group portrait with contemporary clothing and setting
+INFO  phase3.sources  Shot 14: best=A group of men in military-style uniforms sitting  (score 6)
+INFO  phase3.render  Shot 14: using fetched image from pexels
+INFO  phase3.render  [render 24%] shot 14/51: archive
+  [███████░░░░░░░░░░░░░░░░░░░░░░░]  24%  shot 14/51: archive                                                   INFO  phase3.render  [render 26%] shot 15/51: typography
+  [███████░░░░░░░░░░░░░░░░░░░░░░░]  25%  shot 15/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'Mahmoud Shevket Pasha Ottoman commander portrait historical'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Mahmoud Shevket Pasha Ottoman commander portrait historical'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Mahmoud Shevket Pasha Ottoman commander portrait historical'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Mahmoud Shevket Pasha Ottoman commander portrait historical'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  Side profile of a man wearing ornate his  — Authentic Ottoman-era military dress and portrait style fit 
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  View of the detailed dome and Arabic cal  — Ottoman architectural interior with Islamic calligraphy is c
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  A man in period costume poses outdoors i  — Stylized period military portrait with excellent composition
+INFO  phase3.sources  Shot 16: best=Side profile of a man wearing ornate historical mi (score 8)
+INFO  phase3.render  Shot 16: using fetched image from pexels
+INFO  phase3.render  [render 27%] shot 16/51: portrait
+  [████████░░░░░░░░░░░░░░░░░░░░░░]  26%  shot 16/51: portrait                                                  INFO  phase3.sources.loc  LoC: 0 candidates for 'Ottoman army modernisation German military advisors 1908'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Ottoman army modernisation German military advisors 1908'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Ottoman army modernisation German military advisors 1908'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Ottoman army modernisation German military advisors 1908'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/2/2  Syrian army soldiers in a parade in Dama  — Shows modern Middle Eastern military ceremony with horse and
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 0/3/2  Soldiers in white camouflage during wint  — Modern military snow camouflage troops; completely unrelated
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  Five Polish cavalry soldiers on horses h  — Depicts mounted cavalry with flags in period-appropriate for
+INFO  phase3.sources  Shot 17: best=Five Polish cavalry soldiers on horses holding fla (score 8)
+INFO  phase3.render  Shot 17: using fetched image from pexels
+INFO  phase3.render  [render 28%] shot 17/51: broll
+  [████████░░░░░░░░░░░░░░░░░░░░░░]  28%  shot 17/51: broll                                                     INFO  phase3.render  [render 30%] shot 18/51: typography
+  [████████░░░░░░░░░░░░░░░░░░░░░░]  29%  shot 18/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'Arab intellectual reform movement 1910 newspaper printing press historical'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Arab intellectual reform movement 1910 newspaper printing press historical'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Arab intellectual reform movement 1910 newspaper printing press historical'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Arab intellectual reform movement 1910 newspaper printing press historical'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/2  A detailed close-up view of stacked news  — Newspapers perfectly represent the print media of Arab intel
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/2/3  Black and white image of a bustling prin  — Authentic historical printing press scene with workers in cr
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/2/2  Black and white close-up of newspaper pa  — Authentic period newspaper pages evoke early 20th-century Ar
+INFO  phase3.sources  Shot 19: best=Black and white image of a bustling print shop wit (score 8)
+INFO  phase3.render  Shot 19: using fetched image from pexels
+INFO  phase3.render  [render 31%] shot 19/51: archive
+  [█████████░░░░░░░░░░░░░░░░░░░░░]  31%  shot 19/51: archive                                                   INFO  phase3.render  [render 32%] shot 20/51: section_mark
+  [█████████░░░░░░░░░░░░░░░░░░░░░]  32%  shot 20/51: section_mark                                              INFO  phase3.sources.loc  LoC: 0 candidates for 'Committee of Union Progress Young Turks clandestine meeting historical illustration'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Committee of Union Progress Young Turks clandestine meeting historical illustration'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Committee of Union Progress Young Turks clandestine meeting historical illustration'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Committee of Union Progress Young Turks clandestine meeting historical illustration'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/2/3  Men in dark attire with balaclavas gathe  — Perfectly captures a clandestine historical meeting scene wi
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  A detailed view of an empty legislative   — Parliamentary chamber setting evokes early 20th-century poli
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/2  Business professionals shaking hands in   — Modern corporate meeting with international flags; right era
+INFO  phase3.sources  Shot 21: best=Men in dark attire with balaclavas gather around a (score 8)
+INFO  phase3.render  Shot 21: using fetched image from pexels
+INFO  phase3.render  [render 34%] shot 21/51: broll
+  [██████████░░░░░░░░░░░░░░░░░░░░]  33%  shot 21/51: broll                                                     INFO  phase3.sources.loc  LoC: 0 candidates for 'Young Turk Revolution 1908 Constantinople crowd historical photograph'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Young Turk Revolution 1908 Constantinople crowd historical photograph'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Young Turk Revolution 1908 Constantinople crowd historical photograph'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Young Turk Revolution 1908 Constantinople crowd historical photograph'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  Massive gathering at Anıtkabir, Ankara,   — Modern crowd photograph with Turkish flags; visually strikin
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  Interior of Hagia Sophia, illuminated ch  — Visually striking Ottoman-era interior with period chandelie
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/2/2  People walk by the historic German Fount  — Modern photograph of Ottoman-era architecture with contempor
+INFO  phase3.sources  Shot 22: best=Massive gathering at Anıtkabir, Ankara, featuring  (score 7)
+INFO  phase3.render  Shot 22: using fetched image from pexels
+INFO  phase3.render  [render 35%] shot 22/51: archive
+  [██████████░░░░░░░░░░░░░░░░░░░░]  35%  shot 22/51: archive                                                   INFO  phase3.render  [render 37%] shot 23/51: typography
+  [██████████░░░░░░░░░░░░░░░░░░░░]  36%  shot 23/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'Jafar al-Askari young officer World War One portrait'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Jafar al-Askari young officer World War One portrait'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Jafar al-Askari young officer World War One portrait'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Jafar al-Askari young officer World War One portrait'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  A soldier in uniform holding a rifle aga  — Strong WWI-era military officer portrait with excellent comp
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  Intense close-up of a soldier wearing a   — WWI-era military aviator in period-correct gear with strikin
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  A sepia-toned image of a historical reen  — WWI-era military uniform and aesthetic match the period, but
+INFO  phase3.sources  Shot 24: best=A soldier in uniform holding a rifle against a dra (score 8)
+INFO  phase3.render  Shot 24: using fetched image from pexels
+INFO  phase3.render  [render 38%] shot 24/51: portrait
+  [███████████░░░░░░░░░░░░░░░░░░░]  37%  shot 24/51: portrait                                                  INFO  phase3.render  [render 39%] shot 25/51: typography
+  [███████████░░░░░░░░░░░░░░░░░░░]  39%  shot 25/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'Ottoman political intrigue palace corruption 1910 illustration historical'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Ottoman political intrigue palace corruption 1910 illustration historical'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Ottoman political intrigue palace corruption 1910 illustration historical'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Ottoman political intrigue palace corruption 1910 illustration historical'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  A view of Dolmabahçe Palace in Istanbul   — Ottoman-era palatial architecture on the Bosphorus (Dolmabah
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  Ornate gate of Dolmabahçe Palace, Istanb  — Ottoman-era architectural splendor evokes period and power s
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/2  A detailed view of the Beylerbeyi Palace  — Ottoman-era architecture matches period and region (early 19
+INFO  phase3.sources  Shot 26: best=A view of Dolmabahçe Palace in Istanbul showcasing (score 8)
+INFO  phase3.render  Shot 26: using fetched image from pexels
+INFO  phase3.render  [render 41%] shot 26/51: broll
+  [████████████░░░░░░░░░░░░░░░░░░]  40%  shot 26/51: broll                                                     INFO  phase3.render  [render 42%] shot 27/51: typography
+  [████████████░░░░░░░░░░░░░░░░░░]  42%  shot 27/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'Arab nationalist movement officers 1915 historical photograph group'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Arab nationalist movement officers 1915 historical photograph group'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Arab nationalist movement officers 1915 historical photograph group'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Arab nationalist movement officers 1915 historical photograph group'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/2/2  Retro black and white photo of office wo  — Period-appropriate photograph of military/governmental offic
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/2/2  Retro family portrait with seven adults   — Early 20th century formal group portrait matching era and re
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/2/2  Memorial stone of Tevfik Fikret (1867-19  — Ottoman-era monument (1867-1915) from correct historical per
+INFO  phase3.sources  Shot 28: best=Retro black and white photo of office workers at d (score 7)
+INFO  phase3.render  Shot 28: using fetched image from pexels
+INFO  phase3.render  [render 43%] shot 28/51: archive
+  [█████████████░░░░░░░░░░░░░░░░░]  43%  shot 28/51: archive                                                   INFO  phase3.sources.loc  LoC: 0 candidates for 'Arabian Peninsula desert landscape 1916 historical'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Arabian Peninsula desert landscape 1916 historical'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Arabian Peninsula desert landscape 1916 historical'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Arabian Peninsula desert landscape 1916 historical'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Serene view of wave-like sand dunes unde  — Pristine Arabian desert dunes with authentic rippled texture
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/2  View of Nizwa Fort and the surrounding o  — Authentic Arabian Peninsula fortress architecture with perio
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/2/2  Overcast skies loom over the abandoned v  — Authentic Arabian Peninsula desert landscape with vernacular
+INFO  phase3.sources  Shot 29: best=Serene view of wave-like sand dunes under a blue s (score 9)
+INFO  phase3.render  Shot 29: using fetched image from pexels
+INFO  phase3.render  [render 45%] shot 29/51: location
+  [█████████████░░░░░░░░░░░░░░░░░]  44%  shot 29/51: location                                                  INFO  phase3.render  [render 46%] shot 30/51: section_mark
+  [█████████████░░░░░░░░░░░░░░░░░]  46%  shot 30/51: section_mark                                              INFO  phase3.sources.loc  LoC: 0 candidates for 'Balkan War 1912 Ottoman troops battle historical photograph'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Balkan War 1912 Ottoman troops battle historical photograph'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Balkan War 1912 Ottoman troops battle historical photograph'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Balkan War 1912 Ottoman troops battle historical photograph'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/2/2  Men in historical uniforms and soldier o  — Period costume reenactment with correct era elements (Ottoma
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  Group of soldiers in retro uniforms duri  — Historical military reenactment with period-appropriate unif
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  A group of men in historical military un  — Modern reenactment of Ottoman/historical military troops, no
+INFO  phase3.sources  Shot 31: best=Group of soldiers in retro uniforms during a histo (score 8)
+INFO  phase3.render  Shot 31: using fetched image from pexels
+INFO  phase3.render  [render 48%] shot 31/51: archive
+  [██████████████░░░░░░░░░░░░░░░░]  47%  shot 31/51: archive                                                   INFO  phase3.render  [render 49%] shot 32/51: typography
+  [██████████████░░░░░░░░░░░░░░░░]  48%  shot 32/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'World War One Ottoman Arab soldiers desert campaign 1916'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'World War One Ottoman Arab soldiers desert campaign 1916'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'World War One Ottoman Arab soldiers desert campaign 1916'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'World War One Ottoman Arab soldiers desert campaign 1916'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  A soldier in uniform holding a rifle aga  — Correct historical period and Ottoman soldier aesthetic, but
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  Two riders in military attire on horseba  — Period-appropriate WWI Ottoman soldier on horseback in deser
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  A herd of camels grazing in the vast des  — Desert landscape with camels matches WWI Ottoman theater geo
+INFO  phase3.sources  Shot 33: best=A soldier in uniform holding a rifle against a dra (score 8)
+INFO  phase3.render  Shot 33: using fetched image from pexels
+INFO  phase3.render  [render 50%] shot 33/51: archive
+  [███████████████░░░░░░░░░░░░░░░]  50%  shot 33/51: archive                                                   INFO  phase3.render  [render 52%] shot 34/51: typography
+  [███████████████░░░░░░░░░░░░░░░]  51%  shot 34/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'North Africa Libya Senussi desert landscape World War One'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'North Africa Libya Senussi desert landscape World War One'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'North Africa Libya Senussi desert landscape World War One'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'North Africa Libya Senussi desert landscape World War One'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  View of the architectural beauty of Ghar  — Historic North African architecture with desert setting matc
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  Explore the iconic desert landscape of t  — Authentic North African desert landscape with historical arc
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  A solitary figure crosses the golden san  — Desert landscape matches North Africa/Libya setting and WWI 
+INFO  phase3.sources  Shot 35: best=View of the architectural beauty of Ghardaïa, famo (score 8)
+INFO  phase3.render  Shot 35: using fetched image from pexels
+INFO  phase3.render  [render 53%] shot 35/51: location
+  [███████████████░░░░░░░░░░░░░░░]  53%  shot 35/51: location                                                  INFO  phase3.sources.loc  LoC: 0 candidates for 'Senussi movement Libya fighters 1916 historical photograph'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Senussi movement Libya fighters 1916 historical photograph'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Senussi movement Libya fighters 1916 historical photograph'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Senussi movement Libya fighters 1916 historical photograph'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 0/3/3  Libyan soldiers holding rifles and red f  — Modern staged/artistic photograph with contemporary gear and
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/2/2  A captivating vintage army photo in a se  — Historical group photograph showing military/organizational 
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 0/2/2  A young male boxer training with a punch  — Modern boxing gym scene bears no relation to 1916 Senussi mo
+INFO  phase3.sources  Shot 36: best=A captivating vintage army photo in a sepia-toned  (score 7)
+INFO  phase3.render  Shot 36: using fetched image from pexels
+INFO  phase3.render  [render 54%] shot 36/51: archive
+  [████████████████░░░░░░░░░░░░░░]  54%  shot 36/51: archive                                                   INFO  phase3.render  [render 56%] shot 37/51: typography
+  [████████████████░░░░░░░░░░░░░░]  55%  shot 37/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'Jafar al-Askari Iraqi politician Baghdad 1920s uniform'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Jafar al-Askari Iraqi politician Baghdad 1920s uniform'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Jafar al-Askari Iraqi politician Baghdad 1920s uniform'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Jafar al-Askari Iraqi politician Baghdad 1920s uniform'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/2/2  Man in a tuxedo smiling indoors in a lux  — Modern formal portrait in elegant interior setting; lacks hi
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/2  A diverse group of people enjoying a cin  — Contemporary cinema scene unrelated to 1920s Iraqi military 
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/2/1  A man in traditional Yemeni dress poses   — Modern costume recreation in contemporary studio setting; ca
+INFO  phase3.sources  Shot 38: best=A diverse group of people enjoying a cinematic exp (score 6)
+INFO  phase3.render  Shot 38: using fetched image from pexels
+INFO  phase3.render  [render 57%] shot 38/51: portrait
+  [█████████████████░░░░░░░░░░░░░]  57%  shot 38/51: portrait                                                  INFO  phase3.sources.loc  LoC: 0 candidates for 'Middle East modern history map 1920 Sykes Picot borders'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Middle East modern history map 1920 Sykes Picot borders'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Middle East modern history map 1920 Sykes Picot borders'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Middle East modern history map 1920 Sykes Picot borders'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/2/2  Colorful world map close-up showing Afri  — Physical map of Middle East with period-appropriate coloring
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Vibrant map featuring countries in the M  — Vibrant political map of Middle East showing color-coded bor
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Close-up of a colorful map depicting cou  — Vintage map of Middle East with Sykes-Picot era borders (Tur
+INFO  phase3.sources  Shot 39: best=Vibrant map featuring countries in the Middle East (score 9)
+INFO  phase3.render  Shot 39: using fetched image from pexels
+INFO  phase3.render  [render 59%] shot 39/51: broll
+  [█████████████████░░░░░░░░░░░░░]  58%  shot 39/51: broll                                                     INFO  phase3.render  [render 60%] shot 40/51: section_mark
+  [█████████████████░░░░░░░░░░░░░]  59%  shot 40/51: section_mark                                              INFO  phase3.render  [render 61%] shot 41/51: typography
+  [██████████████████░░░░░░░░░░░░]  61%  shot 41/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'person reading historical memoir old book Arabic manuscript'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'person reading historical memoir old book Arabic manuscript'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'person reading historical memoir old book Arabic manuscript'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'person reading historical memoir old book Arabic manuscript'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  Detailed view of an ancient illuminated   — Shows authentic historical Arabic manuscripts with ornate bi
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/3/3  Open ancient manuscript on red backgroun  — Authentic historical Arabic manuscript on dramatic red surfa
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/2/2  A hand holds an open Quran on a decorati  — Exact match: hands holding open Arabic manuscript with decor
+INFO  phase3.sources  Shot 42: best=Detailed view of an ancient illuminated manuscript (score 8)
+INFO  phase3.render  Shot 42: using fetched image from pexels
+INFO  phase3.render  [render 63%] shot 42/51: broll
+  [██████████████████░░░░░░░░░░░░]  62%  shot 42/51: broll                                                     INFO  phase3.render  [render 64%] shot 43/51: typography
+  [███████████████████░░░░░░░░░░░]  64%  shot 43/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'Jafar al-Askari historical portrait Iraqi statesman 1921'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Jafar al-Askari historical portrait Iraqi statesman 1921'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Jafar al-Askari historical portrait Iraqi statesman 1921'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Jafar al-Askari historical portrait Iraqi statesman 1921'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/2  Man in a tuxedo smiling indoors in a lux  — Modern formal portrait with period-appropriate styling, but 
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  Middle Eastern man reading Quran in Kuwa  — Authentic mosque setting and period-appropriate dress evoke 
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  Senior man in traditional clothing stand  — Visually striking portrait of an elderly Iraqi man in tradit
+INFO  phase3.sources  Shot 44: best=Middle Eastern man reading Quran in Kuwait City's  (score 7)
+INFO  phase3.render  Shot 44: using fetched image from pexels
+INFO  phase3.render  [render 65%] shot 44/51: portrait
+  [███████████████████░░░░░░░░░░░]  65%  shot 44/51: portrait                                                  INFO  phase3.sources.loc  LoC: 0 candidates for 'Najda Fathi Safwat historian Iraqi manuscript research historical'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Najda Fathi Safwat historian Iraqi manuscript research historical'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Najda Fathi Safwat historian Iraqi manuscript research historical'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Najda Fathi Safwat historian Iraqi manuscript research historical'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Detailed view of an ancient illuminated   — Authentic antique Islamic manuscripts with ornate calligraph
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Close-up of an ancient manuscript featur  — Authentic historical Arabic manuscript with ornate calligrap
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Open ancient manuscript on red backgroun  — Historical manuscript on red display with dramatic lighting 
+INFO  phase3.sources  Shot 45: best=Detailed view of an ancient illuminated manuscript (score 9)
+INFO  phase3.render  Shot 45: using fetched image from pexels
+INFO  phase3.render  [render 67%] shot 45/51: archive
+  [████████████████████░░░░░░░░░░]  66%  shot 45/51: archive                                                   INFO  phase3.render  [render 68%] shot 46/51: typography
+  [████████████████████░░░░░░░░░░]  68%  shot 46/51: typography                                                WARNING  phase3.sources.loc  LoC search failed for 'Jafar al-Askari memoirs book Arabic edition cover photograph': The read operation timed out
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Jafar al-Askari memoirs book Arabic edition cover photograph'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Jafar al-Askari memoirs book Arabic edition cover photograph'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Jafar al-Askari memoirs book Arabic edition cover photograph'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Close-up of the Quran on a wooden stand,  — Authentic Islamic manuscript presentation with ornate Quran-
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/3/3  Close-up of a Quran with intricate gold   — Authentic Arabic-language Islamic book with gold calligraphy
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 3/2/2  Close-up of Quran on stand, showcasing i  — Exact match for Arabic Quran/Islamic text book cover with go
+INFO  phase3.sources  Shot 47: best=Close-up of the Quran on a wooden stand, symbolizi (score 9)
+INFO  phase3.render  Shot 47: using fetched image from pexels
+INFO  phase3.render  [render 70%] shot 47/51: object
+  [████████████████████░░░░░░░░░░]  69%  shot 47/51: object                                                    INFO  phase3.render  [render 71%] shot 48/51: typography
+  [█████████████████████░░░░░░░░░]  70%  shot 48/51: typography                                                INFO  phase3.render  [render 72%] shot 49/51: typography
+  [█████████████████████░░░░░░░░░]  72%  shot 49/51: typography                                                INFO  phase3.sources.loc  LoC: 0 candidates for 'Baghdad Iraq 1920s historical cityscape aerial photograph'
+INFO  phase3.sources.wikimedia  Wikimedia: 0 candidates for 'Baghdad Iraq 1920s historical cityscape aerial photograph'
+INFO  phase3.sources.internet_archive  Internet Archive: 0 candidates for 'Baghdad Iraq 1920s historical cityscape aerial photograph'
+INFO  phase3.sources.pexels  Pexels: 3 candidates for 'Baghdad Iraq 1920s historical cityscape aerial photograph'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/2/2  Breathtaking aerial view of Baghdad city  — Modern Baghdad cityscape with good composition and atmospher
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/2  Stunning aerial view of Al Zawraa Park w  — Modern Baghdad waterfront (Kadhimiya) is geographically corr
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 1/3/3  A breathtaking aerial view of Baghdad's   — Modern Baghdad nightscape, not 1920s historical imagery; tec
+INFO  phase3.sources  Shot 50: best=A breathtaking aerial view of Baghdad's skyline at (score 7)
+INFO  phase3.render  Shot 50: using fetched image from pexels
+INFO  phase3.render  [render 74%] shot 50/51: broll
+  [██████████████████████░░░░░░░░]  73%  shot 50/51: broll                                                     INFO  phase3.render  [render 75%] shot 51/51: title_card
+  [██████████████████████░░░░░░░░]  75%  shot 51/51: title_card                                                INFO  phase3.render  [render 80%] concat all shots
+  [████████████████████████░░░░░░]  80%  concat all shots                                                      INFO  phase3.render  [render 86%] generating captions
+  [█████████████████████████░░░░░]  86%  generating captions                                                   INFO  phase3.render  [render 92%] mux audio and captions
+  [███████████████████████████░░░]  92%  mux audio and captions                                                INFO  phase3.render  [render 100%] done
+  [██████████████████████████████] 100%  done                                                                  
+INFO  phase3.render  Rendered video → output/final_cut.mp4
+
+Done in 1270s  —  output/final_cut.mp4  (29.5 MB)
