@@ -91,7 +91,9 @@ a 4-source image waterfall ranked by Haiku vision scoring.
 ### Active issues checklist (this session)
 
 A live ledger of the five issues identified after the latest end-to-end
-run.  Updated each time we close one out.
+run.  Issues 1–4 are still open; issue 5's mechanism shipped but the
+user-facing workflow hasn't yet been exercised end-to-end, so it stays
+*under consideration*.
 
 | # | Issue | Status | Tracking |
 |---|---|---|---|
@@ -99,7 +101,7 @@ run.  Updated each time we close one out.
 | 2 | **Typography aesthetic** — Family A too faint; offer Families B & C as selectable variants for testing | ☐ open | §15.2 |
 | 3 | **Section transitions** — current rhythm too slow, doesn't hook the audience | ☐ open | §15.3 |
 | 4 | **Captions** — title-card subtitle too small; main captions OK; under-line text small; subtitles appear merged | ☐ open | §15.4 |
-| 5 | **Online/offline asset review** — pre-render dossier of all candidates + character pin + per-shot override | ✅ **closed in this drop** | §15.5 |
+| 5 | **Online/offline asset review** — pre-render dossier of all candidates + character pin + per-shot override | ◐ **under consideration** (mechanism shipped & dossier built; 1 of 27 shots hand-edited, pin set; awaiting first render that consumes it) | §15.5 |
 
 Working principle for all five: every change exposes a knob (CLI flag,
 config field, or dossier entry), keeps the existing default working,
@@ -138,7 +140,15 @@ _Phase3/
 ├── audit_plan.py             # Quality audit of a saved plan
 ├── _phase3_b2c.ipynb         # Colab driver — the canonical run lives here
 ├── samples/al_askari_script.txt
-├── output/                   # render.log (51-shot prior run), audio, MOV preview
+├── output/                   # render.log, audio, plan, MOV preview
+├── review/                   # prebuild dossier — see §15.5
+│   ├── decisions.json        #   27 shots, pinned_portrait set, 1 shot hand-edited
+│   ├── overrides/            #   character.jpg lives here
+│   └── shot_NN_<visual>/     #   per-shot folders with candidate thumbnails
+├── artifacts/                # archive of every code drop produced so far;
+│                             #   inert — no code reads from this directory;
+│                             #   safe to delete or ignore wholesale
+├── fonts/                    # Amiri TTFs bundled for offline rendering — see §7.1
 └── phase3/
     ├── __init__.py           # v1 entrypoint generate_background_video() — legacy
     ├── parser.py             # Arabic section regexes + estimate_durations
@@ -827,29 +837,43 @@ diagnosing any future crash from logs.
 
 ## 11. Recommended Session Order
 
-By leverage, not difficulty:
+The user-driven work is the §15 issues checklist (1–5).  The
+technical backlog is §7.  Order by what unblocks the most progress:
 
-1. **Restore Anthropic credits** before any further benchmarking. Without
-   them planner and scorer both degrade silently (§7.4).
-2. **Decide on path (C)** — the unresolved strategic question (§8). If
-   yes, the next ~80 lines of code (`sources/book_extract.py`'s
-   one-shot Sonnet match) probably unlocks more visual quality than fixing
-   §7.3 ever will.
-3. **Fix the source query strategy** (§7.3) — only if path (C) isn't
+**§15 issues — finish these first**
+
+1. **Close the issue 5 loop** (§15.5) — render once with
+   `--review-dir output/review/`.  Confirms the override → pin →
+   chosen_file resolution actually behaves at render time the way it
+   does in the unit tests.  Cheapest test in the queue and the last
+   thing standing between issue 5 and ✅.
+2. **Issue 4 — captions** (§15.4) — three independent tweaks inside
+   `typography.py` and `_write_captions`.  Cheapest aesthetic win.
+3. **Issue 3 — section transitions** (§15.3) — tighten the planner
+   prompt's average shot duration to 4–5 s, optionally add a 0.3 s
+   motion accent on `section_mark`.  Touches `plan.py` + `render.py`.
+4. **Issue 1 — color grading knob** (§15.1) — `--grade
+   {warm,cool,neutral,bw}` flag mapping to one FFmpeg filter chain in
+   the final mux.
+5. **Issue 2 — typography families B & C** (§15.2) — the heaviest of
+   the five.  Roughly 700 LOC per family; can be parallelised.
+
+**§7 technical backlog — pick up after the issue checklist is done**
+
+6. **Restore Anthropic credits** before any further benchmarking
+   (§7.4).  Without them planner and scorer both degrade silently.
+7. **Decide on path (C)** (§8) — the unresolved strategic question.
+   Probably unlocks more visual quality than fixing §7.3.
+8. **Fix the source query strategy** (§7.3) — only if path (C) isn't
    sufficient or as a parallel improvement.
-4. **Patch the vision fail-open policy** (§7.4). Even with credits, the
-   policy should demote unscored candidates *only when scored ones exist*.
-5. **Fix the section parser** (§7.2). Currently 5 logical sections
-   collapse to 2.
-6. **Decide on Whisper/X for alignment** (§7.5). Until ElevenLabs lands,
-   interpolation is good enough.
-7. **Restore intended caption styling** (§7.8) — convert white-outline to
-   cream-bar via FFmpeg drawbox layer.
-8. **Pillow typography placeholder cards** (§7.7) — converts the "TBD"
-   look into a design feature.
-9. ~~**Amiri discovery on system paths** (§7.1)~~ — **fixed in this drop**.
-10. **Tighten shot duration distribution** (§7.6) — change prompt target
-    to 5.0–6.5 s.
+9. **Patch the vision fail-open policy** (§7.4).
+10. **Fix the section parser** (§7.2) — 5 logical sections collapse to 2.
+11. **Decide on Whisper/X for alignment** (§7.5).
+12. **Restore intended caption styling** (§7.8) — cream-bar via
+    FFmpeg drawbox layer.  Convergent with §15.4.
+13. **Pillow typography placeholder cards** (§7.7).
+14. ~~**Amiri discovery on system paths** (§7.1)~~ — **fixed**.
+15. **Tighten shot duration distribution** (§7.6).  Convergent with §15.3.
 
 ---
 
@@ -1010,13 +1034,34 @@ back-to-back with no inter-event gap — add 0.15 s pre-roll/post-roll
 silence inside `_write_captions` so the eye sees one event end before
 the next begins.
 
-### 15.5 Online/offline asset review — **CLOSED in this drop**
+### 15.5 Online/offline asset review — **under consideration**
+
+**Status**: mechanism shipped in code and merged to `main`.  Dossier
+exists at `_Phase3/review/decisions.json` and has been built end-to-end
+against the latest plan — 27 image shots, every one with a
+prebuild-chosen `chosen_file`.  The user has begun hand-curating:
+`pinned_portrait` is set to `overrides/character.jpg`, and shot 2's
+`chosen_file` has been swapped to `shot_02_portrait/my_jafar_1.jpg`.
+What's missing is a **render run that consumes this dossier** — once
+that closes the loop we'll know whether the resolution chain (override
+→ pin → chosen_file → live fetcher) behaves correctly in production.
+
+Carrying as *under consideration* until that render lands.
+
+**One small inconsistency to be aware of when reading the dossier**:
+for hand-edited shots (currently shot 2), the human-readable `chosen`
+and `chosen_url` fields still describe the *original* prebuild winner
+("pexels:Man in a tuxedo …"), while `chosen_file` points to the
+user's edit (`my_jafar_1.jpg`).  Only `chosen_file` is authoritative
+at render time — the renderer ignores `chosen` and `chosen_url`.  Not
+a bug, but a usability sharp edge worth tidying eventually (e.g. a
+small `prebuild_assets.py --sync-chosen-strings` post-edit pass).
 
 **Goal**: let the user see every image candidate before rendering,
 override per-shot, and pin a canonical character portrait.  Book +
 main character context must inform the rubric.
 
-**Implementation shipped**:
+**Implementation shipped** (live in `_Phase3/`):
 
 Three new pieces and a small Fetcher patch.
 
