@@ -479,10 +479,12 @@ def _write_captions(shots: list[Shot], dest: Path,
         return None
 
     # Font + position
-    # Documentary caption size: 4.2% of frame height — readable from
+    # Documentary caption size: 5.0% of frame height — readable from
     # across a room, doesn't crowd the typography.  At 1080p that's
-    # ~45 px; at 720p ~30 px.
-    font_sz = max(26, int(height * 0.042))
+    # ~54 px; at 720p ~36 px.  Combined with two-line wrap (below) this
+    # gives a documentary subtitle look rather than a single wall of
+    # tiny text.
+    font_sz = max(28, int(height * 0.050))
     margin_v = max(20, int(height * 0.06))
 
     # ASS colours: &HAABBGGRR (alpha 00 = opaque, FF = transparent)
@@ -495,17 +497,24 @@ def _write_captions(shots: list[Shot], dest: Path,
     outline_colour = "&H001F2326"   # charcoal, opaque
     back_colour    = "&H00000000"   # unused
 
+    # Caption width margins (px).  These are tighter than the natural
+    # full-width readable region because most of our captions are 12-15
+    # Arabic words — long enough to force a wrap into two ~7-word lines
+    # that read like documentary subtitles, rather than one wall-of-text
+    # line spanning the frame.  Combined with WrapStyle=2 below.
+    caption_margin_h = max(240, int(width * 0.18))
+
     header = f"""\
 [Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
 PlayResY: {height}
-WrapStyle: 0
+WrapStyle: 2
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Caption,Amiri,{font_sz},{text_colour},&H000000FF,{outline_colour},{back_colour},0,0,0,0,100,100,0,0,1,2,1,2,80,80,{margin_v},1
+Style: Caption,Amiri,{font_sz},{text_colour},&H000000FF,{outline_colour},{back_colour},0,0,0,0,100,100,0,0,1,2,1,2,{caption_margin_h},{caption_margin_h},{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -538,7 +547,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         if end <= start:
             continue
-        text = _escape_ass(shot.caption_text.strip())
+        text = _wrap_caption(shot.caption_text.strip(), max_words_per_line=8)
+        text = _escape_ass(text)
         lines.append(
             f"Dialogue: 0,{_ts(start)},{_ts(end)},Caption,,0,0,0,,{text}"
         )
@@ -546,6 +556,39 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(header + "\n".join(lines) + "\n", encoding="utf-8")
     return dest
+
+
+def _wrap_caption(text: str, max_words_per_line: int = 8) -> str:
+    """
+    Insert a hard ASS line-break (\\N) so long captions render as
+    two lines instead of one wall of small text.
+
+    Strategy: count words; if <= max_words_per_line, return unchanged.
+    Otherwise split as close to the midpoint as possible at a word
+    boundary, preferring breaks after punctuation when nearby.
+
+    Documentary subtitle convention is 6-7 words per line.  We default
+    to splitting any caption over 8 words.
+    """
+    words = text.split()
+    if len(words) <= max_words_per_line:
+        return text
+
+    mid = len(words) // 2
+    # Look ±2 positions around the midpoint for a word ending in
+    # punctuation (commas, periods, full stop, semicolons).  Breaking
+    # at a comma reads more naturally than mid-clause.
+    PUNCT_CHARS = "،,.;؛—"
+    best = mid
+    for offset in (0, -1, 1, -2, 2):
+        idx = mid + offset
+        if 0 < idx < len(words) and words[idx - 1] and words[idx - 1][-1] in PUNCT_CHARS:
+            best = idx
+            break
+
+    line1 = " ".join(words[:best])
+    line2 = " ".join(words[best:])
+    return f"{line1}\\N{line2}"
 
 
 # ── Concat + mux ────────────────────────────────────────────────────── #
