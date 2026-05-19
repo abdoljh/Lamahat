@@ -80,33 +80,43 @@ def main():
         print(f"events parsed         : {len(events)}")
         print()
 
-        # Print first 10 events with gap to previous
+        # Print first 15 events with gap to previous + wrap detection
         print(f"{'#':>3}  {'start':>7}  {'end':>7}  {'span':>5}  "
-              f"{'gap_from_prev':>13}  text (first 50 chars)")
-        print("─" * 100)
+              f"{'gap_from_prev':>13}  {'lines':>5}  text (first 50 chars)")
+        print("─" * 110)
         prev_end = None
         gaps = []
+        n_wrapped = 0
         for i, (s, e, t) in enumerate(events[:15]):
             gap_str = ""
             if prev_end is not None:
                 gap = s - prev_end
                 gaps.append(gap)
                 gap_str = f"{gap:+.3f}s"
-            text_preview = (t[:50] + "…") if len(t) > 50 else t
+            # Count lines: ASS uses \N for explicit line break
+            n_lines = 1 + t.count("\\N")
+            if n_lines > 1:
+                n_wrapped += 1
+            text_preview = (t[:50].replace("\\N", " ⏎ ") + "…") if len(t) > 50 else t.replace("\\N", " ⏎ ")
             print(f"{i+1:>3d}  {s:7.3f}  {e:7.3f}  {e-s:5.3f}  "
-                  f"{gap_str:>13}  {text_preview}")
+                  f"{gap_str:>13}  {n_lines:>5d}  {text_preview}")
+            prev_end = e  # was missing — caused all gap_from_prev cells to be blank
 
         if gaps:
             avg_gap = sum(gaps) / len(gaps)
             print()
             print(f"Gaps (first {len(gaps)}): min={min(gaps):.3f}s  "
                   f"avg={avg_gap:.3f}s  max={max(gaps):.3f}s")
+            print(f"Wrapped events: {n_wrapped}/{len(events[:15])} have an explicit \\N break")
             print()
-            # The verdict
+            # Verdict
             if any(0.28 < g < 0.32 for g in gaps):
-                print("✓ Gaps of ~0.30s found — PATCH IS LIVE.")
-                print("  If the rendered video looks unchanged, the change may")
-                print("  be too subtle to notice (0.30s = 7-8 frames).")
+                if n_wrapped > 0:
+                    print("✓ Gaps ~0.30s AND captions wrapped — v3 PATCH IS LIVE.")
+                else:
+                    print("◐ Gaps ~0.30s found BUT no \\N breaks — v2 only, not v3.")
+                    print("  Your render.py has the gap change but is missing _wrap_caption.")
+                    print("  Re-apply render.py from issue4_patch_A_v3.zip.")
             elif any(0.08 < g < 0.12 for g in gaps):
                 print("✗ Gaps of ~0.10s found — STALE CODE IS RUNNING.")
                 print("  The source shows the patched GAP=0.15, but the executing")
@@ -118,8 +128,13 @@ def main():
                 print("    4. Verify with: python diagnose_issue4.py")
                 print("    5. Re-render")
             else:
-                print(f"? Unexpected gap pattern.  Most common gap: "
-                      f"{max(set(round(g, 2) for g in gaps), key=lambda v: sum(1 for g in gaps if round(g,2)==v))}")
+                gap_counts = {}
+                for g in gaps:
+                    k = round(g, 2)
+                    gap_counts[k] = gap_counts.get(k, 0) + 1
+                most_common = max(gap_counts.items(), key=lambda kv: kv[1])
+                print(f"? Unexpected gap pattern. Most common gap: "
+                      f"{most_common[0]:+.2f}s ({most_common[1]}× of {len(gaps)})")
     return 0
 
 

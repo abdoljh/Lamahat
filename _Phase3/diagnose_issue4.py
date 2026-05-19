@@ -114,6 +114,32 @@ def check_render_patched():
     else:
         log.info(f"  {WARN} caption MIN_VISIBLE = 0.6 NOT found — render.py may be partial-patched")
 
+    # v3 additions — these check the changes that actually affect caption
+    # layout, not just timing.  If GAP is present but these are missing,
+    # the user has the v2 patch (timing only) but not v3 (line-break,
+    # wrap-style, bigger font).
+    if "WrapStyle: 2" in source:
+        log.info(f"  {OK} ASS header has WrapStyle: 2 (v3 — line wrap enabled)")
+    else:
+        log.info(f"  {FAIL} ASS header is missing WrapStyle: 2 — "
+                 f"long captions won't wrap to two lines")
+        ok = False
+
+    if "_wrap_caption" in source:
+        log.info(f"  {OK} _wrap_caption() helper present (v3 — inserts \\N breaks)")
+    else:
+        log.info(f"  {FAIL} _wrap_caption() helper MISSING — "
+                 f"captions will not be split into two lines")
+        ok = False
+
+    if "height * 0.050" in source or "height*0.050" in source:
+        log.info(f"  {OK} caption font size at 5.0% of frame height (v3)")
+    elif "height * 0.042" in source:
+        log.info(f"  {FAIL} caption font size still at 4.2% — render.py is v2, not v3")
+        ok = False
+    else:
+        log.info(f"  {WARN} caption font size: pattern not recognised")
+
     return ok
 
 
