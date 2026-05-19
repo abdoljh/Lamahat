@@ -242,7 +242,8 @@ def _build_shot_asset(shot: Shot, shot_index: int,
                      out_path: Path,
                      width: int, height: int,
                      *,
-                     fetcher: "Fetcher | None" = None) -> tuple[Path, bool]:
+                     fetcher: "Fetcher | None" = None,
+                     book_cover: Path | None = None) -> tuple[Path, bool]:
     """
     Render or fetch the asset for a single shot.
 
@@ -257,6 +258,9 @@ def _build_shot_asset(shot: Shot, shot_index: int,
       - Image visuals:
           1. fetcher.fetch_for_shot() if fetcher is supplied
           2. _placeholder_card() if fetcher returns no image
+
+    `book_cover`, when supplied, switches the title_card visual to its
+    photo-background variant.  Ignored for every other visual.
     """
     # Typography always uses the typography renderer
     if shot.visual in TYPOGRAPHY_VISUALS:
@@ -265,10 +269,14 @@ def _build_shot_asset(shot: Shot, shot_index: int,
                         or _TEMPLATE_DEFAULTS["typography"])
         else:
             template = _TEMPLATE_DEFAULTS[shot.visual]
+        # Only title_card respects the book cover — every other typography
+        # visual keeps its existing Family A appearance.
+        cover = book_cover if shot.visual == "title_card" else None
         spec = TypographySpec(
             template=template,
             text=shot.typography_text,
             width=width, height=height,
+            cover_image=cover,
         )
         return render_typography(spec, out_path), False
 
@@ -504,11 +512,30 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
     lines: list[str] = []
+    # Gap between the visual cut and the caption appearing / disappearing.
+    # 0.15s on each side (0.3s total per shot) gives the eye a clear break
+    # between consecutive captions, fixing the "merged" appearance where
+    # two captions seemed to run into each other.
+    GAP = 0.15
+    # If a shot is so short that the gap would erase the caption entirely,
+    # display it for at least this long.  Captions on 3-4s shots still get
+    # visible breathing room.
+    MIN_VISIBLE = 0.6
+
     for shot in visible:
-        # Leave a 0.05s pre-roll on each caption so it doesn't appear
-        # before the visual cuts — feels more synchronised.
-        start = shot.start + 0.05
-        end   = shot.end   - 0.05
+        proposed_start = shot.start + GAP
+        proposed_end   = shot.end   - GAP
+        if proposed_end - proposed_start < MIN_VISIBLE:
+            # Shot is too short for the desired gap.  Centre the caption
+            # in the shot and clamp to MIN_VISIBLE (or the whole shot,
+            # whichever is shorter) so something still appears on screen.
+            duration = min(MIN_VISIBLE, shot.duration)
+            mid = (shot.start + shot.end) / 2
+            start = mid - duration / 2
+            end   = mid + duration / 2
+        else:
+            start, end = proposed_start, proposed_end
+
         if end <= start:
             continue
         text = _escape_ass(shot.caption_text.strip())
@@ -622,6 +649,10 @@ class RenderConfig:
     # Stage 2: optional image fetcher.  When None, all image-kind
     # shots get placeholder cards (Stage 1 behaviour).
     fetcher: object = None   # phase3.sources.Fetcher (avoid import cycle)
+    # Optional path to a book-cover image.  When set, title_card shots
+    # are rendered with the cover as full-frame background + gold title
+    # rather than the default cream card.  See typography._render_title_card.
+    book_cover: Path | None = None
 
 
 def render_video(shots: list[Shot], out_path: Path, *,
@@ -685,6 +716,7 @@ def render_video(shots: list[Shot], out_path: Path, *,
                     shot, i + 1, asset_path,
                     width=config.width, height=config.height,
                     fetcher=config.fetcher,
+                    book_cover=config.book_cover,
                 )
                 # Motion only applies to fetched real images.  Typography
                 # and placeholder cards stay static.

@@ -91,6 +91,11 @@ CHARCOAL     = (38,  35,  31)    # #26231F — primary text
 GRAPHITE     = (88,  82,  72)    # #585248 — secondary text
 WARM_GREY    = (140, 130, 115)   # #8C8273 — dividers & ornament
 
+# Accent colour — used as the default title text colour when a book
+# cover is supplied as the title-card background.  Documentary-gold
+# reads warm against most sepia/dark cover photography.
+GOLD_AGED    = (200, 162,  74)   # #C8A24A — aged gold
+
 # ── Typography ────────────────────────────────────────────────────────── #
 # Font sizes are expressed as a fraction of video height so they scale
 # from 720p to 1080p to 4K without re-tuning.
@@ -356,8 +361,8 @@ FONT_PATHS = _discover_amiri_fonts()
 
 # Per-template size hints, as fraction of video height
 SIZES = {
-    "title_main":      0.085,    # ~92 px @ 1080p
-    "title_sub":       0.030,    # ~32 px
+    "title_main":      0.110,    # ~119 px @ 1080p — larger for opening impact
+    "title_sub":       0.040,    # ~43 px — bumped from 0.030 (§15.4a)
     "section_main":    0.060,    # ~65 px
     "section_sub":     0.022,    # ~24 px
     "pull_quote_lg":   0.075,    # ~81 px — used for short quotes
@@ -426,6 +431,14 @@ class TypographySpec:
     subtitle: str = ""              # optional second line (e.g. dates)
     width: int = 1920
     height: int = 1080
+    # Optional title-card hero image (e.g. book cover).  When set on a
+    # title_card spec, the renderer composites the photo full-frame with
+    # a soft darkening gradient and draws the title in `accent_color`
+    # instead of charcoal-on-cream.  Ignored by other templates.
+    cover_image: Path | None = None
+    # Optional override for title-card text colour.  Defaults to
+    # GOLD_AGED when cover_image is set, CHARCOAL otherwise.
+    accent_color: tuple[int, int, int] | None = None
 
 
 def render(spec: TypographySpec, out_path: Path) -> Path:
@@ -629,8 +642,95 @@ def _draw_centred_lines(draw: ImageDraw.ImageDraw,
 
 def _render_title_card(spec: TypographySpec) -> Image.Image:
     """
+    Opens and closes the video.
+
+    Two modes:
+      1. Cover-image mode (when spec.cover_image is set and the file
+         exists) — composites the book cover full-frame, applies a soft
+         darkening gradient for contrast, and draws the title in
+         `accent_color` (defaults to GOLD_AGED).  No hairlines.
+      2. Cream mode (legacy) — cream background, hairline rules above
+         and below, charcoal title.  Used when no cover is supplied.
+
+    The mode is chosen entirely from the spec; render.py owns the
+    decision of whether to pass a cover_image.
+    """
+    if spec.cover_image is not None and Path(spec.cover_image).exists():
+        return _render_title_card_with_cover(spec)
+    return _render_title_card_cream(spec)
+
+
+def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
+    """
+    Cover-image variant: photo + darkening gradient + accent-colour title.
+
+    The gradient is a vertical alpha ramp: roughly transparent at the
+    top, ~75 % opaque charcoal at the bottom third.  This keeps the
+    photo readable above the title and gives the title an even, dark
+    surface to sit on.
+    """
+    # 1. Open the cover, resize-and-crop to fill the frame.
+    cover = Image.open(spec.cover_image).convert("RGB")
+    cover = _resize_cover_to_fill(cover, spec.width, spec.height)
+
+    # 2. Darkening gradient (soft top, strong bottom).  Use a separate
+    #    RGBA layer composited on top of the cover.  Charcoal-coloured
+    #    so the wash matches the body palette rather than going to pure
+    #    black.
+    grad = Image.new("RGBA", (spec.width, spec.height), (0, 0, 0, 0))
+    for y in range(spec.height):
+        # Alpha ramp: 0 at the top, ~190 at the bottom, eased so the
+        # darkening picks up faster below the midline.
+        frac = y / max(1, spec.height - 1)
+        alpha = int(190 * (frac ** 1.4))
+        ImageDraw.Draw(grad).line(
+            [(0, y), (spec.width, y)],
+            fill=(*CHARCOAL, alpha),
+        )
+    cover_rgba = cover.convert("RGBA")
+    cover_rgba.alpha_composite(grad)
+    img = cover_rgba.convert("RGB")
+
+    # 3. Title text in the accent colour (gold by default).
+    draw = ImageDraw.Draw(img)
+    accent = spec.accent_color or GOLD_AGED
+
+    main_size = _size(spec, "title_main")
+    sub_size  = _size(spec, "title_sub")
+    main_font = _font("bold", main_size)
+    sub_font  = _font("italic", sub_size)
+
+    shaped_main = spec.text
+    mw, mh = _measure(draw, shaped_main, main_font)
+
+    sub_h = 0
+    if spec.subtitle:
+        _, sub_h = _measure(draw, spec.subtitle, sub_font)
+    sub_gap = int(spec.height * 0.025)
+    total_block_h = mh + (sub_gap + sub_h if spec.subtitle else 0)
+
+    # Place the block centred vertically but biased slightly toward the
+    # lower half — the darkening gradient is strongest there and the
+    # eye reads the photo above before settling on the title.
+    block_top = int(spec.height * 0.52) - (total_block_h // 2)
+
+    title_y = block_top
+    _draw_text_rtl(draw, ((spec.width - mw) // 2, title_y),
+                   shaped_main, font=main_font, fill=accent)
+
+    if spec.subtitle:
+        sub_y = block_top + mh + sub_gap
+        sw, _ = _measure(draw, spec.subtitle, sub_font)
+        _draw_text_rtl(draw, ((spec.width - sw) // 2, sub_y),
+                       spec.subtitle, font=sub_font, fill=CREAM_LIGHT)
+
+    return img
+
+
+def _render_title_card_cream(spec: TypographySpec) -> Image.Image:
+    """
     Cream background, hairline rule above and below the title, paper grain.
-    Used to open and close the video.
+    Original Family A title card — used when no cover image is supplied.
     """
     img = _make_canvas(spec.width, spec.height, CREAM_LIGHT)
     draw = ImageDraw.Draw(img)
@@ -683,6 +783,28 @@ def _render_title_card(spec: TypographySpec) -> Image.Image:
                   shaped_sub, font=sub_font, fill=GRAPHITE)
 
     return img
+
+
+def _resize_cover_to_fill(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
+    """
+    Resize-and-crop an image so it exactly fills (target_w, target_h),
+    preserving aspect (the same as CSS background-size: cover).
+    """
+    src_w, src_h = img.size
+    src_ratio = src_w / src_h
+    target_ratio = target_w / target_h
+    if src_ratio > target_ratio:
+        # Source is wider — scale to match height, crop sides
+        new_h = target_h
+        new_w = int(round(src_ratio * new_h))
+    else:
+        # Source is taller or equal — scale to match width, crop top/bottom
+        new_w = target_w
+        new_h = int(round(new_w / src_ratio))
+    img = img.resize((new_w, new_h), Image.LANCZOS)
+    left = (new_w - target_w) // 2
+    top  = (new_h - target_h) // 2
+    return img.crop((left, top, left + target_w, top + target_h))
 
 
 # ── Template: section_mark / chapter_heading ───────────────────────────── #
