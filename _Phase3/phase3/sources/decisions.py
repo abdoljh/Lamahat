@@ -80,6 +80,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -93,6 +94,54 @@ OVERRIDES_SUBDIR = "overrides"
 # Visuals that need an external image (everything that isn't a
 # typography card).  Mirrors render.TYPOGRAPHY_VISUALS in inverse.
 _IMAGE_VISUALS = {"portrait", "location", "object", "archive", "broll"}
+
+
+# ── User-marked file convention ────────────────────────────────────── #
+#
+# A user can drop a file into a shot folder (review/shot_NN_<visual>/)
+# whose name begins with `my_` or `user_` (case-insensitive), and the
+# render pass will pick it up automatically — no decisions.json edit
+# required.  This is the lightest-weight way to override one shot.
+#
+# Recognised: my_jafar.jpg, MY_JAFAR.JPG, user_a.png, User_Portrait.webp
+# Not recognised: pexels_a.jpg, loc_a.jpg, character.jpg (those are
+# the auto-fetched candidates and the global pin, respectively).
+
+_USER_FILE_RE = re.compile(
+    r"^(my|user)[_-].+\.(jpg|jpeg|png|webp)$",
+    re.IGNORECASE,
+)
+
+
+def find_user_marked_file(
+    review_dir: Path,
+    shot_index: int,
+    visual: str,
+) -> Path | None:
+    """
+    Look in `review_dir/shot_NN_<visual>/` for files matching the
+    user-naming convention.  Returns the alphabetically-first matching
+    file, or None.
+
+    Alphabetical (not newest-modified) so the choice is stable when the
+    user accidentally deletes a file from the folder.
+    """
+    folder = review_dir / f"shot_{shot_index:02d}_{visual}"
+    if not folder.is_dir():
+        return None
+
+    matches = sorted(
+        p for p in folder.iterdir()
+        if p.is_file() and _USER_FILE_RE.match(p.name)
+    )
+    if not matches:
+        return None
+    if len(matches) > 1:
+        log.info(
+            "Shot %d: %d user-marked files in %s, using alphabetically-first %s",
+            shot_index, len(matches), folder.name, matches[0].name,
+        )
+    return matches[0]
 
 
 @dataclass
@@ -216,23 +265,24 @@ class Decisions:
         for `shot_index`, or None if no decision was recorded.
 
         Resolution order:
-            1. `override`     — user dropped a file in overrides/
-            2. pinned portrait (for `portrait` visuals only)
-            3. `chosen_file`  — pre-downloaded candidate the dossier
-                                designated as best
-            4. None           — caller falls back to the Fetcher
-                                waterfall at render time
+            1. `override`           — explicit user pick in decisions.json
+            2. user-marked file     — my_*.jpg / user_*.jpg dropped into
+                                      the shot folder (no JSON edit required)
+            3. pinned portrait      — for `portrait` visuals only
+            4. `chosen_file`        — prebuild's auto-pick
+            5. None                 — caller falls back to the Fetcher
+                                      waterfall at render time
         """
         review_dir = Path(review_dir).resolve()
         shot = self.shots.get(shot_index)
         if shot is None:
             return None
 
-        # 1. Explicit override
+        # 1. Explicit override declared in decisions.json
         if shot.override:
             p = (review_dir / shot.override).resolve()
             if p.exists():
-                log.debug("Shot %d: override hit %s", shot_index, p)
+                log.info("Shot %d: override hit %s", shot_index, p.name)
                 return p
             log.warning(
                 "Shot %d: override declared %s but file is missing — "
@@ -240,22 +290,34 @@ class Decisions:
                 shot_index, p,
             )
 
-        # 2. Pinned portrait, for portrait shots only
+        # 2. User-marked file dropped into the shot folder.
+        # Matches my_*.{jpg,jpeg,png,webp} or user_*.{...} (case-insensitive).
+        # Alphabetically-first wins for stability.  Lets the user replace
+        # or supplement images without touching decisions.json.
+        user_file = find_user_marked_file(review_dir, shot_index, shot.visual)
+        if user_file:
+            log.info(
+                "Shot %d: user-marked file hit %s",
+                shot_index, user_file.name,
+            )
+            return user_file
+
+        # 3. Pinned portrait, for portrait shots only
         if shot.visual == "portrait" and self.pinned_portrait:
             p = (review_dir / self.pinned_portrait).resolve()
             if p.exists():
-                log.debug("Shot %d: pinned-portrait hit %s", shot_index, p)
+                log.info("Shot %d: pinned-portrait hit %s", shot_index, p.name)
                 return p
             log.warning(
                 "Shot %d: pinned_portrait %s missing — ignoring",
                 shot_index, p,
             )
 
-        # 3. Pre-downloaded candidate the dossier marked as chosen
+        # 4. Pre-downloaded candidate the dossier marked as chosen
         if shot.chosen_file:
             p = (review_dir / shot.chosen_file).resolve()
             if p.exists():
-                log.debug("Shot %d: chosen-file hit %s", shot_index, p)
+                log.info("Shot %d: chosen-file hit %s", shot_index, p.name)
                 return p
 
         return None
