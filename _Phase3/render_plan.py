@@ -126,6 +126,12 @@ def main() -> int:
                          "directory (output of prebuild_assets.py).  When "
                          "set, each shot's image resolves via the dossier's "
                          "override/pin/chosen before any source query.")
+    ap.add_argument("--book-cover", metavar="PATH",
+                    help="Path to a book-cover image.  Title-card shots "
+                         "render with this image as full-frame background "
+                         "and a gold title overlay.  When --review-dir is "
+                         "also set, this flag overrides whatever cover "
+                         "path is recorded in the dossier.")
 
     ap.add_argument("--build-manifest", metavar="PATH",
                     help="Write required-images manifest and exit")
@@ -200,12 +206,37 @@ def main() -> int:
     print()
 
     fetcher = Fetcher(fc)
+
+    # Resolve the book cover.  Precedence: explicit --book-cover flag
+    # over the dossier's book.cover_path.  When neither is supplied,
+    # title cards keep the original cream design.
+    book_cover_path: Path | None = None
+    if args.book_cover:
+        book_cover_path = Path(args.book_cover).expanduser().resolve()
+        if not book_cover_path.exists():
+            print(f"ERROR: --book-cover path not found: {book_cover_path}",
+                  file=sys.stderr)
+            return 1
+        print(f"Cover  : {book_cover_path} (from --book-cover)")
+    elif args.review_dir and fetcher.decisions is not None:
+        rel = (fetcher.decisions.book or {}).get("cover_path")
+        if rel:
+            candidate = (Path(args.review_dir) / rel).resolve()
+            if candidate.exists():
+                book_cover_path = candidate
+                print(f"Cover  : {candidate} (from dossier book.cover_path)")
+            else:
+                print(f"WARN   : dossier book.cover_path={rel} but file is "
+                      f"missing — falling back to default title card",
+                      file=sys.stderr)
+
     cfg = RenderConfig(
         width=args.width,
         height=args.height,
         fps=args.fps,
         add_captions=not args.no_captions,
         fetcher=fetcher,
+        book_cover=book_cover_path,
     )
 
     t0 = time.perf_counter()

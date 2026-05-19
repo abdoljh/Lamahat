@@ -258,6 +258,12 @@ def main():
                          "Copied into overrides/character.jpg and pinned "
                          "as `pinned_portrait` in decisions.json — every "
                          "`portrait` shot will then use this single image.")
+    ap.add_argument("--book-cover", type=Path, default=None,
+                    help="Path to the book cover image.  Copied into "
+                         "overrides/book_cover.<ext> and recorded as "
+                         "book.cover_path in decisions.json — the title "
+                         "card is then composited over the cover with a "
+                         "gold title instead of the default cream design.")
     ap.add_argument("--anthropic-key", default="",
                     help="ANTHROPIC_API_KEY for Haiku vision scoring")
     ap.add_argument("--pexels-key", default="",
@@ -314,6 +320,18 @@ def main():
         pinned_portrait_rel = f"{OVERRIDES_SUBDIR}/{dest.name}"
         log.info("Pinned portrait copied → %s", dest)
 
+    book_cover_rel: str | None = None
+    if args.book_cover is not None:
+        src = args.book_cover.expanduser().resolve()
+        if not src.exists():
+            log.error("--book-cover path does not exist: %s", src)
+            return 2
+        ext = src.suffix.lower() or ".jpg"
+        dest = overrides_dir / f"book_cover{ext}"
+        _copy_into(src, dest)
+        book_cover_rel = f"{OVERRIDES_SUBDIR}/{dest.name}"
+        log.info("Book cover copied → %s", dest)
+
     # ── Configure the fetcher ─────────────────────────────────── #
     cfg = FetcherConfig(
         anthropic_api_key=args.anthropic_key,
@@ -329,8 +347,11 @@ def main():
     fetcher = Fetcher(config=cfg)
 
     # ── Walk shots, build decisions ───────────────────────────── #
+    book_dict = {"title": args.book_title, "character": args.character_name}
+    if book_cover_rel:
+        book_dict["cover_path"] = book_cover_rel
     decisions = Decisions(
-        book={"title": args.book_title, "character": args.character_name},
+        book=book_dict,
         pinned_portrait=pinned_portrait_rel,
         shots={},
     )
@@ -376,6 +397,10 @@ def main():
         n_portraits = sum(1 for d in decisions.shots.values()
                           if d.visual == "portrait")
         print(f"  affects {n_portraits} portrait shot(s) at render time")
+    if book_cover_rel:
+        print(f"Book cover:             {book_cover_rel}")
+        n_title_cards = sum(1 for s in shots if s.visual == "title_card")
+        print(f"  affects {n_title_cards} title-card shot(s) at render time")
     print()
     print("Next:")
     print(f"  1. Open {review_dir}/ and review each shot folder.")
