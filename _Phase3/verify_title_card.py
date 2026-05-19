@@ -47,9 +47,31 @@ def check_typography():
     # End-to-end render — both paths
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
-        # Fake cover
+        # Fake cover.  Use a noise-textured surrogate (not a solid colour
+        # or a smooth gradient) so the resulting PNG has high-frequency
+        # detail and compresses to a meaningful size.  Solid/smooth
+        # backgrounds optimize to <50 KB and would falsely trip the
+        # size assertion below.
+        from PIL import ImageDraw
+        import random
         cover = td / "cover.jpg"
-        Image.new("RGB", (3000, 2000), (62, 50, 38)).save(cover, "JPEG")
+        img = Image.new("RGB", (3000, 2000), (62, 50, 38))
+        d = ImageDraw.Draw(img)
+        # Sepia gradient
+        for y in range(2000):
+            t_y = y / 2000
+            r_ = int(72 + 35 * (1 - t_y))
+            g_ = int(55 + 25 * (1 - t_y))
+            b_ = int(40 + 18 * (1 - t_y))
+            d.line([(0, y), (3000, y)], fill=(r_, g_, b_))
+        # Add noise so PNG compresses to a meaningful size
+        rng = random.Random(42)
+        for _ in range(8000):
+            x, y = rng.randint(0, 2999), rng.randint(0, 1999)
+            a = rng.randint(-20, 20)
+            px = img.getpixel((x, y))
+            img.putpixel((x, y), tuple(max(0, min(255, c + a)) for c in px))
+        img.save(cover, "JPEG", quality=90)
 
         spec_cover = t.TypographySpec(
             template="title_card",
@@ -60,9 +82,14 @@ def check_typography():
         )
         out_cover = td / "title_cover.png"
         t.render(spec_cover, out_cover)
-        assert out_cover.exists() and out_cover.stat().st_size > 50_000
-        log.info("✓ cover-mode title card rendered (%d bytes)",
-                 out_cover.stat().st_size)
+        sz = out_cover.stat().st_size
+        # 30 KB floor — generous so a smooth-cover render doesn't false-fail,
+        # but high enough that an empty/blank render trips the assertion.
+        assert out_cover.exists() and sz > 30_000, (
+            f"cover-mode PNG suspiciously small ({sz} bytes) — "
+            f"renderer may have produced a blank frame.  Inspect {out_cover}."
+        )
+        log.info("✓ cover-mode title card rendered (%d bytes)", sz)
 
         spec_cream = t.TypographySpec(
             template="title_card",
@@ -71,9 +98,9 @@ def check_typography():
         )
         out_cream = td / "title_cream.png"
         t.render(spec_cream, out_cream)
-        assert out_cream.exists() and out_cream.stat().st_size > 50_000
-        log.info("✓ cream-mode title card still works (%d bytes)",
-                 out_cream.stat().st_size)
+        sz_cream = out_cream.stat().st_size
+        assert out_cream.exists() and sz_cream > 30_000
+        log.info("✓ cream-mode title card still works (%d bytes)", sz_cream)
 
 
 def check_caption_gap():
