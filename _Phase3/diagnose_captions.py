@@ -87,6 +87,7 @@ def main():
         prev_end = None
         gaps = []
         n_wrapped = 0
+        n_double_bs = 0   # double-backslash before N → libass renders literal \ on screen
         for i, (s, e, t) in enumerate(events[:15]):
             gap_str = ""
             if prev_end is not None:
@@ -97,6 +98,9 @@ def main():
             n_lines = 1 + t.count("\\N")
             if n_lines > 1:
                 n_wrapped += 1
+            # Bug detection: \\N (double backslash) means escape order was wrong
+            if "\\\\N" in t:
+                n_double_bs += 1
             text_preview = (t[:50].replace("\\N", " ⏎ ") + "…") if len(t) > 50 else t.replace("\\N", " ⏎ ")
             print(f"{i+1:>3d}  {s:7.3f}  {e:7.3f}  {e-s:5.3f}  "
                   f"{gap_str:>13}  {n_lines:>5d}  {text_preview}")
@@ -108,15 +112,22 @@ def main():
             print(f"Gaps (first {len(gaps)}): min={min(gaps):.3f}s  "
                   f"avg={avg_gap:.3f}s  max={max(gaps):.3f}s")
             print(f"Wrapped events: {n_wrapped}/{len(events[:15])} have an explicit \\N break")
+            if n_double_bs > 0:
+                print(f"⚠ {n_double_bs} event(s) have \\\\N (double backslash) — libass will render a literal '\\' on screen.")
+                print("  This is the v3.0/3.1 escape-order bug.  Fix in render.py: ensure")
+                print("  _escape_ass() runs BEFORE _wrap_caption() (not after).")
             print()
             # Verdict
             if any(0.28 < g < 0.32 for g in gaps):
-                if n_wrapped > 0:
-                    print("✓ Gaps ~0.30s AND captions wrapped — v3 PATCH IS LIVE.")
+                if n_double_bs > 0:
+                    print("✗ Captions wrap, but \\N is double-escaped — v3.0/3.1 bug.")
+                    print("  Update render.py to v3.2 from issue4_patch_A_v3_2.zip.")
+                elif n_wrapped > 0:
+                    print("✓ Gaps ~0.30s AND captions wrapped cleanly — v3.2 PATCH IS LIVE.")
                 else:
                     print("◐ Gaps ~0.30s found BUT no \\N breaks — v2 only, not v3.")
                     print("  Your render.py has the gap change but is missing _wrap_caption.")
-                    print("  Re-apply render.py from issue4_patch_A_v3.zip.")
+                    print("  Re-apply render.py from issue4_patch_A_v3_2.zip.")
             elif any(0.08 < g < 0.12 for g in gaps):
                 print("✗ Gaps of ~0.10s found — STALE CODE IS RUNNING.")
                 print("  The source shows the patched GAP=0.15, but the executing")

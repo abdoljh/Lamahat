@@ -16,6 +16,7 @@ Usage:
 import argparse
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -130,6 +131,18 @@ def check_render_patched():
     else:
         log.info(f"  {FAIL} _wrap_caption() helper MISSING — "
                  f"captions will not be split into two lines")
+        ok = False
+
+    # Detect the v3.0/3.1 escape-order bug: _wrap_caption was being
+    # called BEFORE _escape_ass, so the \N got doubled to \\N and
+    # rendered as a literal backslash on screen.
+    wrap_first  = re.search(r"text\s*=\s*_wrap_caption\([^)]*\)\s*\n\s*text\s*=\s*_escape_ass", source)
+    escape_first = re.search(r"text\s*=\s*_escape_ass\([^)]*\)\s*\n\s*text\s*=\s*_wrap_caption", source)
+    if escape_first:
+        log.info(f"  {OK} caption escape order is _escape_ass → _wrap_caption (v3.2 — correct)")
+    elif wrap_first:
+        log.info(f"  {FAIL} caption escape order is _wrap_caption → _escape_ass (v3.0/3.1 bug)")
+        log.info(f"         the \\N gets doubled to \\\\N, libass renders a literal '\\' on screen")
         ok = False
 
     if "height * 0.050" in source or "height*0.050" in source:

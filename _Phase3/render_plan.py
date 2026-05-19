@@ -110,7 +110,10 @@ def main() -> int:
     ap.add_argument("--width",  type=int, default=1920)
     ap.add_argument("--height", type=int, default=1080)
     ap.add_argument("--fps",    type=int, default=25)
-    ap.add_argument("--no-captions", action="store_true")
+    ap.add_argument("--no-captions", action="store_true",
+                    help="Skip burning subtitles into the video.  Use when "
+                         "the audio narration is sufficient on its own and "
+                         "you don't want the on-screen text.")
 
     ap.add_argument("--anthropic-key", default="", metavar="KEY")
     ap.add_argument("--pexels-key", default="", metavar="KEY")
