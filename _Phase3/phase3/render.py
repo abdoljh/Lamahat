@@ -547,8 +547,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         if end <= start:
             continue
-        text = _wrap_caption(shot.caption_text.strip(), max_words_per_line=8)
-        text = _escape_ass(text)
+        # Escape user-provided text FIRST (handles literal backslashes,
+        # curly braces, and embedded newlines), then insert the ASS
+        # line-break sequence on top.  Doing this in the wrong order
+        # caused `\N` to be escaped to `\\N`, which libass renders as
+        # a literal backslash on screen.
+        text = _escape_ass(shot.caption_text.strip())
+        text = _wrap_caption(text, max_words_per_line=8)
         lines.append(
             f"Dialogue: 0,{_ts(start)},{_ts(end)},Caption,,0,0,0,,{text}"
         )
