@@ -135,6 +135,15 @@ def main() -> int:
                          "and a gold title overlay.  When --review-dir is "
                          "also set, this flag overrides whatever cover "
                          "path is recorded in the dossier.")
+    ap.add_argument("--book-cover-fit",
+                    choices=("fill", "contain", "blur_pad"),
+                    default=None,
+                    help="How the cover image is fitted into the 16:9 "
+                         "frame.  Overrides whatever was recorded in the "
+                         "dossier.  If neither is set, defaults to 'fill'. "
+                         "'fill' = scale-and-crop, 'contain' = letterbox "
+                         "with cream bars, 'blur_pad' = letterbox with a "
+                         "blurred-cover background.")
 
     ap.add_argument("--build-manifest", metavar="PATH",
                     help="Write required-images manifest and exit")
@@ -233,6 +242,19 @@ def main() -> int:
                       f"missing — falling back to default title card",
                       file=sys.stderr)
 
+    # Resolve the cover fit mode.  Precedence: CLI flag > dossier > "fill".
+    cover_fit = "fill"
+    if args.book_cover_fit is not None:
+        cover_fit = args.book_cover_fit
+        if book_cover_path:
+            print(f"Cover fit: {cover_fit} (from --book-cover-fit)")
+    elif args.review_dir and fetcher.decisions is not None:
+        dossier_fit = (fetcher.decisions.book or {}).get("cover_fit")
+        if dossier_fit in ("fill", "contain", "blur_pad"):
+            cover_fit = dossier_fit
+            if book_cover_path:
+                print(f"Cover fit: {cover_fit} (from dossier book.cover_fit)")
+
     cfg = RenderConfig(
         width=args.width,
         height=args.height,
@@ -240,6 +262,7 @@ def main() -> int:
         add_captions=not args.no_captions,
         fetcher=fetcher,
         book_cover=book_cover_path,
+        book_cover_fit=cover_fit,
     )
 
     t0 = time.perf_counter()

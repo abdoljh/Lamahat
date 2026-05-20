@@ -164,12 +164,17 @@ def check_render_plan_patched():
         log.info(f"  {FAIL} render_plan.py not at {rp.resolve()}")
         return False
     src = rp.read_text()
+    ok = True
     if "--book-cover" in src:
         log.info(f"  {OK} --book-cover flag found in CLI")
-        return True
     else:
         log.info(f"  {FAIL} --book-cover flag MISSING — render_plan.py is unpatched")
-        return False
+        ok = False
+    if "--book-cover-fit" in src:
+        log.info(f"  {OK} --book-cover-fit flag found in CLI (patch C)")
+    else:
+        log.info(f"  {WARN} --book-cover-fit MISSING — patch C not applied")
+    return ok
 
 
 def check_prebuild_patched():
@@ -180,12 +185,17 @@ def check_prebuild_patched():
         log.info(f"  {FAIL} prebuild_assets.py not at {pb.resolve()}")
         return False
     src = pb.read_text()
+    ok = True
     if "--book-cover" in src:
         log.info(f"  {OK} --book-cover flag found in CLI")
-        return True
     else:
         log.info(f"  {FAIL} --book-cover flag MISSING — prebuild_assets.py is unpatched")
-        return False
+        ok = False
+    if "--book-cover-fit" in src:
+        log.info(f"  {OK} --book-cover-fit flag found in CLI (patch C)")
+    else:
+        log.info(f"  {WARN} --book-cover-fit MISSING — patch C not applied")
+    return ok
 
 
 def check_dossier_cover(review_dir: Path):
@@ -207,12 +217,14 @@ def check_dossier_cover(review_dir: Path):
     log.info(f"  book.character: {book.get('character', '(none)')}")
 
     cover_path = book.get("cover_path")
+    cover_fit  = book.get("cover_fit", "fill")
     if cover_path:
         full = (review_dir / cover_path).resolve()
         if full.exists():
             log.info(f"  {OK} book.cover_path = {cover_path}")
             log.info(f"         resolves to: {full}")
             log.info(f"         file size: {full.stat().st_size} bytes")
+            log.info(f"         cover_fit: {cover_fit}")
             return full
         else:
             log.info(f"  {FAIL} book.cover_path = {cover_path} but file MISSING: {full}")

@@ -264,6 +264,16 @@ def main():
                          "book.cover_path in decisions.json — the title "
                          "card is then composited over the cover with a "
                          "gold title instead of the default cream design.")
+    ap.add_argument("--book-cover-fit",
+                    choices=("fill", "contain", "blur_pad"),
+                    default="fill",
+                    help="How the cover image is fitted into the 16:9 "
+                         "frame.  'fill' (default) scales-and-crops to "
+                         "fill — best for 16:9 hero artwork.  'contain' "
+                         "letterboxes the entire image with cream side "
+                         "bars — preserves every pixel.  'blur_pad' "
+                         "letterboxes with a blurred-cover background — "
+                         "cinematic for portrait-shaped covers.")
     ap.add_argument("--anthropic-key", default="",
                     help="ANTHROPIC_API_KEY for Haiku vision scoring")
     ap.add_argument("--pexels-key", default="",
@@ -350,6 +360,7 @@ def main():
     book_dict = {"title": args.book_title, "character": args.character_name}
     if book_cover_rel:
         book_dict["cover_path"] = book_cover_rel
+        book_dict["cover_fit"] = args.book_cover_fit
     decisions = Decisions(
         book=book_dict,
         pinned_portrait=pinned_portrait_rel,
@@ -399,6 +410,7 @@ def main():
         print(f"  affects {n_portraits} portrait shot(s) at render time")
     if book_cover_rel:
         print(f"Book cover:             {book_cover_rel}")
+        print(f"  fit mode:             {args.book_cover_fit}")
         n_title_cards = sum(1 for s in shots if s.visual == "title_card")
         print(f"  affects {n_title_cards} title-card shot(s) at render time")
     print()
