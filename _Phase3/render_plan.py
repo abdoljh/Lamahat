@@ -144,6 +144,14 @@ def main() -> int:
                          "'fill' = scale-and-crop, 'contain' = letterbox "
                          "with cream bars, 'blur_pad' = letterbox with a "
                          "blurred-cover background.")
+    ap.add_argument("--book-cover-align",
+                    choices=("center", "left", "right"),
+                    default=None,
+                    help="Horizontal alignment of the cover when the fit "
+                         "mode leaves spare space.  Overrides the dossier. "
+                         "Defaults to 'center'.  Only meaningful with "
+                         "contain or blur_pad.  The gold title overlay "
+                         "shifts to the opposite side automatically.")
 
     ap.add_argument("--build-manifest", metavar="PATH",
                     help="Write required-images manifest and exit")
@@ -255,6 +263,19 @@ def main() -> int:
             if book_cover_path:
                 print(f"Cover fit: {cover_fit} (from dossier book.cover_fit)")
 
+    # Resolve cover alignment.  Precedence: CLI flag > dossier > "center".
+    cover_align = "center"
+    if args.book_cover_align is not None:
+        cover_align = args.book_cover_align
+        if book_cover_path:
+            print(f"Cover align: {cover_align} (from --book-cover-align)")
+    elif args.review_dir and fetcher.decisions is not None:
+        dossier_align = (fetcher.decisions.book or {}).get("cover_align")
+        if dossier_align in ("center", "left", "right"):
+            cover_align = dossier_align
+            if book_cover_path:
+                print(f"Cover align: {cover_align} (from dossier book.cover_align)")
+
     cfg = RenderConfig(
         width=args.width,
         height=args.height,
@@ -263,6 +284,7 @@ def main() -> int:
         fetcher=fetcher,
         book_cover=book_cover_path,
         book_cover_fit=cover_fit,
+        book_cover_align=cover_align,
     )
 
     t0 = time.perf_counter()

@@ -274,6 +274,16 @@ def main():
                          "bars — preserves every pixel.  'blur_pad' "
                          "letterboxes with a blurred-cover background — "
                          "cinematic for portrait-shaped covers.")
+    ap.add_argument("--book-cover-align",
+                    choices=("center", "left", "right"),
+                    default="center",
+                    help="Horizontal alignment of the cover image when "
+                         "the fit mode leaves spare horizontal space "
+                         "(contain or blur_pad).  'center' (default) "
+                         "places equal bars on each side; 'left' or "
+                         "'right' flushes the cover to that edge.  The "
+                         "gold title overlay automatically shifts to the "
+                         "opposite side so it sits over the empty area.")
     ap.add_argument("--anthropic-key", default="",
                     help="ANTHROPIC_API_KEY for Haiku vision scoring")
     ap.add_argument("--pexels-key", default="",
@@ -361,6 +371,7 @@ def main():
     if book_cover_rel:
         book_dict["cover_path"] = book_cover_rel
         book_dict["cover_fit"] = args.book_cover_fit
+        book_dict["cover_align"] = args.book_cover_align
     decisions = Decisions(
         book=book_dict,
         pinned_portrait=pinned_portrait_rel,
@@ -411,6 +422,7 @@ def main():
     if book_cover_rel:
         print(f"Book cover:             {book_cover_rel}")
         print(f"  fit mode:             {args.book_cover_fit}")
+        print(f"  align:                {args.book_cover_align}")
         n_title_cards = sum(1 for s in shots if s.visual == "title_card")
         print(f"  affects {n_title_cards} title-card shot(s) at render time")
     print()
