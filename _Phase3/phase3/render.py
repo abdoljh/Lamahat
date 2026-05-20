@@ -243,7 +243,8 @@ def _build_shot_asset(shot: Shot, shot_index: int,
                      width: int, height: int,
                      *,
                      fetcher: "Fetcher | None" = None,
-                     book_cover: Path | None = None) -> tuple[Path, bool]:
+                     book_cover: Path | None = None,
+                     book_cover_fit: str = "fill") -> tuple[Path, bool]:
     """
     Render or fetch the asset for a single shot.
 
@@ -260,7 +261,8 @@ def _build_shot_asset(shot: Shot, shot_index: int,
           2. _placeholder_card() if fetcher returns no image
 
     `book_cover`, when supplied, switches the title_card visual to its
-    photo-background variant.  Ignored for every other visual.
+    photo-background variant; `book_cover_fit` selects the layout
+    (fill/contain/blur_pad).  Both are ignored for every other visual.
     """
     # Typography always uses the typography renderer
     if shot.visual in TYPOGRAPHY_VISUALS:
@@ -277,6 +279,7 @@ def _build_shot_asset(shot: Shot, shot_index: int,
             text=shot.typography_text,
             width=width, height=height,
             cover_image=cover,
+            cover_fit=book_cover_fit,
         )
         return render_typography(spec, out_path), False
 
@@ -701,6 +704,11 @@ class RenderConfig:
     # are rendered with the cover as full-frame background + gold title
     # rather than the default cream card.  See typography._render_title_card.
     book_cover: Path | None = None
+    # How the book cover is fitted into the 16:9 frame.  "fill" (default)
+    # scales-and-crops, "contain" letterboxes with cream bars, "blur_pad"
+    # letterboxes with a blurred-cover background.  Only meaningful when
+    # book_cover is set.
+    book_cover_fit: str = "fill"
 
 
 def render_video(shots: list[Shot], out_path: Path, *,
@@ -765,6 +773,7 @@ def render_video(shots: list[Shot], out_path: Path, *,
                     width=config.width, height=config.height,
                     fetcher=config.fetcher,
                     book_cover=config.book_cover,
+                    book_cover_fit=config.book_cover_fit,
                 )
                 # Motion only applies to fetched real images.  Typography
                 # and placeholder cards stay static.

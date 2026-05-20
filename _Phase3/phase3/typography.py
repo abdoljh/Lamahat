@@ -436,6 +436,19 @@ class TypographySpec:
     # a soft darkening gradient and draws the title in `accent_color`
     # instead of charcoal-on-cream.  Ignored by other templates.
     cover_image: Path | None = None
+    # How the cover image is fitted into the 16:9 frame:
+    #   "fill"     — scale-and-crop to fill (overflow axis is cropped).
+    #                Best when the input is already 16:9 (or very close)
+    #                hero artwork — no cropping is visible.
+    #   "contain"  — letterbox the entire image, cream bars on the sides
+    #                (or top/bottom for ultra-wide).  Preserves every
+    #                pixel of the cover; appropriate when the cover IS
+    #                the artwork you want to keep whole.
+    #   "blur_pad" — same foreground as `contain`, but the side bars
+    #                are filled with a heavily-blurred, zoomed copy of
+    #                the cover instead of cream.  Cinematic "ambient
+    #                halo" look for portrait-shaped covers.
+    cover_fit: str = "fill"
     # Optional override for title-card text colour.  Defaults to
     # GOLD_AGED when cover_image is set, CHARCOAL otherwise.
     accent_color: tuple[int, int, int] | None = None
@@ -668,15 +681,26 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
     top, ~75 % opaque charcoal at the bottom third.  This keeps the
     photo readable above the title and gives the title an even, dark
     surface to sit on.
-    """
-    # 1. Open the cover, resize-and-crop to fill the frame.
-    cover = Image.open(spec.cover_image).convert("RGB")
-    cover = _resize_cover_to_fill(cover, spec.width, spec.height)
 
-    # 2. Darkening gradient (soft top, strong bottom).  Use a separate
-    #    RGBA layer composited on top of the cover.  Charcoal-coloured
-    #    so the wash matches the body palette rather than going to pure
-    #    black.
+    The cover is fitted into the frame according to spec.cover_fit:
+      "fill"     → scale-and-crop (current default — best for 16:9 art)
+      "contain"  → letterbox with cream bars
+      "blur_pad" → letterbox with a blurred-cover background
+    """
+    fit = (spec.cover_fit or "fill").lower()
+    if fit == "contain":
+        bg = _make_cover_contain(spec.cover_image, spec.width, spec.height)
+    elif fit in ("blur_pad", "blur-pad", "blurpad"):
+        bg = _make_cover_blur_pad(spec.cover_image, spec.width, spec.height)
+    else:
+        # Default + any unknown value falls back to fill
+        cover = Image.open(spec.cover_image).convert("RGB")
+        bg = _resize_cover_to_fill(cover, spec.width, spec.height)
+
+    # Darkening gradient (soft top, strong bottom).  Use a separate
+    # RGBA layer composited on top of the cover.  Charcoal-coloured
+    # so the wash matches the body palette rather than going to pure
+    # black.
     grad = Image.new("RGBA", (spec.width, spec.height), (0, 0, 0, 0))
     for y in range(spec.height):
         # Alpha ramp: 0 at the top, ~190 at the bottom, eased so the
@@ -687,11 +711,11 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
             [(0, y), (spec.width, y)],
             fill=(*CHARCOAL, alpha),
         )
-    cover_rgba = cover.convert("RGBA")
+    cover_rgba = bg.convert("RGBA")
     cover_rgba.alpha_composite(grad)
     img = cover_rgba.convert("RGB")
 
-    # 3. Title text in the accent colour (gold by default).
+    # Title text in the accent colour (gold by default).
     draw = ImageDraw.Draw(img)
     accent = spec.accent_color or GOLD_AGED
 
@@ -805,6 +829,65 @@ def _resize_cover_to_fill(img: Image.Image, target_w: int, target_h: int) -> Ima
     left = (new_w - target_w) // 2
     top  = (new_h - target_h) // 2
     return img.crop((left, top, left + target_w, top + target_h))
+
+
+def _resize_cover_to_contain(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
+    """
+    Resize an image so it fits entirely within (target_w, target_h),
+    preserving aspect (the same as CSS background-size: contain).
+    Returns the resized image without padding — caller composites it.
+    """
+    src_w, src_h = img.size
+    src_ratio = src_w / src_h
+    target_ratio = target_w / target_h
+    if src_ratio > target_ratio:
+        # Source is wider — fit to width, leaving top/bottom bars
+        new_w = target_w
+        new_h = int(round(new_w / src_ratio))
+    else:
+        # Source is taller or equal — fit to height, leaving side bars
+        new_h = target_h
+        new_w = int(round(src_ratio * new_h))
+    return img.resize((new_w, new_h), Image.LANCZOS)
+
+
+def _make_cover_contain(cover_path: Path, target_w: int, target_h: int) -> Image.Image:
+    """
+    Letterbox the cover image entirely inside the frame.  The bars on
+    the empty axis are filled with CREAM_LIGHT — same colour as the
+    fallback title card so the look stays consistent if a user
+    switches modes.
+    """
+    cover = Image.open(cover_path).convert("RGB")
+    fg = _resize_cover_to_contain(cover, target_w, target_h)
+    canvas = Image.new("RGB", (target_w, target_h), CREAM_LIGHT)
+    x = (target_w - fg.width) // 2
+    y = (target_h - fg.height) // 2
+    canvas.paste(fg, (x, y))
+    return canvas
+
+
+def _make_cover_blur_pad(cover_path: Path, target_w: int, target_h: int,
+                         blur_radius: int = 36) -> Image.Image:
+    """
+    Letterbox the cover entirely (same as contain), then fill the empty
+    bars with a heavily-blurred copy of the cover, scaled to fill the
+    frame.  Produces a cinematic "ambient halo" look on portrait or
+    very-wide covers; the foreground stays uncropped.
+
+    blur_radius is sized in pixels at the target resolution; 36 px is
+    enough to abstract a 1920×1080 image into pure colour fields.
+    """
+    cover = Image.open(cover_path).convert("RGB")
+    # Background: scale-and-crop to fill, then blur heavily.
+    bg = _resize_cover_to_fill(cover, target_w, target_h)
+    bg = bg.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+    # Foreground: scale-to-contain, paste centred over the blurred bg.
+    fg = _resize_cover_to_contain(cover, target_w, target_h)
+    x = (target_w - fg.width) // 2
+    y = (target_h - fg.height) // 2
+    bg.paste(fg, (x, y))
+    return bg
 
 
 # ── Template: section_mark / chapter_heading ───────────────────────────── #
