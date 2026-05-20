@@ -244,7 +244,8 @@ def _build_shot_asset(shot: Shot, shot_index: int,
                      *,
                      fetcher: "Fetcher | None" = None,
                      book_cover: Path | None = None,
-                     book_cover_fit: str = "fill") -> tuple[Path, bool]:
+                     book_cover_fit: str = "fill",
+                     book_cover_align: str = "center") -> tuple[Path, bool]:
     """
     Render or fetch the asset for a single shot.
 
@@ -262,7 +263,9 @@ def _build_shot_asset(shot: Shot, shot_index: int,
 
     `book_cover`, when supplied, switches the title_card visual to its
     photo-background variant; `book_cover_fit` selects the layout
-    (fill/contain/blur_pad).  Both are ignored for every other visual.
+    (fill/contain/blur_pad); `book_cover_align` positions the cover
+    (center/left/right) when the fit mode leaves spare horizontal
+    space.  All three are ignored for non-title-card visuals.
     """
     # Typography always uses the typography renderer
     if shot.visual in TYPOGRAPHY_VISUALS:
@@ -280,6 +283,7 @@ def _build_shot_asset(shot: Shot, shot_index: int,
             width=width, height=height,
             cover_image=cover,
             cover_fit=book_cover_fit,
+            cover_align=book_cover_align,
         )
         return render_typography(spec, out_path), False
 
@@ -709,6 +713,11 @@ class RenderConfig:
     # letterboxes with a blurred-cover background.  Only meaningful when
     # book_cover is set.
     book_cover_fit: str = "fill"
+    # Horizontal alignment of the book cover within the frame:
+    # "center" (default), "left", or "right".  Only meaningful with
+    # contain / blur_pad — fill leaves no spare horizontal space.
+    # The gold title overlay automatically shifts to the opposite side.
+    book_cover_align: str = "center"
 
 
 def render_video(shots: list[Shot], out_path: Path, *,
@@ -774,6 +783,7 @@ def render_video(shots: list[Shot], out_path: Path, *,
                     fetcher=config.fetcher,
                     book_cover=config.book_cover,
                     book_cover_fit=config.book_cover_fit,
+                    book_cover_align=config.book_cover_align,
                 )
                 # Motion only applies to fetched real images.  Typography
                 # and placeholder cards stay static.

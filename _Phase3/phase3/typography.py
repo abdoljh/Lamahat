@@ -449,6 +449,15 @@ class TypographySpec:
     #                the cover instead of cream.  Cinematic "ambient
     #                halo" look for portrait-shaped covers.
     cover_fit: str = "fill"
+    # Horizontal alignment of the cover within the frame (only meaningful
+    # for "contain" / "blur_pad" — "fill" has no spare horizontal space
+    # since the image already fills the frame).
+    #   "center" (default) — equal bars on left and right
+    #   "left"             — book flush left, all empty space on right
+    #   "right"            — book flush right, all empty space on left
+    # The gold-title overlay automatically shifts to the opposite side
+    # so it sits over the empty area, not on top of the book.
+    cover_align: str = "center"
     # Optional override for title-card text colour.  Defaults to
     # GOLD_AGED when cover_image is set, CHARCOAL otherwise.
     accent_color: tuple[int, int, int] | None = None
@@ -686,14 +695,24 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
       "fill"     → scale-and-crop (current default — best for 16:9 art)
       "contain"  → letterbox with cream bars
       "blur_pad" → letterbox with a blurred-cover background
+
+    When cover_align is "left" or "right" (and the fit mode actually
+    leaves spare horizontal space), the gold title overlay is shifted
+    to the opposite side so it sits over the empty area, not on top of
+    the book.
     """
     fit = (spec.cover_fit or "fill").lower()
+    align = (spec.cover_align or "center").lower()
+    if align not in ("center", "left", "right"):
+        align = "center"
+
     if fit == "contain":
-        bg = _make_cover_contain(spec.cover_image, spec.width, spec.height)
+        bg = _make_cover_contain(spec.cover_image, spec.width, spec.height, align)
     elif fit in ("blur_pad", "blur-pad", "blurpad"):
-        bg = _make_cover_blur_pad(spec.cover_image, spec.width, spec.height)
+        bg = _make_cover_blur_pad(spec.cover_image, spec.width, spec.height,
+                                  align=align)
     else:
-        # Default + any unknown value falls back to fill
+        # Default + any unknown value falls back to fill (no alignment effect)
         cover = Image.open(spec.cover_image).convert("RGB")
         bg = _resize_cover_to_fill(cover, spec.width, spec.height)
 
@@ -738,14 +757,40 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
     # eye reads the photo above before settling on the title.
     block_top = int(spec.height * 0.52) - (total_block_h // 2)
 
+    # Horizontal placement of the title block.  When the book is offset
+    # to one side (only possible with contain / blur_pad), shift the
+    # title to the *opposite* side so it occupies the empty space.
+    # Otherwise centre it as before.
+    has_spare_h = fit in ("contain", "blur_pad", "blur-pad", "blurpad") and align in ("left", "right")
+    if has_spare_h:
+        # Compute the foreground width to know where the empty region is.
+        cover_img = Image.open(spec.cover_image)
+        fg_tmp = _resize_cover_to_contain(cover_img, spec.width, spec.height)
+        spare_w = spec.width - fg_tmp.width
+        if align == "left":
+            # Book on the left, title goes in the right half.
+            # Centre the title within (book_right, frame_right).
+            text_region_x0 = fg_tmp.width
+            text_region_w  = spare_w
+        else:
+            # align == "right": book on the right, title goes in the left half.
+            text_region_x0 = 0
+            text_region_w  = spare_w
+        title_x = text_region_x0 + (text_region_w - mw) // 2
+        sub_x_anchor = text_region_x0 + text_region_w // 2
+    else:
+        title_x = (spec.width - mw) // 2
+        sub_x_anchor = spec.width // 2
+
     title_y = block_top
-    _draw_text_rtl(draw, ((spec.width - mw) // 2, title_y),
+    _draw_text_rtl(draw, (title_x, title_y),
                    shaped_main, font=main_font, fill=accent)
 
     if spec.subtitle:
         sub_y = block_top + mh + sub_gap
         sw, _ = _measure(draw, spec.subtitle, sub_font)
-        _draw_text_rtl(draw, ((spec.width - sw) // 2, sub_y),
+        sub_x = sub_x_anchor - sw // 2
+        _draw_text_rtl(draw, (sub_x, sub_y),
                        spec.subtitle, font=sub_font, fill=CREAM_LIGHT)
 
     return img
@@ -851,24 +896,43 @@ def _resize_cover_to_contain(img: Image.Image, target_w: int, target_h: int) -> 
     return img.resize((new_w, new_h), Image.LANCZOS)
 
 
-def _make_cover_contain(cover_path: Path, target_w: int, target_h: int) -> Image.Image:
+def _h_offset_for_align(canvas_w: int, fg_w: int, align: str) -> int:
+    """
+    Horizontal x-offset to paste a `fg_w`-wide image inside a `canvas_w`-wide
+    canvas, per the alignment mode.  Centre is the default.
+    """
+    spare = max(0, canvas_w - fg_w)
+    if align == "left":
+        return 0
+    if align == "right":
+        return spare
+    # "center" or anything unknown
+    return spare // 2
+
+
+def _make_cover_contain(cover_path: Path, target_w: int, target_h: int,
+                        align: str = "center") -> Image.Image:
     """
     Letterbox the cover image entirely inside the frame.  The bars on
     the empty axis are filled with CREAM_LIGHT — same colour as the
     fallback title card so the look stays consistent if a user
     switches modes.
+
+    `align` controls horizontal placement: "center" (default), "left",
+    or "right".  Vertical position is always centred.
     """
     cover = Image.open(cover_path).convert("RGB")
     fg = _resize_cover_to_contain(cover, target_w, target_h)
     canvas = Image.new("RGB", (target_w, target_h), CREAM_LIGHT)
-    x = (target_w - fg.width) // 2
+    x = _h_offset_for_align(target_w, fg.width, align)
     y = (target_h - fg.height) // 2
     canvas.paste(fg, (x, y))
     return canvas
 
 
 def _make_cover_blur_pad(cover_path: Path, target_w: int, target_h: int,
-                         blur_radius: int = 36) -> Image.Image:
+                         blur_radius: int = 36,
+                         align: str = "center") -> Image.Image:
     """
     Letterbox the cover entirely (same as contain), then fill the empty
     bars with a heavily-blurred copy of the cover, scaled to fill the
@@ -877,14 +941,18 @@ def _make_cover_blur_pad(cover_path: Path, target_w: int, target_h: int,
 
     blur_radius is sized in pixels at the target resolution; 36 px is
     enough to abstract a 1920×1080 image into pure colour fields.
+
+    `align` controls horizontal placement of the foreground: "center"
+    (default), "left", or "right".  The blurred background always fills
+    the full frame regardless.
     """
     cover = Image.open(cover_path).convert("RGB")
     # Background: scale-and-crop to fill, then blur heavily.
     bg = _resize_cover_to_fill(cover, target_w, target_h)
     bg = bg.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-    # Foreground: scale-to-contain, paste centred over the blurred bg.
+    # Foreground: scale-to-contain, paste at the requested alignment.
     fg = _resize_cover_to_contain(cover, target_w, target_h)
-    x = (target_w - fg.width) // 2
+    x = _h_offset_for_align(target_w, fg.width, align)
     y = (target_h - fg.height) // 2
     bg.paste(fg, (x, y))
     return bg
