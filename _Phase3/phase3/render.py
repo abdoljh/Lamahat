@@ -439,13 +439,34 @@ def _ken_burns(n: int):
             "x": f"if(lte(on,1),0,min(x+{pan_per_frame},iw-iw/zoom))",
             "y": "ih/2-(ih/zoom/2)"}
 
+def _section_accent(n: int):
+    """
+    0.3 s zoom-in "new chapter" accent for section_mark shots.
+
+    Ramps zoom from 1.00 → 1.05 over the first ~0.3 s, then clamps.
+    The rest of the shot is a static hold at 1.05.  Centered crop so
+    the typography never drifts off-axis.
+
+    The `n` arg is total frames; we hardcode the accent window to
+    ~0.3 s worth of frames assuming the renderer's DEFAULT_FPS=25,
+    which gives 8 frames.  Using min() in the z-expression makes the
+    accent self-clamping — once `on` exceeds the ramp window, z stays
+    at 1.05 for the remainder regardless of total shot length.
+    """
+    accent_frames = max(2, int(round(0.3 * DEFAULT_FPS)))  # 8 @ 25 fps
+    # Linear ramp: z = 1.00 + 0.05 * on / accent_frames, clamped at 1.05
+    return {"z": f"min(1.05,1.00+{0.05/accent_frames:.6f}*on)",
+            "x": "iw/2-(iw/zoom/2)",
+            "y": "ih/2-(ih/zoom/2)"}
+
 _MOTION_FILTERS = {
-    "slow_push":  _zoom_in,
-    "slow_pull":  _zoom_out,
-    "fast_push":  _fast_push,
-    "pan_right":  _pan_right,
-    "pan_left":   _pan_left,
-    "ken_burns":  _ken_burns,
+    "slow_push":      _zoom_in,
+    "slow_pull":      _zoom_out,
+    "fast_push":      _fast_push,
+    "pan_right":      _pan_right,
+    "pan_left":       _pan_left,
+    "ken_burns":      _ken_burns,
+    "section_accent": _section_accent,
 }
 
 
@@ -718,6 +739,12 @@ class RenderConfig:
     # contain / blur_pad — fill leaves no spare horizontal space.
     # The gold title overlay automatically shifts to the opposite side.
     book_cover_align: str = "center"
+    # Apply a 0.3 s zoom-in accent (1.00 → 1.05) at the start of every
+    # section_mark shot to signal "new chapter".  All other typography
+    # visuals (title_card, typography, chapter_heading) remain static.
+    # Set False to restore the pre-issue-3 behaviour (all typography
+    # static_hold).
+    section_mark_accent: bool = True
 
 
 def render_video(shots: list[Shot], out_path: Path, *,
@@ -786,8 +813,17 @@ def render_video(shots: list[Shot], out_path: Path, *,
                     book_cover_align=config.book_cover_align,
                 )
                 # Motion only applies to fetched real images.  Typography
-                # and placeholder cards stay static.
-                shot_motion = shot.motion if is_real_image else "static_hold"
+                # and placeholder cards stay static — with one exception:
+                # section_mark shots get a 0.3 s zoom-in accent at the
+                # start to signal "new chapter" (issue 3, opt-out via
+                # RenderConfig.section_mark_accent=False).
+                if is_real_image:
+                    shot_motion = shot.motion
+                elif (shot.visual == "section_mark"
+                      and config.section_mark_accent):
+                    shot_motion = "section_accent"
+                else:
+                    shot_motion = "static_hold"
                 _png_to_clip(asset_path, clip_path,
                              duration=shot.duration,
                              fps=config.fps,

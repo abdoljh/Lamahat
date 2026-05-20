@@ -123,11 +123,16 @@ Hard rules
     match one of the word timings provided.
 3.  Shot duration limits by visual type:
     - title_card:  2.5 – 6.0 s
-    - section_mark:  2.5 – 7.0 s
+    - section_mark:  2.5 – 5.0 s  (section_marks are punctuation, not pages — \
+      keep them brisk so the new chapter actually hooks the eye)
     - typography, portrait:  2.5 – 10.0 s (need reading / contemplation time)
     - archive, broll, location, object:  2.5 – 8.0 s
-    Exceeding these limits is FORBIDDEN.  Documentary pacing favours \
-    longer holds (5–8 s) on typography and portraits — don't rush them.
+    Exceeding these limits is FORBIDDEN.  TARGET RANGE: aim for an \
+    overall average of **4.0 – 5.0 s per shot**.  Most shots should sit \
+    in the 4–5 s band; only the most resonant typography pull-quotes or \
+    portrait holds should reach for 6–8 s, and even then sparingly.  \
+    The opening of each new section in particular should cut faster — \
+    section_mark + the next 1–2 shots are the audience hook.
 4.  The shot list must cover the entire script with no gaps and no \
     overlaps.  shot[i].end == shot[i+1].start.  The first shot must \
     start at 0.0, and the last shot must end at exactly the total \
@@ -155,7 +160,7 @@ Hard rules
     `search_query` empty.  The renderer composes them from text + \
     designed background, not from an image search.
 10. Always open with a `title_card` (3–5 s) showing the book title.
-11. Optionally use `section_mark` shots between sections (1.5–2.5 s).
+11. Optionally use `section_mark` shots between sections (2.5–5.0 s — brisk).
 
 Output schema
 -------------
@@ -192,9 +197,13 @@ Script sections (with word-level timings):
 Notes for the planner:
 - Open with a 4-second title_card showing the book title.
 - TARGET SHOT COUNT: {target_shots} shots (≈ {avg_duration:.1f} s average). \
-  This is a documentary, not social media — favour slightly longer shots \
-  over too many short ones.  Returning fewer than {target_shots} shots is \
-  acceptable; returning MORE than {target_shots} is not.
+  This is a documentary, but the rhythm should hook the audience — \
+  aim for the target rather than treating it as a ceiling.  Returning \
+  fewer than {target_shots} shots IS acceptable only if the pacing \
+  genuinely calls for slower holds; otherwise hit the target.  Cut \
+  faster around section boundaries — the first 2–3 shots after each \
+  section_mark should be on the shorter end of their per-type ranges \
+  to re-engage the viewer.
 - Typography shots: choose the most emotionally resonant lines from the \
   script — quotes that would stand alone as social-media graphics.
 - For portrait searches of "{character_name}", use the name in English \
@@ -343,7 +352,7 @@ def build_shot_plan(
     genre: str,
     total_duration_sec: float,
     anthropic_api_key: str,
-    target_shot_duration: float = 5.0,
+    target_shot_duration: float = 4.5,
     model: str = "claude-sonnet-4-6",
     debug_dir: Path | None = None,
 ) -> list[Shot]:
@@ -360,8 +369,11 @@ def build_shot_plan(
                          photographs; "philosophy" prefers typography).
     total_duration_sec   Authoritative total duration.
     anthropic_api_key    Required.
-    target_shot_duration Desired average shot length.  Default 4.5 s is
-                         documentary pacing; lower → faster cutting.
+    target_shot_duration Desired average shot length.  Default 4.5 s sits
+                         in the middle of the 4.0–5.0 s "documentary hook"
+                         band — fast enough to keep the eye engaged through
+                         section transitions, slow enough to let typography
+                         pull-quotes breathe.  Lower → faster cutting.
     model                Sonnet 4.6 by default.  Override for testing.
     debug_dir            If provided, write the raw Sonnet response and
                          (on parse failure) the partial JSON to this
@@ -620,7 +632,7 @@ def _validate_plan(shots: list[Shot], total_duration_sec: float) -> list[Shot]:
         "section_mark":  7.0,
         "title_card":    7.0,
     }
-    TARGET_PIECE = 5.0
+    TARGET_PIECE = 4.5
     # Floating-point tolerance — shots within 0.1s of the cap are kept
     # intact rather than micro-split.
     TOLERANCE = 0.1
