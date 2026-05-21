@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from . import typography_a, typography_b
+from . import typography_a, typography_b, typography_c
 from .typography_common import (
     # Public re-exports (render.py imports these by name)
     CHARCOAL, CREAM_DEEP, CREAM_LIGHT, CREAM_MEDIUM, GRAPHITE, WARM_GREY,
@@ -44,7 +44,7 @@ log = logging.getLogger(__name__)
 _FAMILY_REGISTRIES = {
     "A": typography_a.RENDERERS,
     "B": typography_b.RENDERERS,
-    # "C" lands in the next patch (§15.2 part 2)
+    "C": typography_c.RENDERERS,
 }
 
 
