@@ -66,7 +66,7 @@ GRAPHITE     = (88,  82,  72)    # #585248
 WARM_GREY    = (140, 130, 115)   # #8C8273
 
 # Accent colour shared across families when overlaying titles on a cover.
-GOLD_AGED    = (200, 162,  74)   # #C8A24A
+GOLD_AGED    = (200, 131,  74)   # #C8A24A
 
 # ── Palette (RGB) — Family B (Netflix-doc, dark cinematic) ──────────── #
 # Deep neutral charcoals with a faint warm bias (the warm bias avoids
