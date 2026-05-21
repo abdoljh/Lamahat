@@ -245,7 +245,8 @@ def _build_shot_asset(shot: Shot, shot_index: int,
                      fetcher: "Fetcher | None" = None,
                      book_cover: Path | None = None,
                      book_cover_fit: str = "fill",
-                     book_cover_align: str = "center") -> tuple[Path, bool]:
+                     book_cover_align: str = "center",
+                     typography_family: str = "A") -> tuple[Path, bool]:
     """
     Render or fetch the asset for a single shot.
 
@@ -281,6 +282,7 @@ def _build_shot_asset(shot: Shot, shot_index: int,
             template=template,
             text=shot.typography_text,
             width=width, height=height,
+            family=typography_family,
             cover_image=cover,
             cover_fit=book_cover_fit,
             cover_align=book_cover_align,
@@ -745,6 +747,12 @@ class RenderConfig:
     # Set False to restore the pre-issue-3 behaviour (all typography
     # static_hold).
     section_mark_accent: bool = True
+    # Typography family — "A" (Aljazeera-editorial, cream/charcoal,
+    # default) or "B" (Netflix-doc cinematic, dark gradient).  Reserved:
+    # "C" (manuscript, sepia + ornament) lands in a follow-up patch.
+    # Unknown values fall back to Family A.  Selectable via the
+    # --typography-family CLI flag in phase3_run.py.
+    typography_family: str = "A"
 
 
 def render_video(shots: list[Shot], out_path: Path, *,
@@ -811,6 +819,7 @@ def render_video(shots: list[Shot], out_path: Path, *,
                     book_cover=config.book_cover,
                     book_cover_fit=config.book_cover_fit,
                     book_cover_align=config.book_cover_align,
+                    typography_family=config.typography_family,
                 )
                 # Motion only applies to fetched real images.  Typography
                 # and placeholder cards stay static — with one exception:
