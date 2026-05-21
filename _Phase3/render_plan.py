@@ -38,6 +38,16 @@ Image fetching (Stage 2)
     --no-cache              Disable disk caching
     --no-vision             Disable Claude vision scoring
 
+Typography
+----------
+    --typography-family {A,B}
+                        Pick the typography family used for all card
+                        renders (title_card, section_mark, pull_quote,
+                        name_reveal, date_stamp).
+                          A = Aljazeera-editorial, cream/charcoal (default)
+                          B = Netflix-doc cinematic, dark gradient
+                        Family C (manuscript) reserved for a follow-up.
+
 Modes
 -----
     --build-manifest PATH   Write required-images manifest and exit
@@ -153,6 +163,14 @@ def main() -> int:
                          "contain or blur_pad.  The gold title overlay "
                          "shifts to the opposite side automatically.")
 
+    ap.add_argument("--typography-family",
+                    choices=("A", "B"),
+                    default="A",
+                    help="Typography family for all card renders. "
+                         "A = Aljazeera-editorial cream/charcoal (default), "
+                         "B = Netflix-doc cinematic dark gradient. "
+                         "Family C (manuscript) reserved for a follow-up.")
+
     ap.add_argument("--build-manifest", metavar="PATH",
                     help="Write required-images manifest and exit")
     ap.add_argument("--verbose", action="store_true")
@@ -221,6 +239,8 @@ def main() -> int:
           f"Cache: {'off' if args.no_cache else 'on'}  "
           f"User dir: {args.user_dir or '–'}  "
           f"Book extracts: {args.book_extracts or '–'}")
+    print(f"Family : {args.typography_family} "
+          f"({'Aljazeera-editorial cream' if args.typography_family == 'A' else 'Netflix-doc cinematic dark'})")
     if args.review_dir:
         print(f"Review : {args.review_dir} (dossier consulted before fetcher)")
     print()
@@ -285,6 +305,7 @@ def main() -> int:
         book_cover=book_cover_path,
         book_cover_fit=cover_fit,
         book_cover_align=cover_align,
+        typography_family=args.typography_family,
     )
 
     t0 = time.perf_counter()
