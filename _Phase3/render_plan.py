@@ -164,12 +164,12 @@ def main() -> int:
                          "shifts to the opposite side automatically.")
 
     ap.add_argument("--typography-family",
-                    choices=("A", "B"),
+                    choices=("A", "B", "C"),
                     default="A",
                     help="Typography family for all card renders. "
                          "A = Aljazeera-editorial cream/charcoal (default), "
-                         "B = Netflix-doc cinematic dark gradient. "
-                         "Family C (manuscript) reserved for a follow-up.")
+                         "B = Netflix-doc cinematic dark gradient, "
+                         "C = Manuscript sepia + ornament.")
 
     ap.add_argument("--build-manifest", metavar="PATH",
                     help="Write required-images manifest and exit")
@@ -239,8 +239,13 @@ def main() -> int:
           f"Cache: {'off' if args.no_cache else 'on'}  "
           f"User dir: {args.user_dir or '–'}  "
           f"Book extracts: {args.book_extracts or '–'}")
+    _family_labels = {
+        "A": "Aljazeera-editorial cream",
+        "B": "Netflix-doc cinematic dark",
+        "C": "Manuscript sepia + ornament",
+    }
     print(f"Family : {args.typography_family} "
-          f"({'Aljazeera-editorial cream' if args.typography_family == 'A' else 'Netflix-doc cinematic dark'})")
+          f"({_family_labels[args.typography_family]})")
     if args.review_dir:
         print(f"Review : {args.review_dir} (dossier consulted before fetcher)")
     print()
