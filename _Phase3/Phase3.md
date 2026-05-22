@@ -98,10 +98,10 @@ user-facing workflow hasn't yet been exercised end-to-end, so it stays
 | # | Issue | Status | Tracking |
 |---|---|---|---|
 | 1 | **Color philosophy** — knob with cinematic-warm default, tunable per section | ☐ open | §15.1 |
-| 2 | **Typography aesthetic** — Family A too faint; offer Families B & C as selectable variants for testing | ☐ open | §15.2 |
-| 3 | **Section transitions** — current rhythm too slow, doesn't hook the audience | ☐ open | §15.3 |
-| 4 | **Captions** — title-card subtitle too small; main captions OK; under-line text small; subtitles appear merged | ☐ open | §15.4 |
-| 5 | **Online/offline asset review** — pre-render dossier of all candidates + character pin + per-shot override | ◐ **under consideration** (mechanism shipped & dossier built; 1 of 27 shots hand-edited, pin set; awaiting first render that consumes it) | §15.5 |
+| 2 | **Typography aesthetic** — Family A too faint; offer Families B & C as selectable variants for testing | ✓ **closed** (Families B and C shipped; `--typography-family {A,B,C}` flag wires through `RenderConfig`; Family C uses AmiriQuranColored for headlines with red i-dots) | §15.2 |
+| 3 | **Section transitions** — current rhythm too slow, doesn't hook the audience | ✓ **closed** (planner re-targeted 4.0–5.0 s; section_mark visual cap 7→5 s; 0.3 s zoom-in motion accent on section_marks; final state 61 shots avg 6.41 s — user accepted, declined further tightening) | §15.3 |
+| 4 | **Captions** — title-card subtitle too small; main captions OK; under-line text small; subtitles appear merged | ✓ **closed** (patch v3.4); see CLAUDE.md | §15.4 |
+| 5 | **Online/offline asset review** — pre-render dossier of all candidates + character pin + per-shot override | ✓ **closed** (file-convention override path shipped; resolution order: override → user-marked file → pinned_portrait → chosen_file → live fetch) | §15.5 |
 
 Working principle for all five: every change exposes a knob (CLI flag,
 config field, or dossier entry), keeps the existing default working,
@@ -657,25 +657,25 @@ Two paths:
 - Accept interpolated for now; revisit when ElevenLabs TTS lands (cleaner
   audio → easier alignment).
 
-#### 7.6 Shot duration distribution skews long
+#### 7.6 Shot duration distribution skews long — **partially addressed**
 
-Audit: average 9.09 s, range 4.49–12.17 s. The planner prompt's target is
-~5 s per shot; hard caps are 10–12 s. The 14 % auto-split rate shows Sonnet
-is brushing against the caps. Documentary pacing favours 4–6 s holds; 9 s
-averages feel slow.
+**Original audit** (43-shot plan): average 9.09 s, range 4.49–12.17 s.
+The planner prompt's target was ~5 s per shot; hard caps 10–12 s.
+The 14 % auto-split rate showed Sonnet brushing against the caps.
 
-Two reasons it ran long:
-1. Only 2 sections parsed (§7.2) → planner had less structural pressure to
-   introduce variety.
-2. `_sized_target_shots(391, 5.0)` returns ~65, but the planner returned
-   43. Sonnet's interpretation of "documentary pacing" tilts longer than
-   the prompt asks.
+**Post-issue-3 audit** (61-shot plan): average 6.41 s, range 3.91–9.23 s,
+auto-split 2 %.  The planner-prompt fixes from §15.3 — explicit
+"TARGET RANGE: 4.0–5.0 s avg", section_mark cap 7→5 s, user-prompt
+framing flipped — pulled the average down by ~1.7 s and tightened
+the upper range from 12.2 s to 9.2 s.  Sonnet still lands ~1.4 s
+above target, but the user accepted this state.
 
-**Fixes**:
-- Tighten the prompt: change "5–8 s on typography and portraits" → "4–6 s
-  on typography and portraits". Add explicit: "Average shot duration must
-  be 5.0–6.5 s."
-- In `_validate_plan`, warn if `avg < 5.0` or `avg > 7.0`.
+**What's left**: if a future session wants to push further, the
+remaining levers are (1) tighten the per-visual upper bounds in rule
+3 of the system prompt (typography/portrait 10→8 s, archive/broll 8→7
+s), (2) re-frame the user-prompt to make the count target *exact*
+rather than *aim*.  CLAUDE.md §6 documents the user's instruction to
+not push harder unless asked.
 
 ### Tier 3 — polish
 
@@ -980,37 +980,81 @@ mux.  Section-level variation is a stretch goal — the planner already
 emits `section_id` per shot, so a `grade_map.json` keyed on section_id
 can drop in later without re-planning.
 
-### 15.2 Typography aesthetic — Families B and C — **open**
+### 15.2 Typography aesthetic — Families B and C — **closed**
 
-**Goal**: ship Families B (Netflix-doc cinematic, dark gradient) and
-C (manuscript, sepia + ornament) alongside the existing Family A
-(Aljazeera editorial) so the user can A/B test against a real render.
+**Outcome**: Families B and C shipped alongside Family A.  Selectable
+via `--typography-family {A,B,C}` on `render_plan.py`.
 
-**State**: only Family A exists in `typography.py`.
+**Architecture**: `typography.py` was refactored from a 1228-line
+monolith into a dispatcher + three sibling modules:
 
-**Notes for next session**: the cleanest expansion is a
-`--typography-family {A,B,C}` flag and three sibling modules
-(`typography_a.py`, `typography_b.py`, `typography_c.py`) that share
-the same `TypographySpec` contract and template registry.  All five
-templates (`title_card`, `section_mark`, `pull_quote`, `name_reveal`,
-`date_stamp`) need three implementations, then a dispatcher.  Roughly
-700 LOC per family; can be parallelised by sharing the canvas-grain
-and font-discovery helpers.
+- `typography_common.py` — shared design tokens, font discovery,
+  helpers (`_font`, `_measure`, `_draw_text_rtl`, `_apply_grain`,
+  cover-fitting helpers), and the `TypographySpec` dataclass (now with
+  a `family: Literal["A","B","C"]` field).
+- `typography_a.py` — Family A renderers, verbatim lift; behaviour
+  unchanged.
+- `typography_b.py` — Family B (Netflix-doc cinematic): vertical
+  dark gradient, off-white Amiri Bold headlines, deep gold accent
+  rules, no diamond/quote ornaments.
+- `typography_c.py` — Family C (manuscript): aged-paper vignette,
+  sepia ink, burgundy bracket ornaments, double-rules, visible «»
+  on pull_quotes.  Headlines use AmiriQuranColored (falls back to
+  Amiri Quran B&W, then Bold).
+- `typography.py` — dispatcher; re-exports the public API verbatim
+  so `render.py`'s import line is unchanged.
 
-### 15.3 Section transitions — **open**
+**Public surface preserved**: `render`, `TypographySpec`, palette
+constants, `FONT_PATHS`, `_font`, `_measure`, `_draw_text_rtl`,
+`_apply_grain` are all importable from `phase3.typography` at the
+same names as before.
 
-**Goal**: faster rhythm, more audience hook at section boundaries.
+**Family C colour-glyph wiring**: Pillow only activates COLR/CPAL
+palettes when `draw.text(..., embedded_color=True)` is passed.  The
+`_draw_text_rtl` helper gained an `embedded_color: bool = False`
+kwarg that the four Family-C headline calls set to True; the helper
+checks `_font_has_color_palette(font)` before activating the path,
+so the flag is a no-op on Bold/Quran B&W.
 
-**State**: prior session locked "hard cuts everywhere, section_mark
-typography shot is the transition device" — that decision now reads as
-too quiet.
+**Headline vertical padding**: Family C sets `HEADLINE_VPAD_FRAC =
+0.35` to clear Quran's larger diacritic-clearance bbox (otherwise
+subtitles overlap the headline glyphs).
 
-**Notes for next session**: two complementary moves.  (a) tighten the
-planner's average shot duration target from the current 5.0–6.5 s
-range down to 4.0–5.0 s, especially around section boundaries; the
-auto-split safety net catches anything Sonnet pushes too far.
-(b) optionally introduce a single 0.3 s motion accent on section_mark
-shots — a quick zoom-in or slide that signals "new chapter".
+### 15.3 Section transitions — **closed**
+
+**Outcome**: rhythm tightened on both planner and renderer sides.
+
+**Planner changes** (`plan.py`):
+
+- `build_shot_plan()` default `target_shot_duration`: 5.0 → 4.5 s
+- `_SYSTEM_PROMPT` rule 3: per-visual `section_mark` cap dropped from
+  7.0 to 5.0 s; pacing nudge rewritten as "TARGET RANGE: 4.0–5.0 s
+  avg" with explicit "cut faster around section_marks"
+- `_USER_PROMPT_TMPL`: framing flipped — target is now a floor, not
+  a ceiling
+- `_validate_plan` `TARGET_PIECE`: 5.0 → 4.5 s (auto-split target)
+
+Hard caps (`HARD_CAPS` in `_validate_plan`) were **not** touched —
+the fix is in the prompt, not the safety net.
+
+**Renderer changes** (`render.py`):
+
+- New motion type `section_accent` in `_MOTION_FILTERS`: 0.3 s zoom-in
+  ramp from 1.00 → 1.05 over 8 frames (`min(1.05, 1.00 + 0.05/8 * on)`),
+  then static hold for the remainder
+- New `RenderConfig.section_mark_accent: bool = True` (opt-out flag)
+- Dispatch in `render_video()` overrides `static_hold` to
+  `section_accent` for any shot where `visual == "section_mark"` and
+  the config flag is True.  Other typography (title_card,
+  chapter_heading, pull_quote, etc.) remains `static_hold`.
+
+The accent is applied at render-dispatch time, not in the plan, so
+re-rendering an existing plan picks it up without re-planning.
+
+**Final state**: shot count 48 → 61; avg shot duration 8.15 s → 6.41
+s; range 3.91–9.23 s.  Auto-split rate stable at 2%.  User accepted
+6.41 s avg (above the 4.5 s prompt target) and explicitly declined
+further planner tightening — don't push it harder unless asked.
 
 ### 15.4 Captions — **open**
 
