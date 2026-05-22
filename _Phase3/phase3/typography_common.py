@@ -383,18 +383,79 @@ def _measure(draw: ImageDraw.ImageDraw, text: str,
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
 
+def _font_has_color_palette(font: ImageFont.FreeTypeFont) -> bool:
+    """
+    Return True if `font` carries a COLR/CPAL palette (so Pillow's
+    `embedded_color=True` path renders coloured glyphs).
+
+    The reliable check is to look for the COLR table in the underlying
+    FreeType font.  If the table is present, the font has at least one
+    coloured glyph layer; absence means it's monochrome.
+
+    This is wrapped in a try/except because the freetype binding's
+    `getbest_*` style probes aren't part of the documented API, so
+    different Pillow versions expose font internals slightly differently.
+    Failure modes (older Pillow, exotic build) fall back to False, which
+    just disables the colour-glyph path — never errors at render time.
+    """
+    try:
+        # Pillow's TTF/OTF wrapper exposes the FreeType face under .font;
+        # we use the well-defined sfnt-table API to look for "COLR".
+        tables = font.font.tables                  # type: ignore[attr-defined]
+        if isinstance(tables, (list, tuple)):
+            return any(t == b"COLR" or t == "COLR" for t in tables)
+    except Exception:
+        pass
+    # Fallback: name-based heuristic.  AmiriQuranColored is the only
+    # Family-C font where this matters today; the heuristic is purely
+    # additive and never overrides a True from the tables check above.
+    try:
+        path = getattr(font, "path", "") or ""
+        return "Colored" in path or "colored" in path
+    except Exception:
+        return False
+
+
 def _draw_text_rtl(draw: ImageDraw.ImageDraw, xy: tuple[int, int],
                    text: str, font: ImageFont.FreeTypeFont,
-                   fill) -> None:
-    """draw.text wrapper that handles Arabic shaping."""
+                   fill,
+                   embedded_color: bool = False) -> None:
+    """draw.text wrapper that handles Arabic shaping.
+
+    When ``embedded_color=True`` *and* the font carries a COLR/CPAL
+    palette (e.g. AmiriQuranColored), Pillow renders the coloured-glyph
+    layers from the font itself.  The supplied ``fill`` colour applies
+    only to monochrome glyphs in that case — colour glyphs use the
+    palette baked into the font.
+
+    Callers that don't need coloured glyphs can leave ``embedded_color``
+    at its default of False; behaviour is then identical to the
+    original signature.
+    """
     if not text:
         return
     prepared = _prepare_for_pillow(text)
+    use_color = embedded_color and _font_has_color_palette(font)
     if _HAS_RAQM:
-        draw.text(xy, prepared, font=font, fill=fill,
-                  direction="rtl", language="ar")
+        if use_color:
+            # When embedded_color is on, Pillow requires the image mode
+            # to support an alpha channel for proper compositing.  We
+            # don't enforce that here — the caller's canvas is RGB and
+            # Pillow will composite the colour layers against the
+            # existing pixels.  Pass fill anyway; it's used for any
+            # non-colour glyphs (rare but possible).
+            draw.text(xy, prepared, font=font, fill=fill,
+                      direction="rtl", language="ar",
+                      embedded_color=True)
+        else:
+            draw.text(xy, prepared, font=font, fill=fill,
+                      direction="rtl", language="ar")
     else:
-        draw.text(xy, prepared, font=font, fill=fill)
+        if use_color:
+            draw.text(xy, prepared, font=font, fill=fill,
+                      embedded_color=True)
+        else:
+            draw.text(xy, prepared, font=font, fill=fill)
 
 
 def _make_canvas(width: int, height: int, bg_rgb: tuple) -> Image.Image:
@@ -502,13 +563,15 @@ def _draw_centred_lines(draw: ImageDraw.ImageDraw,
                         canvas_size: tuple[int, int],
                         colour: tuple,
                         baseline_y: int,
-                        line_height: int) -> int:
+                        line_height: int,
+                        embedded_color: bool = False) -> int:
     """Top-aligned centred line stack.  Returns y immediately below last line."""
     w, _ = canvas_size
     y = baseline_y
     for line in lines:
         tw, _ = _measure(draw, line, font)
-        _draw_text_rtl(draw, ((w - tw) // 2, y), line, font=font, fill=colour)
+        _draw_text_rtl(draw, ((w - tw) // 2, y), line, font=font, fill=colour,
+                       embedded_color=embedded_color)
         y += line_height
     return y
 

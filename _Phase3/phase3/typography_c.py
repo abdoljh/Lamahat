@@ -324,7 +324,8 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
         sub_x_anchor = spec.width // 2
 
     _draw_text_rtl(draw, (title_x, block_top),
-                   spec.text, font=main_font, fill=accent)
+                   spec.text, font=main_font, fill=accent,
+                   embedded_color=True)
 
     if spec.subtitle:
         sub_y = block_top + mh_padded + sub_gap
@@ -396,7 +397,8 @@ def _render_title_card_paper(spec: TypographySpec) -> Image.Image:
 
     # Title text
     _draw_text_rtl(draw, ((spec.width - mw) // 2, block_top),
-                   spec.text, font=main_font, fill=SEPIA_INK)
+                   spec.text, font=main_font, fill=SEPIA_INK,
+                   embedded_color=True)
 
     if spec.subtitle:
         sub_y = block_top + mh_padded + sub_gap
@@ -445,7 +447,8 @@ def _render_section_mark(spec: TypographySpec) -> Image.Image:
                   size=bracket_size, facing="left")
 
     _draw_text_rtl(draw, (text_x, block_y), spec.text,
-                   font=main_font, fill=SEPIA_INK)
+                   font=main_font, fill=SEPIA_INK,
+                   embedded_color=True)
 
     # Double rule below — use the padded headline height so calligraphic
     # descenders don't collide with the rule.
@@ -610,7 +613,8 @@ def _render_name_reveal(spec: TypographySpec) -> Image.Image:
                   size=bracket_size, facing="left")
 
     _draw_text_rtl(draw, (name_x, block_top),
-                   spec.text, font=name_font, fill=SEPIA_INK)
+                   spec.text, font=name_font, fill=SEPIA_INK,
+                   embedded_color=True)
 
     rule_y = block_top + nh_padded + rule_gap
     end_y = _draw_double_rule(draw, rule_y, spec.width, spec.height,
