@@ -84,11 +84,15 @@ GOLD_DEEP    = (188, 148,  64)   # #BC9440 — accent (rules, emphasis)
 # ── Typography (font discovery) ──────────────────────────────────────── #
 
 _FONT_ALIASES = {
-    "regular":     ["Amiri-Regular.ttf"],
-    "bold":        ["Amiri-Bold.ttf"],
-    "italic":      ["Amiri-Italic.ttf", "Amiri-Slanted.ttf"],
-    "bold_italic": ["Amiri-BoldItalic.ttf", "Amiri-BoldSlanted.ttf"],
-    "quran":       ["AmiriQuran.ttf"],
+    "regular":       ["Amiri-Regular.ttf"],
+    "bold":          ["Amiri-Bold.ttf"],
+    "italic":        ["Amiri-Italic.ttf", "Amiri-Slanted.ttf"],
+    "bold_italic":   ["Amiri-BoldItalic.ttf", "Amiri-BoldSlanted.ttf"],
+    # Calligraphic styles used by Family C for headlines.  Both files
+    # are looked up (space-in-name and no-space variants ship in the
+    # upstream Amiri archive).
+    "quran":         ["AmiriQuran.ttf", "Amiri Quran.ttf"],
+    "quran_colored": ["AmiriQuranColored.ttf"],
 }
 _REQUIRED_WEIGHTS = ("regular", "bold")
 

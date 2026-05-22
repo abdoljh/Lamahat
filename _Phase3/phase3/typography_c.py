@@ -48,6 +48,8 @@ from .typography_common import (
     # shared design tokens (not family-specific)
     LINE_HEIGHT_MULT, MARGINS, PULL_QUOTE_THRESHOLDS,
     RULE_THICKNESS_PX_1080,
+    # font availability
+    FONT_PATHS,
     # shared spec + helpers
     TypographySpec,
     _font, _size, _measure, _draw_text_rtl, _apply_grain,
@@ -57,6 +59,46 @@ from .typography_common import (
     # for quote-mark constants
     QUOTE_OPEN, QUOTE_CLOSE,
 )
+
+
+# ── Family C font selection ────────────────────────────────────────────── #
+# Headlines use a calligraphic Quran face when available; falls back to
+# Amiri Bold if neither Quran weight is present.  Body text (pull_quote
+# lines, all subtitles, attribution) always uses the standard weights —
+# Quran's metrics make multi-line wrapping unreliable.
+
+def _headline_font(size_px: int):
+    """Calligraphic font for Family C headlines.
+
+    Preference order: quran_colored → quran → bold.  Quran weights are
+    optional in the font discovery (only regular + bold are required),
+    so this falls back gracefully on systems with a minimal Amiri
+    install.
+    """
+    for slot in ("quran_colored", "quran"):
+        if slot in FONT_PATHS:
+            return _font(slot, size_px)
+    return _font("bold", size_px)
+
+
+# Quran glyphs have generous ascender/descender clearance for diacritics
+# but Pillow's textbbox() returns only the tight bbox of rendered ink.
+# When centering, that mismatch causes the headline + subtitle stack to
+# overlap.  Add this fraction of the headline size as vertical padding
+# whenever Family C uses a calligraphic headline.
+HEADLINE_VPAD_FRAC = 0.35
+
+
+def _headline_metrics(draw, text, font, fallback_h):
+    """Measure a headline string + return (width, padded_height).
+
+    The returned height includes Quran's required vertical breathing
+    room.  `fallback_h` is used if measurement fails.
+    """
+    w, h = _measure(draw, text, font)
+    if h <= 0:
+        h = fallback_h
+    return w, int(h * (1 + HEADLINE_VPAD_FRAC))
 
 
 # ── Family C palette ───────────────────────────────────────────────────── #
@@ -153,52 +195,48 @@ def _draw_bracket(draw: ImageDraw.ImageDraw,
                   colour: tuple = BURGUNDY,
                   thickness: int = 3) -> None:
     """
-    Geometric manuscript bracket ornament.  `facing` is "left" or
-    "right" and controls which way the bracket opens.
+    Manuscript corner-bracket ornament.
 
-    Shape: a corner-mark — short horizontal arm + short vertical arm
-    forming an L, with a small inward terminus.  Drawn from polygons
-    rather than splines (no outline approximation needed).
+    For ``facing="right"`` (opens rightward; sits to the LEFT of text):
 
-    For a "right"-facing bracket (opens to the right, sits to the LEFT
-    of the text it frames):
+           ┌───
+           │
+           │
+           └───
 
-           ╔════
-           ║
-           ║
-           ╚════
+    For ``facing="left"`` (mirrored, sits to the RIGHT of text):
 
-    For "left"-facing:
+        ───┐
+           │
+           │
+        ───┘
 
-        ════╗
-            ║
-            ║
-        ════╝
+    ``cx, cy`` is the **inner** anchor — i.e. the cy is the text mid-line
+    and the vertical bar passes through cx.  Arms extend horizontally
+    *toward* the text (no longer; just short stubs).  The bracket spans
+    `size` vertically and `size * 0.45` horizontally.
+
+    The earlier version added a small "terminus dot" on the outside of
+    each arm.  At realistic title sizes this read as noise rather than
+    ornament, so the dots are removed.  The earlier version also sized
+    arms to 0.7 × size; that proved too long, so arms now extend only
+    far enough to read as a corner (0.45 × size).
     """
     half = size // 2
-    arm = int(size * 0.7)   # length of horizontal arm
+    arm = int(size * 0.45)
     t = thickness
 
     if facing == "right":
-        # Vertical bar
+        # Vertical bar (left of text)
         draw.rectangle([cx, cy - half, cx + t, cy + half], fill=colour)
-        # Top arm
+        # Top arm extending rightward (toward text)
         draw.rectangle([cx, cy - half, cx + arm, cy - half + t], fill=colour)
-        # Bottom arm
+        # Bottom arm extending rightward
         draw.rectangle([cx, cy + half - t, cx + arm, cy + half], fill=colour)
-        # Small inward terminus on each arm (decorative dot)
-        draw.rectangle([cx + arm, cy - half - t, cx + arm + t, cy - half + 2 * t],
-                       fill=colour)
-        draw.rectangle([cx + arm, cy + half - 2 * t, cx + arm + t, cy + half + t],
-                       fill=colour)
-    else:  # "left"
+    else:  # "left" — mirror of above
         draw.rectangle([cx - t, cy - half, cx, cy + half], fill=colour)
         draw.rectangle([cx - arm, cy - half, cx, cy - half + t], fill=colour)
         draw.rectangle([cx - arm, cy + half - t, cx, cy + half], fill=colour)
-        draw.rectangle([cx - arm - t, cy - half - t, cx - arm, cy - half + 2 * t],
-                       fill=colour)
-        draw.rectangle([cx - arm - t, cy + half - 2 * t, cx - arm, cy + half + t],
-                       fill=colour)
 
 
 # ── Template: title_card ───────────────────────────────────────────────── #
@@ -250,16 +288,20 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
 
     main_size = _size(spec, "title_main")
     sub_size  = _size(spec, "title_sub")
-    main_font = _font("bold", main_size)
+    main_font = _headline_font(main_size)
     sub_font  = _font("italic", sub_size)
 
-    mw, mh = _measure(draw, spec.text, main_font)
+    mw, mh_padded = _headline_metrics(draw, spec.text, main_font,
+                                      fallback_h=main_size)
+    # mh is the tight bbox height (used for arm-positioning math);
+    # mh_padded is what we use for centering + below-block spacing.
+    _, mh = _measure(draw, spec.text, main_font)
 
     sub_h = 0
     if spec.subtitle:
         _, sub_h = _measure(draw, spec.subtitle, sub_font)
     sub_gap = int(spec.height * 0.025)
-    total_block_h = mh + (sub_gap + sub_h if spec.subtitle else 0)
+    total_block_h = mh_padded + (sub_gap + sub_h if spec.subtitle else 0)
 
     block_top = int(spec.height * 0.55) - (total_block_h // 2)
 
@@ -285,7 +327,7 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
                    spec.text, font=main_font, fill=accent)
 
     if spec.subtitle:
-        sub_y = block_top + mh + sub_gap
+        sub_y = block_top + mh_padded + sub_gap
         sw, _ = _measure(draw, spec.subtitle, sub_font)
         sub_x = sub_x_anchor - sw // 2
         # Subtitle in warm cream rather than dim grey — feels manuscript
@@ -310,10 +352,12 @@ def _render_title_card_paper(spec: TypographySpec) -> Image.Image:
 
     main_size = _size(spec, "title_main")
     sub_size  = _size(spec, "title_sub")
-    main_font = _font("bold", main_size)
+    main_font = _headline_font(main_size)
     sub_font  = _font("italic", sub_size)
 
-    mw, mh = _measure(draw, spec.text, main_font)
+    mw, mh_padded = _headline_metrics(draw, spec.text, main_font,
+                                      fallback_h=main_size)
+    _, mh = _measure(draw, spec.text, main_font)
 
     sub_h = 0
     if spec.subtitle:
@@ -324,7 +368,7 @@ def _render_title_card_paper(spec: TypographySpec) -> Image.Image:
     rule_thick = max(1, int(spec.height * RULE_THICKNESS_PX_1080 / 1080))
     double_rule_h = rule_thick * 2 + max(2, int(spec.height * 0.010))
 
-    total_block_h = mh + (sub_gap + sub_h if spec.subtitle else 0)
+    total_block_h = mh_padded + (sub_gap + sub_h if spec.subtitle else 0)
     block_top = (spec.height - total_block_h) // 2
 
     # Double rule above
@@ -334,9 +378,11 @@ def _render_title_card_paper(spec: TypographySpec) -> Image.Image:
     _draw_double_rule(draw, block_top + total_block_h + rule_gap,
                       spec.width, spec.height, length_pct=0.30)
 
-    # Bracket ornaments flanking the title
-    bracket_size = int(mh * 1.1)
-    bracket_gap = int(spec.width * 0.025)
+    # Bracket ornaments flanking the title — sized to actual ink height,
+    # not the padded height (otherwise brackets would extend past the
+    # rules above/below).
+    bracket_size = int(mh * 0.85)
+    bracket_gap = int(spec.width * 0.020)
     title_cx = spec.width // 2
     bracket_cy = block_top + mh // 2
     _draw_bracket(draw,
@@ -353,7 +399,7 @@ def _render_title_card_paper(spec: TypographySpec) -> Image.Image:
                    spec.text, font=main_font, fill=SEPIA_INK)
 
     if spec.subtitle:
-        sub_y = block_top + mh + sub_gap
+        sub_y = block_top + mh_padded + sub_gap
         sw, _ = _measure(draw, spec.subtitle, sub_font)
         _draw_text_rtl(draw, ((spec.width - sw) // 2, sub_y),
                        spec.subtitle, font=sub_font, fill=SEPIA_DIM)
@@ -373,17 +419,21 @@ def _render_section_mark(spec: TypographySpec) -> Image.Image:
 
     main_size = _size(spec, "section_main")
     sub_size  = _size(spec, "section_sub")
-    main_font = _font("bold", main_size)
+    main_font = _headline_font(main_size)
     sub_font  = _font("italic", sub_size)
 
-    mw, mh = _measure(draw, spec.text, main_font)
+    mw, mh_padded = _headline_metrics(draw, spec.text, main_font,
+                                      fallback_h=main_size)
+    _, mh = _measure(draw, spec.text, main_font)
 
     block_y = int(spec.height * 0.40)
     text_x  = (spec.width - mw) // 2
 
-    # Brackets flanking the title
-    bracket_size = int(mh * 1.05)
-    bracket_gap = int(spec.width * 0.025)
+    # Brackets flanking the title.  Sized to the ink height (not the
+    # padded calligraphy height), so the arms don't intrude past the
+    # rule that follows below.
+    bracket_size = int(mh * 0.80)
+    bracket_gap = int(spec.width * 0.020)
     bracket_cy = block_y + mh // 2
     _draw_bracket(draw,
                   cx=text_x - bracket_gap,
@@ -397,8 +447,9 @@ def _render_section_mark(spec: TypographySpec) -> Image.Image:
     _draw_text_rtl(draw, (text_x, block_y), spec.text,
                    font=main_font, fill=SEPIA_INK)
 
-    # Double rule below
-    rule_y = block_y + mh + int(spec.height * 0.05)
+    # Double rule below — use the padded headline height so calligraphic
+    # descenders don't collide with the rule.
+    rule_y = block_y + mh_padded + int(spec.height * 0.04)
     end_y = _draw_double_rule(draw, rule_y, spec.width, spec.height,
                               length_pct=0.20)
 
@@ -443,12 +494,15 @@ def _render_pull_quote(spec: TypographySpec) -> Image.Image:
 
     main_size = _size(spec, size_key)
     attr_size = _size(spec, "pull_quote_attr")
-    main_font = _font("bold", main_size)
+    main_font = _font("bold", main_size)         # body stays Bold (readability)
     attr_font = _font("italic", attr_size)
 
-    # Decorative quote marks — render at ~1.4× the main text size,
-    # bold weight, in burgundy_dim.  Visible but not screaming.
-    quote_size_px = int(main_size * 1.6)
+    # Decorative quote marks — sized to body weight (~1.0×) so they
+    # punctuate rather than dominate; positioned just outside the text
+    # column, not at the page margins (the earlier version stranded the
+    # marks ~30% from the text edge, making them read as decoration
+    # unrelated to the quote).
+    quote_size_px = int(main_size * 1.0)
     quote_font = _font("bold", quote_size_px)
 
     column_w = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
@@ -469,16 +523,24 @@ def _render_pull_quote(spec: TypographySpec) -> Image.Image:
     total_h = block_h + rule_gap + double_rule_h + attr_h
     block_top = (spec.height - total_h) // 2
 
-    # Decorative quote marks at the top-left and top-right of the text
-    # block.  Slightly above the first line so they read as opening
-    # quotes, not punctuation in the middle.
+    # Find the widest line — that determines the text-block edges.  The
+    # quote marks sit just outside those edges (gap = 0.5× quote size).
+    widest_line_w = max(
+        (_measure(draw, line, main_font)[0] for line in lines),
+        default=0,
+    )
     open_w, open_h = _measure(draw, QUOTE_OPEN, quote_font)
     close_w, _ = _measure(draw, QUOTE_CLOSE, quote_font)
-    margin_x = int(spec.width * MARGINS["horizontal_pct"] * 0.7)
-    quote_y = block_top - int(open_h * 0.30)
-    _draw_text_rtl(draw, (margin_x, quote_y),
+    quote_gap = int(quote_size_px * 0.5)
+    text_block_left = (spec.width - widest_line_w) // 2
+    text_block_right = text_block_left + widest_line_w
+    # The opening quote (visually on the LEFT of the text block; in
+    # logical-Arabic-RTL this is the END of the quote, but visually
+    # it's where the eye expects «).
+    quote_y = block_top - int(open_h * 0.15)
+    _draw_text_rtl(draw, (text_block_left - quote_gap - open_w, quote_y),
                    QUOTE_OPEN, font=quote_font, fill=BURGUNDY_DIM)
-    _draw_text_rtl(draw, (spec.width - margin_x - close_w, quote_y),
+    _draw_text_rtl(draw, (text_block_right + quote_gap, quote_y),
                    QUOTE_CLOSE, font=quote_font, fill=BURGUNDY_DIM)
 
     # Body text
@@ -514,10 +576,12 @@ def _render_name_reveal(spec: TypographySpec) -> Image.Image:
 
     name_size = _size(spec, "name_main")
     sub_size  = _size(spec, "name_sub")
-    name_font = _font("bold", name_size)
+    name_font = _headline_font(name_size)
     sub_font  = _font("italic", sub_size)
 
-    nw, nh = _measure(draw, spec.text, name_font)
+    nw, nh_padded = _headline_metrics(draw, spec.text, name_font,
+                                      fallback_h=name_size)
+    _, nh = _measure(draw, spec.text, name_font)
 
     rule_gap   = int(spec.height * 0.035)
     sub_gap    = int(spec.height * 0.030)
@@ -528,13 +592,13 @@ def _render_name_reveal(spec: TypographySpec) -> Image.Image:
     if spec.subtitle:
         _, sub_h = _measure(draw, spec.subtitle, sub_font)
 
-    total_h = nh + rule_gap + double_rule_h + (sub_gap + sub_h if spec.subtitle else 0)
+    total_h = nh_padded + rule_gap + double_rule_h + (sub_gap + sub_h if spec.subtitle else 0)
     block_top = (spec.height - total_h) // 2
 
-    # Brackets
+    # Brackets — sized to ink, not the padded calligraphy height
     name_x = (spec.width - nw) // 2
-    bracket_size = int(nh * 1.05)
-    bracket_gap = int(spec.width * 0.022)
+    bracket_size = int(nh * 0.80)
+    bracket_gap = int(spec.width * 0.018)
     bracket_cy = block_top + nh // 2
     _draw_bracket(draw,
                   cx=name_x - bracket_gap,
@@ -548,7 +612,7 @@ def _render_name_reveal(spec: TypographySpec) -> Image.Image:
     _draw_text_rtl(draw, (name_x, block_top),
                    spec.text, font=name_font, fill=SEPIA_INK)
 
-    rule_y = block_top + nh + rule_gap
+    rule_y = block_top + nh_padded + rule_gap
     end_y = _draw_double_rule(draw, rule_y, spec.width, spec.height,
                               length_pct=0.22)
 
@@ -573,6 +637,10 @@ def _render_date_stamp(spec: TypographySpec) -> Image.Image:
     img = _make_aged_paper_canvas(spec.width, spec.height)
     draw = ImageDraw.Draw(img)
 
+    # Date digits stay in Amiri Bold.  Quran calligraphic styles are
+    # designed for Arabic script body text; Arabic-Indic digits render
+    # at the same weight as Bold in practice, and the calligraphic
+    # diacritic clearance just inflates vertical padding for no gain.
     date_size = _size(spec, "date_huge")
     sub_size  = _size(spec, "date_sub")
     date_font = _font("bold", date_size)
