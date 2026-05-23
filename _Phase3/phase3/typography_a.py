@@ -27,7 +27,7 @@ from .typography_common import (
     RULE_THICKNESS_PX_1080, SECTION_DIAMOND_SIZE,
     # spec + helpers
     TypographySpec,
-    _font, _size, _measure, _draw_text_rtl,
+    _font, _size, _measure, _draw_text_rtl, _fit_text_to_width,
     _make_canvas, _draw_hairline_rule, _draw_diamond,
     _wrap_by_width, _draw_centred_lines,
     _resize_cover_to_fill, _resize_cover_to_contain,
@@ -129,8 +129,13 @@ def _render_title_card_cream(spec: TypographySpec) -> Image.Image:
     main_size = _size(spec, "title_main")
     sub_size  = _size(spec, "title_sub")
 
-    main_font = _font("bold", main_size)
     sub_font  = _font("italic", sub_size)
+
+    # Auto-shrink headline to fit 80% of frame width (matches MARGINS).
+    headline_budget = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
+    main_font, _ = _fit_text_to_width(
+        draw, spec.text, "bold", main_size, headline_budget,
+    )
 
     shaped_main = spec.text
     mw, mh = _measure(draw, shaped_main, main_font)
@@ -179,8 +184,12 @@ def _render_section_mark(spec: TypographySpec) -> Image.Image:
     main_size = _size(spec, "section_main")
     sub_size  = _size(spec, "section_sub")
 
-    main_font = _font("regular", main_size)
     sub_font  = _font("italic", sub_size)
+
+    headline_budget = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
+    main_font, _ = _fit_text_to_width(
+        draw, spec.text, "regular", main_size, headline_budget,
+    )
 
     shaped_main = spec.text
     mw, mh = _measure(draw, shaped_main, main_font)
@@ -283,8 +292,12 @@ def _render_name_reveal(spec: TypographySpec) -> Image.Image:
 
     name_size = _size(spec, "name_main")
     sub_size  = _size(spec, "name_sub")
-    name_font = _font("bold", name_size)
     sub_font  = _font("italic", sub_size)
+
+    headline_budget = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
+    name_font, _ = _fit_text_to_width(
+        draw, spec.text, "bold", name_size, headline_budget,
+    )
 
     shaped_name = spec.text
     nw, nh = _measure(draw, shaped_name, name_font)

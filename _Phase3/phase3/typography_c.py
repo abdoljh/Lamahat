@@ -52,7 +52,7 @@ from .typography_common import (
     FONT_PATHS,
     # shared spec + helpers
     TypographySpec,
-    _font, _size, _measure, _draw_text_rtl, _apply_grain,
+    _font, _size, _measure, _draw_text_rtl, _fit_text_to_width, _apply_grain,
     _wrap_by_width, _draw_centred_lines,
     _resize_cover_to_fill, _resize_cover_to_contain,
     _make_cover_contain, _make_cover_blur_pad,
@@ -353,8 +353,16 @@ def _render_title_card_paper(spec: TypographySpec) -> Image.Image:
 
     main_size = _size(spec, "title_main")
     sub_size  = _size(spec, "title_sub")
-    main_font = _headline_font(main_size)
     sub_font  = _font("italic", sub_size)
+
+    # Family C uses _headline_font (Quran-colored/Quran/Bold fallback).
+    # Adapt the loader so _fit_text_to_width can drive it.
+    _hf_loader = lambda _weight, sz: _headline_font(sz)
+    headline_budget = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
+    main_font, _ = _fit_text_to_width(
+        draw, spec.text, "headline", main_size, headline_budget,
+        _font_loader=_hf_loader,
+    )
 
     mw, mh_padded = _headline_metrics(draw, spec.text, main_font,
                                       fallback_h=main_size)
@@ -421,8 +429,14 @@ def _render_section_mark(spec: TypographySpec) -> Image.Image:
 
     main_size = _size(spec, "section_main")
     sub_size  = _size(spec, "section_sub")
-    main_font = _headline_font(main_size)
     sub_font  = _font("italic", sub_size)
+
+    _hf_loader = lambda _weight, sz: _headline_font(sz)
+    headline_budget = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
+    main_font, _ = _fit_text_to_width(
+        draw, spec.text, "headline", main_size, headline_budget,
+        _font_loader=_hf_loader,
+    )
 
     mw, mh_padded = _headline_metrics(draw, spec.text, main_font,
                                       fallback_h=main_size)
@@ -579,8 +593,14 @@ def _render_name_reveal(spec: TypographySpec) -> Image.Image:
 
     name_size = _size(spec, "name_main")
     sub_size  = _size(spec, "name_sub")
-    name_font = _headline_font(name_size)
     sub_font  = _font("italic", sub_size)
+
+    _hf_loader = lambda _weight, sz: _headline_font(sz)
+    headline_budget = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
+    name_font, _ = _fit_text_to_width(
+        draw, spec.text, "headline", name_size, headline_budget,
+        _font_loader=_hf_loader,
+    )
 
     nw, nh_padded = _headline_metrics(draw, spec.text, name_font,
                                       fallback_h=name_size)

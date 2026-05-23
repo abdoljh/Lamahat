@@ -48,7 +48,7 @@ from .typography_common import (
     RULE_THICKNESS_PX_1080,
     # spec + helpers
     TypographySpec,
-    _font, _size, _measure, _draw_text_rtl,
+    _font, _size, _measure, _draw_text_rtl, _fit_text_to_width,
     _draw_hairline_rule, _wrap_by_width, _draw_centred_lines,
     _make_dark_gradient_canvas,
     _resize_cover_to_fill, _resize_cover_to_contain,
@@ -194,8 +194,12 @@ def _render_title_card_dark(spec: TypographySpec) -> Image.Image:
 
     main_size = _size(spec, "title_main")
     sub_size  = _size(spec, "title_sub")
-    main_font = _font("bold", main_size)
     sub_font  = _font("regular", sub_size)
+
+    headline_budget = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
+    main_font, _ = _fit_text_to_width(
+        draw, spec.text, "bold", main_size, headline_budget,
+    )
 
     mw, mh = _measure(draw, spec.text, main_font)
 
@@ -243,8 +247,12 @@ def _render_section_mark(spec: TypographySpec) -> Image.Image:
     main_size = _size(spec, "section_main")
     sub_size  = _size(spec, "section_sub")
 
-    main_font = _font("bold", main_size)
     sub_font  = _font("regular", sub_size)
+
+    headline_budget = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
+    main_font, _ = _fit_text_to_width(
+        draw, spec.text, "bold", main_size, headline_budget,
+    )
 
     mw, mh = _measure(draw, spec.text, main_font)
 
@@ -345,8 +353,12 @@ def _render_name_reveal(spec: TypographySpec) -> Image.Image:
 
     name_size = _size(spec, "name_main")
     sub_size  = _size(spec, "name_sub")
-    name_font = _font("bold", name_size)
     sub_font  = _font("regular", sub_size)
+
+    headline_budget = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
+    name_font, _ = _fit_text_to_width(
+        draw, spec.text, "bold", name_size, headline_budget,
+    )
 
     nw, nh = _measure(draw, spec.text, name_font)
 

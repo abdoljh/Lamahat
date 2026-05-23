@@ -383,6 +383,52 @@ def _measure(draw: ImageDraw.ImageDraw, text: str,
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
 
+def _fit_text_to_width(draw: ImageDraw.ImageDraw, text: str,
+                       weight: str, start_size_px: int,
+                       max_width: int,
+                       min_size_px: int | None = None,
+                       _font_loader=None) -> tuple[ImageFont.FreeTypeFont, int]:
+    """
+    Return (font, size_px) such that `text` rendered with the chosen font
+    measures ≤ max_width.  Starts at start_size_px and shrinks by 1 px
+    until it fits or hits the floor.
+
+    Strategy: linear-decrement from the top.  Binary search is overkill
+    for a ~50-step worst case (200 px → 12 px), and the linear walk
+    keeps the chosen size as close to the planned size as possible —
+    only shrinks as far as it absolutely must.
+
+    `weight`: passed to `_font()` — "regular", "bold", "italic", or a
+    headline alias resolved by the family.
+    `_font_loader`: optional callable (weight, size) → ImageFont, for
+    callers (e.g. Family C) that use a non-default headline-font factory
+    like _headline_font().  Defaults to the module-level `_font`.
+
+    Floor defaults to max(12, start_size_px // 2): never smaller than 50%
+    of the planned size, and never below Pillow's practical minimum.
+    """
+    if min_size_px is None:
+        min_size_px = max(12, start_size_px // 2)
+    if start_size_px <= min_size_px:
+        loader = _font_loader or _font
+        return loader(weight, start_size_px), start_size_px
+    if max_width <= 0:
+        loader = _font_loader or _font
+        return loader(weight, start_size_px), start_size_px
+
+    loader = _font_loader or _font
+    size = start_size_px
+    while size > min_size_px:
+        font = loader(weight, size)
+        w, _ = _measure(draw, text, font)
+        if w <= max_width:
+            return font, size
+        size -= 1
+    # Hit the floor: return the minimum size, which may still overflow
+    # but is better than rendering at 1 px or raising.
+    return loader(weight, min_size_px), min_size_px
+
+
 def _font_has_color_palette(font: ImageFont.FreeTypeFont) -> bool:
     """
     Return True if `font` carries a COLR/CPAL palette (so Pillow's
