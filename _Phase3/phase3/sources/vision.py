@@ -40,7 +40,14 @@ log = logging.getLogger(__name__)
 
 
 MIN_KEEP_TOTAL = 4         # minimum total score to keep an image
-MIN_KEEP_SUBJECT = 1       # subject must also clear this bar
+MIN_KEEP_SUBJECT = 1       # subject must clear this bar (generic shots)
+MIN_KEEP_SUBJECT_PORTRAIT = 2   # portrait shots demand a stricter floor:
+                                # "vaguely related, wrong era/region" is
+                                # not acceptable when the audience sees a
+                                # named face on screen.  Bumps subject
+                                # bar from 1 → 2 ("right era + region,
+                                # wrong specific subject" still passes,
+                                # but pure topical drift is rejected).
 
 
 _SYSTEM = (
@@ -192,12 +199,21 @@ def _parse_score_json(raw: str) -> dict:
     return json.loads(m.group(0))
 
 
-def passes_threshold(c: ImageCandidate) -> bool:
-    """Return True if the candidate should be kept."""
+def passes_threshold(c: ImageCandidate, visual_type: str | None = None) -> bool:
+    """Return True if the candidate should be kept.
+
+    `visual_type` (optional): the shot's visual type ("portrait",
+    "archive", etc).  When "portrait", the subject bar is raised from
+    1 → 2 because a portrait shot showing the wrong person is far more
+    jarring than a B-roll shot in roughly the right era.
+    """
     if not c.is_scored:
         return True   # unscored candidates pass (vision skipped)
+    subject_floor = (MIN_KEEP_SUBJECT_PORTRAIT
+                     if visual_type == "portrait"
+                     else MIN_KEEP_SUBJECT)
     return (c.total_score >= MIN_KEEP_TOTAL
-            and c.score_subject >= MIN_KEEP_SUBJECT)
+            and c.score_subject >= subject_floor)
 
 
 def rank_candidates(candidates: list[ImageCandidate]) -> list[ImageCandidate]:

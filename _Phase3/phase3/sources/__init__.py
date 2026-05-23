@@ -147,11 +147,16 @@ class Fetcher:
 
     # ── Main entry point ───────────────────────────────────────── #
 
-    def fetch_for_shot(self, query: str, shot_index: int) -> FetchResult:
+    def fetch_for_shot(self, query: str, shot_index: int,
+                       visual_type: str | None = None) -> FetchResult:
         """
         Resolve an image for one shot.  Returns FetchResult; the
         caller uses result.best.local_path (or falls back to placeholder
         if result.has_image is False).
+
+        `visual_type` (optional): the shot's visual type ("portrait",
+        "archive", etc).  Tightens the score threshold for portrait
+        shots — see vision.passes_threshold.
         """
 
         # 0. Review dossier — if the user pre-approved an image (or
@@ -189,7 +194,7 @@ class Fetcher:
                                   book_title=self.config.book_title,
                                   character_name=self.config.character_name,
                                   query=query)
-            kept = [c for c in book_cands if passes_threshold(c)]
+            kept = [c for c in book_cands if passes_threshold(c, visual_type)]
             if kept:
                 best = rank_candidates(kept)[0]
                 log.info("Shot %d: book-extracted photo (score %d/9)",
@@ -297,7 +302,7 @@ class Fetcher:
                     c.score_quality = 2
                     c.score_cinematic = 1
                     c.vision_reason = f"[error] {exc!s}"[:200]
-            kept = [c for c in downloaded if passes_threshold(c)]
+            kept = [c for c in downloaded if passes_threshold(c, visual_type)]
             if not kept:
                 log.warning("Shot %d: all %d candidates failed threshold",
                             shot_index, len(downloaded))
@@ -322,9 +327,10 @@ class Fetcher:
 
 # ── Convenience export ─────────────────────────────────────────── #
 
-def fetch_for_shot(query: str, shot_index: int, config: FetcherConfig) -> FetchResult:
+def fetch_for_shot(query: str, shot_index: int, config: FetcherConfig,
+                   visual_type: str | None = None) -> FetchResult:
     """One-shot wrapper.  Build a Fetcher and run one query."""
-    return Fetcher(config).fetch_for_shot(query, shot_index)
+    return Fetcher(config).fetch_for_shot(query, shot_index, visual_type)
 
 
 __all__ = [
