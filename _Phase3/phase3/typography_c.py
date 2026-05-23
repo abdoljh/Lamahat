@@ -288,22 +288,7 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
 
     main_size = _size(spec, "title_main")
     sub_size  = _size(spec, "title_sub")
-    main_font = _headline_font(main_size)
     sub_font  = _font("italic", sub_size)
-
-    mw, mh_padded = _headline_metrics(draw, spec.text, main_font,
-                                      fallback_h=main_size)
-    # mh is the tight bbox height (used for arm-positioning math);
-    # mh_padded is what we use for centering + below-block spacing.
-    _, mh = _measure(draw, spec.text, main_font)
-
-    sub_h = 0
-    if spec.subtitle:
-        _, sub_h = _measure(draw, spec.subtitle, sub_font)
-    sub_gap = int(spec.height * 0.025)
-    total_block_h = mh_padded + (sub_gap + sub_h if spec.subtitle else 0)
-
-    block_top = int(spec.height * 0.55) - (total_block_h // 2)
 
     has_spare_h = (fit in ("contain", "blur_pad", "blur-pad", "blurpad")
                    and align in ("left", "right"))
@@ -317,6 +302,38 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
         else:
             text_region_x0 = 0
             text_region_w  = spare_w
+        inner_margin = int(text_region_w * MARGINS["horizontal_pct"])
+        title_budget = max(64, text_region_w - 2 * inner_margin)
+    else:
+        text_region_x0 = 0
+        text_region_w  = spec.width
+        title_budget = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
+
+    _hf_loader = lambda _w, sz: _headline_font(sz)
+    main_font, _ = _fit_text_to_width(
+        draw, spec.text, "headline", main_size, title_budget,
+        _font_loader=_hf_loader,
+    )
+
+    mw, mh_padded = _headline_metrics(draw, spec.text, main_font,
+                                      fallback_h=main_size)
+    _, mh = _measure(draw, spec.text, main_font)
+
+    sub_lines: list[str] = []
+    sub_line_height = int(sub_size * LINE_HEIGHT_MULT)
+    sub_block_h = 0
+    if spec.subtitle:
+        sub_lines = _wrap_by_width(draw, spec.subtitle, sub_font, title_budget)
+        if not sub_lines:
+            sub_lines = [spec.subtitle]
+        sub_block_h = sub_line_height * len(sub_lines)
+
+    sub_gap = int(spec.height * 0.025)
+    total_block_h = mh_padded + (sub_gap + sub_block_h if sub_lines else 0)
+
+    block_top = int(spec.height * 0.55) - (total_block_h // 2)
+
+    if has_spare_h:
         title_x = text_region_x0 + (text_region_w - mw) // 2
         sub_x_anchor = text_region_x0 + text_region_w // 2
     else:
@@ -327,13 +344,14 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
                    spec.text, font=main_font, fill=accent,
                    embedded_color=True)
 
-    if spec.subtitle:
-        sub_y = block_top + mh_padded + sub_gap
-        sw, _ = _measure(draw, spec.subtitle, sub_font)
-        sub_x = sub_x_anchor - sw // 2
-        # Subtitle in warm cream rather than dim grey — feels manuscript
-        _draw_text_rtl(draw, (sub_x, sub_y),
-                       spec.subtitle, font=sub_font, fill=PAPER_LIGHT)
+    if sub_lines:
+        y = block_top + mh_padded + sub_gap
+        for line in sub_lines:
+            sw, _ = _measure(draw, line, sub_font)
+            sub_x = sub_x_anchor - sw // 2
+            _draw_text_rtl(draw, (sub_x, y),
+                           line, font=sub_font, fill=PAPER_LIGHT)
+            y += sub_line_height
 
     return img
 

@@ -131,23 +131,10 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
 
     main_size = _size(spec, "title_main")
     sub_size  = _size(spec, "title_sub")
-    main_font = _font("bold", main_size)
     sub_font  = _font("regular", sub_size)   # regular not italic on dark
 
-    mw, mh = _measure(draw, spec.text, main_font)
-
-    sub_h = 0
-    if spec.subtitle:
-        _, sub_h = _measure(draw, spec.subtitle, sub_font)
-    sub_gap = int(spec.height * 0.025)
-    rule_gap = int(spec.height * 0.035)
-    rule_thick_v = max(1, int(spec.height * RULE_THICKNESS_PX_1080 * 1.5 / 1080))
-    total_block_h = (mh
-                     + (rule_gap + rule_thick_v if spec.subtitle else 0)
-                     + (sub_gap + sub_h if spec.subtitle else 0))
-
-    block_top = int(spec.height * 0.55) - (total_block_h // 2)
-
+    # Compute text-region width *before* measuring, so auto-shrink has
+    # the right budget (see Family A note: avoids closing-card overflow).
     has_spare_h = (fit in ("contain", "blur_pad", "blur-pad", "blurpad")
                    and align in ("left", "right"))
     if has_spare_h:
@@ -160,6 +147,37 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
         else:
             text_region_x0 = 0
             text_region_w  = spare_w
+        inner_margin = int(text_region_w * MARGINS["horizontal_pct"])
+        title_budget = max(64, text_region_w - 2 * inner_margin)
+    else:
+        text_region_x0 = 0
+        text_region_w  = spec.width
+        title_budget = int(spec.width * (1 - 2 * MARGINS["horizontal_pct"]))
+
+    main_font, _ = _fit_text_to_width(
+        draw, spec.text, "bold", main_size, title_budget,
+    )
+    mw, mh = _measure(draw, spec.text, main_font)
+
+    sub_lines: list[str] = []
+    sub_line_height = int(sub_size * LINE_HEIGHT_MULT)
+    sub_block_h = 0
+    if spec.subtitle:
+        sub_lines = _wrap_by_width(draw, spec.subtitle, sub_font, title_budget)
+        if not sub_lines:
+            sub_lines = [spec.subtitle]
+        sub_block_h = sub_line_height * len(sub_lines)
+
+    sub_gap = int(spec.height * 0.025)
+    rule_gap = int(spec.height * 0.035)
+    rule_thick_v = max(1, int(spec.height * RULE_THICKNESS_PX_1080 * 1.5 / 1080))
+    total_block_h = (mh
+                     + (rule_gap + rule_thick_v if sub_lines else 0)
+                     + (sub_gap + sub_block_h if sub_lines else 0))
+
+    block_top = int(spec.height * 0.55) - (total_block_h // 2)
+
+    if has_spare_h:
         title_x = text_region_x0 + (text_region_w - mw) // 2
         sub_x_anchor = text_region_x0 + text_region_w // 2
     else:
@@ -169,16 +187,17 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
     _draw_text_rtl(draw, (title_x, block_top),
                    spec.text, font=main_font, fill=accent)
 
-    # Gold rule + subtitle below
-    if spec.subtitle:
+    if sub_lines:
         rule_y = block_top + mh + rule_gap
         _draw_gold_rule(draw, rule_y, spec.width, spec.height,
                         length_pct=0.08)
-        sub_y = rule_y + rule_thick_v + sub_gap
-        sw, _ = _measure(draw, spec.subtitle, sub_font)
-        sub_x = sub_x_anchor - sw // 2
-        _draw_text_rtl(draw, (sub_x, sub_y),
-                       spec.subtitle, font=sub_font, fill=OFF_WHITE_DIM)
+        y = rule_y + rule_thick_v + sub_gap
+        for line in sub_lines:
+            sw, _ = _measure(draw, line, sub_font)
+            sub_x = sub_x_anchor - sw // 2
+            _draw_text_rtl(draw, (sub_x, y),
+                           line, font=sub_font, fill=OFF_WHITE_DIM)
+            y += sub_line_height
 
     return img
 

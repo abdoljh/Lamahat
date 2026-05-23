@@ -67,8 +67,10 @@ DEFAULT_HEIGHT = 1080
 # Filter design notes:
 #   warm    — pronounced cinematic teal-shadows / orange-highlights with
 #             an S-curve.  This is the production default.  Built from
-#             eq (overall contrast/sat lift) + colorbalance (per-tonal
-#             range RGB pushes) + curves preset (S-curve contrast).
+#             eq (overall contrast/sat lift) + curves (per-channel
+#             control points: R lifted, B dropped → teal-shadow/orange-
+#             highlight look without the per-tonal-range colorbalance
+#             filter, which more than doubled encode time on Colab).
 #   cool    — editorial blue lean for somber / political / war material.
 #             Mild contrast lift, slight desaturation, blue shadows-mids,
 #             warm pull on highlights.
@@ -82,16 +84,11 @@ DEFAULT_HEIGHT = 1080
 GRADE_PRESETS: dict[str, str] = {
     "warm": (
         "eq=contrast=1.08:saturation=1.05,"
-        "colorbalance=rs=0.03:gs=0.0:bs=-0.06"
-        ":rm=0.05:gm=0.02:bm=-0.05"
-        ":rh=0.04:gh=0.02:bh=-0.04,"
-        "curves=preset=increase_contrast"
+        "curves=r='0/0.05 0.5/0.55 1/1':b='0/0 0.5/0.45 1/0.95'"
     ),
     "cool": (
         "eq=contrast=1.05:saturation=0.95,"
-        "colorbalance=rs=-0.04:bs=0.06"
-        ":rm=-0.03:bm=0.05"
-        ":rh=-0.04:bh=0.04"
+        "curves=r='0/0 0.5/0.45 1/0.95':b='0/0.05 0.5/0.55 1/1'"
     ),
     "neutral": "eq=contrast=1.03:saturation=1.0",
     "bw": "hue=s=0,eq=contrast=1.10",
