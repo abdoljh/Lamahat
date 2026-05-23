@@ -86,7 +86,28 @@ def _ts(sec: float) -> str:
 
 
 def _esc(text: str) -> str:
-    """Escape ASS special characters."""
+    """Escape ASS special characters and normalise punctuation for RTL.
+
+    Latin commas/periods at sentence boundaries get visually relocated to
+    the LEFT (leading) edge of an Arabic line by libass's bidi shaper,
+    because U+002C and U+002E have weak directionality.  Substituting
+    them with their Arabic counterparts (strong RTL) keeps them at the
+    trailing edge where they belong.
+
+      ,  → ،   (U+060C Arabic comma)
+      ;  → ؛   (U+061B Arabic semicolon)
+      ?  → ؟   (U+061F Arabic question mark)
+      .  → .   (left as-is; period is acceptable at end of Arabic line
+                in most modern typography, and U+06D4 is rare/uneven
+                across fonts)
+
+    Run AFTER any caller-side splitting on '.' / '؟' / '!', because the
+    splitter regex matches Latin '.' too.
+    """
+    text = (text
+            .replace(",", "،")
+            .replace(";", "؛")
+            .replace("?", "؟"))
     return text.replace("\\", "\\\\").replace("{", r"\{")
 
 
@@ -167,7 +188,7 @@ def generate_ass(
     titlesub_sz  = max(44,  height // 16)    # author subtitle line
     section_sz   = max(52,  height // 13)    # section heading at top
     keyphrase_sz = max(62,  height // 11)    # key phrase — large, at bottom
-    caption_sz   = max(48,  height // 14)    # regular captions — clearly readable
+    caption_sz   = max(56,  height // 11)    # regular captions — readable at TV distance
 
     titlesub_v   = title_sz + titlesub_sz + 20  # TitleSub drops below TitleCard centre
 
