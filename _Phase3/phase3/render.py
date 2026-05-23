@@ -56,6 +56,48 @@ DEFAULT_FPS = 25
 DEFAULT_WIDTH = 1920
 DEFAULT_HEIGHT = 1080
 
+# ── Issue 1: color grading presets ──────────────────────────────────── #
+#
+# Each preset is a single FFmpeg video-filter chain applied at the final
+# mux stage, BEFORE any subtitle burn-in.  Order matters: grading the
+# graphic plate first leaves caption text crisp white (libass overlays
+# the captions onto the already-graded frame); grading after subs would
+# tint the captions themselves.
+#
+# Filter design notes:
+#   warm    — pronounced cinematic teal-shadows / orange-highlights with
+#             an S-curve.  This is the production default.  Built from
+#             eq (overall contrast/sat lift) + colorbalance (per-tonal
+#             range RGB pushes) + curves preset (S-curve contrast).
+#   cool    — editorial blue lean for somber / political / war material.
+#             Mild contrast lift, slight desaturation, blue shadows-mids,
+#             warm pull on highlights.
+#   neutral — gentle contrast only; no color cast.  Use when source
+#             imagery is already graded or the book is photographic.
+#   bw      — full desaturation + 10% contrast bump.  Documentary mono.
+#
+# Calibration: every preset is `eq=...` based so contrast/saturation are
+# multiplicative and round-trip safe.  Tested against testsrc2 in the
+# sandbox before shipping.
+GRADE_PRESETS: dict[str, str] = {
+    "warm": (
+        "eq=contrast=1.08:saturation=1.05,"
+        "colorbalance=rs=0.03:gs=0.0:bs=-0.06"
+        ":rm=0.05:gm=0.02:bm=-0.05"
+        ":rh=0.04:gh=0.02:bh=-0.04,"
+        "curves=preset=increase_contrast"
+    ),
+    "cool": (
+        "eq=contrast=1.05:saturation=0.95,"
+        "colorbalance=rs=-0.04:bs=0.06"
+        ":rm=-0.03:bm=0.05"
+        ":rh=-0.04:bh=0.04"
+    ),
+    "neutral": "eq=contrast=1.03:saturation=1.0",
+    "bw": "hue=s=0,eq=contrast=1.10",
+}
+DEFAULT_GRADE = "warm"
+
 # Shots whose `visual` is in this set are rendered by typography.py;
 # all others get a placeholder card in Stage 1.
 TYPOGRAPHY_VISUALS = {"title_card", "section_mark", "chapter_heading",
@@ -658,18 +700,40 @@ def _concat_clips(clips: list[Path], out_path: Path) -> Path:
 def _mux_final(background: Path, out_path: Path,
               audio_path: Path | None,
               subtitle_path: Path | None,
-              max_duration: float) -> Path:
+              max_duration: float,
+              grade: str | None = None) -> Path:
     """
-    Final pass: burn captions, mux audio, hard-trim to duration.
+    Final pass: apply color grade, burn captions, mux audio, hard-trim.
 
     Single FFmpeg invocation — keeps RAM low and avoids intermediate
     files.  Always re-encodes the video (necessary to burn subtitles).
+
+    `grade`: one of GRADE_PRESETS keys, or None for ungraded.  The grade
+    filter is prepended to vf_parts so it runs BEFORE the ass subtitle
+    burn-in.  This is deliberate — libass overlays captions onto the
+    graded frame; grading after subs would tint the caption text.
+
+    Unknown grade names fall back to ungraded with a warning.
     """
     inputs = ["-i", str(background)]
     if audio_path and audio_path.exists():
         inputs += ["-i", str(audio_path)]
 
     vf_parts: list[str] = []
+
+    # Grade FIRST so subtitles overlay onto the already-graded plate.
+    if grade:
+        preset = GRADE_PRESETS.get(grade)
+        if preset:
+            vf_parts.append(preset)
+            log.info("Color grade applied: %s", grade)
+        else:
+            log.warning(
+                "Unknown --grade '%s'; falling back to ungraded. "
+                "Valid presets: %s",
+                grade, sorted(GRADE_PRESETS),
+            )
+
     if subtitle_path and subtitle_path.exists():
         # FFmpeg filtergraph escaping for paths: : and \ need escaping
         safe = str(subtitle_path).replace("\\", "/").replace(":", "\\:")
@@ -753,6 +817,13 @@ class RenderConfig:
     # Unknown values fall back to Family A.  Selectable via the
     # --typography-family CLI flag in phase3_run.py.
     typography_family: str = "A"
+    # Color grade preset applied at the final mux stage.  One of
+    # GRADE_PRESETS keys ("warm", "cool", "neutral", "bw") or None for
+    # ungraded.  Default "warm" matches the cinematic-warm look agreed
+    # for issue 1.  Grading runs BEFORE caption burn-in so subtitles
+    # remain crisp white regardless of preset.  Selectable via --grade
+    # in render_plan.py.
+    grade: str | None = DEFAULT_GRADE
 
 
 def render_video(shots: list[Shot], out_path: Path, *,
@@ -871,7 +942,8 @@ def render_video(shots: list[Shot], out_path: Path, *,
         _mux_final(bg_path, out_path,
                   audio_path=audio_path,
                   subtitle_path=ass_path,
-                  max_duration=audio_duration_sec)
+                  max_duration=audio_duration_sec,
+                  grade=config.grade)
 
     _prog("done", 1.0)
     log.info("Rendered video → %s", out_path)
