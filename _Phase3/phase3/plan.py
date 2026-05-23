@@ -141,8 +141,37 @@ Hard rules
 5.  Each shot has exactly one `visual` type.  Use the full vocabulary — \
     avoid stacking 5 "location" shots in a row.  Aim for 25–35 % \
     typography shots, distributed across the video.
-6.  Search queries are in English, specific, and named.  Bad: "horse". \
-    Good: "Arab cavalry Faisal 1916".  For people, use full names.
+6.  Search queries are in English and source-aware.  The orchestrator \
+    sends each query to Wikimedia Commons / Library of Congress (which \
+    index named historical content) AND to Pexels (a stock-photo site \
+    that keyword-matches user-submitted captions and has zero coverage \
+    of named historical figures or specific events).  Write the query \
+    so it works on BOTH:
+    - Lead with a NAMED entity (person, event, place + year) if one \
+      exists in the script — this makes Wikimedia/LoC succeed.
+    - Then add VISUAL descriptors so Pexels can find a generic match \
+      that's at least era-appropriate when the named query returns \
+      nothing.
+    Examples — BAD vs GOOD:
+      BAD:  "Jafar al-Askari Iraqi officer portrait"
+            → Pexels returns Iraqi Airways planes (matches "Iraqi")
+      GOOD: "Jafar al-Askari Ottoman military officer mustache sepia \
+             portrait early 1900s"
+            → Wikimedia finds Jafar; Pexels finds period military portraits
+      BAD:  "Sultan Abdulhamid II Ottoman portrait"
+      GOOD: "Sultan Abdulhamid II Ottoman ruler bearded fez official \
+             portrait sepia"
+      BAD:  "Mosul Iraq 1904 historical photograph"
+      GOOD: "Mosul Iraq Tigris river city 1900s sepia historical photo \
+             stone buildings"
+      BAD:  "Arab nationalist movement gathering"
+            → Pexels returns Red Square parades
+      GOOD: "Arab officers meeting early 1900s Ottoman uniform sepia \
+             documentary historical photo"
+    The named entity must come FIRST so Wikimedia matches; the visual \
+    descriptors come AFTER as a Pexels safety net.
+    For people, full names go first (e.g. "Jafar al-Askari" not "Iraqi \
+    officer").  For dates, include both decade and year ("1900s 1904").
 7.  Typography shots have `typography_text` filled with Arabic text \
     taken VERBATIM from the script — exact wording, including diacritics. \
     Do not summarise, condense, or paraphrase.  If a sentence is too \

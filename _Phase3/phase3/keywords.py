@@ -43,13 +43,34 @@ Produce three lists:
 
 Rules for wikimedia / pexels:
 - Terms must be in English (Wikimedia and Pexels index in English)
-- For history/biography genres prefer real historical photographs of people and places
-- If a main character is named, the FIRST wikimedia term must be the character's full name
-  (e.g. "Jafar al-Askari" or "Jafar Pasha") to retrieve a portrait photograph
-- Be specific: "Arab Revolt 1916" beats "revolution"; "Jafar al-Askari 1921" beats "Arab officer"
-- NEVER use a single generic word alone — always combine with a person, place, event, or year:
-  BAD: "horse", "army", "soldier"   GOOD: "Arab cavalry 1916", "Ottoman officer uniform WWI"
-- Avoid terms that return anatomical diagrams, manuscript illustrations, or charts
+- Source awareness — Wikimedia indexes named historical content; Pexels
+  is a stock-photo site that keyword-matches user-submitted captions
+  and has ZERO coverage of named historical figures or specific events.
+  Write queries so they work on BOTH sources:
+
+  * WIKIMEDIA terms: lead with a NAMED entity (person, place + year,
+    event).  These succeed on Wikimedia/LoC.
+    GOOD: "Jafar al-Askari", "Arab Revolt 1916", "Mosul 1900s"
+
+  * PEXELS terms: NEVER include unfindable named entities.  Describe
+    what the IMAGE should LOOK LIKE — composition, era, mood, mediums.
+    Pexels cannot find "Sultan Abdulhamid II" or "Jafar al-Askari"; it
+    CAN find "Ottoman official sepia portrait bearded fez early 1900s".
+    BAD:  "Iraqi officer", "Arab nationalist gathering"
+          (returns Iraqi Airways planes; Red Square parades)
+    GOOD: "vintage military portrait sepia mustachioed uniform",
+          "men meeting historical sepia documentary"
+
+- For history/biography, prefer real historical photographs of people
+  and places.  Wikimedia first slot must be the character's full name
+  (e.g. "Jafar al-Askari" or "Jafar Pasha") for portrait retrieval.
+- Be specific on Wikimedia: "Arab Revolt 1916" beats "revolution".
+- NEVER use a single generic word alone — always combine with a person,
+  place, event, or year (for Wikimedia) or visual descriptors (for Pexels):
+  BAD: "horse"   GOOD wikimedia: "Arab cavalry 1916"
+                 GOOD pexels:    "horseback rider desert sepia"
+- Avoid terms that return anatomical diagrams, manuscript illustrations,
+  or charts
 - Pexels terms should be cinematic: "desert landscape dawn", "Baghdad historical street"
 
 Rules for key_phrases:
