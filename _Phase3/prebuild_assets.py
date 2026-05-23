@@ -126,7 +126,8 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
     # scores them, and picks a winner.  We replay the data back into our
     # review-dir layout.
     try:
-        result = fetcher.fetch_for_shot(query=query, shot_index=idx)
+        result = fetcher.fetch_for_shot(query=query, shot_index=idx,
+                                         visual_type=shot.visual)
     except Exception as exc:
         log.warning("Shot %d: fetcher raised %s — emitting empty decision", idx, exc)
         result = None
