@@ -34,6 +34,10 @@ from .typography_common import (
     # Family B palette (re-exported for callers that want to introspect)
     DARK_BASE, DARK_TOP, DARK_CARD,
     OFF_WHITE, OFF_WHITE_DIM, GOLD_DEEP,
+    # Layout/typography tokens consumed by diagnostics & verify scripts
+    # (pre-refactor these lived in the monolith; preserving the public
+    # surface means re-exporting them from the dispatcher).
+    SIZES,
 )
 
 log = logging.getLogger(__name__)
@@ -90,4 +94,6 @@ __all__ = [
     # Font + helpers (kept for backward compat)
     "FONT_PATHS",
     "_apply_grain", "_draw_text_rtl", "_font", "_measure",
+    # Layout/typography tokens (kept for diagnostics & verify scripts)
+    "SIZES",
 ]
