@@ -182,6 +182,16 @@ def main() -> int:
                          "bw = full desaturation + contrast bump. Grading "
                          "runs before captions so subtitles stay crisp white.")
 
+    ap.add_argument("--caption-backplate",
+                    choices=("off", "subtle", "solid"),
+                    default="subtle",
+                    help="Charcoal bar drawn behind burned captions to "
+                         "improve legibility (issue 4 patch B). "
+                         "off = none (rely on outline only); "
+                         "subtle (default) = charcoal at 55%% opacity; "
+                         "solid = charcoal at 80%% opacity for very bright "
+                         "source material. No-op when --no-captions is set.")
+
     ap.add_argument("--build-manifest", metavar="PATH",
                     help="Write required-images manifest and exit")
     ap.add_argument("--verbose", action="store_true")
@@ -323,6 +333,7 @@ def main() -> int:
         book_cover_align=cover_align,
         typography_family=args.typography_family,
         grade=args.grade,
+        caption_backplate=args.caption_backplate,
     )
 
     t0 = time.perf_counter()
