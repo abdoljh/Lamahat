@@ -171,6 +171,17 @@ def main() -> int:
                          "B = Netflix-doc cinematic dark gradient, "
                          "C = Manuscript sepia + ornament.")
 
+    ap.add_argument("--grade",
+                    choices=("warm", "cool", "neutral", "bw"),
+                    default="warm",
+                    help="Color grade applied at the final mux stage. "
+                         "warm (default) = pronounced cinematic teal-shadow / "
+                         "orange-highlight S-curve; cool = editorial blue "
+                         "lean for somber material; neutral = gentle contrast "
+                         "only (use when source imagery is already graded); "
+                         "bw = full desaturation + contrast bump. Grading "
+                         "runs before captions so subtitles stay crisp white.")
+
     ap.add_argument("--build-manifest", metavar="PATH",
                     help="Write required-images manifest and exit")
     ap.add_argument("--verbose", action="store_true")
@@ -311,6 +322,7 @@ def main() -> int:
         book_cover_fit=cover_fit,
         book_cover_align=cover_align,
         typography_family=args.typography_family,
+        grade=args.grade,
     )
 
     t0 = time.perf_counter()
