@@ -9,7 +9,7 @@
 > **GitHub artefact note**: `output/final_cut_3a.mov` (12.8 MB / 181 s) is a
 > *partial preview* — first ~46 % of the real render — uploaded under GitHub's
 > 25 MB inline limit. The real output is `output_files.zip → final_cut.mp4`
-> saved to Drive by `_phase3_b2c.ipynb`.
+> saved to Drive by `_phase3_b3d.ipynb`.
 
 ---
 
@@ -138,7 +138,7 @@ _Phase3/
 ├── phase3_run.py             # Plan-OR-render CLI
 ├── render_plan.py            # Render-only CLI (consumes plan JSON)
 ├── audit_plan.py             # Quality audit of a saved plan
-├── _phase3_b2c.ipynb         # Colab driver — the canonical run lives here
+├── _phase3_b3d.ipynb         # Colab driver — the canonical run lives here
 ├── samples/al_askari_script.txt
 ├── output/                   # render.log, audio, plan, MOV preview
 ├── review/                   # prebuild dossier — see §15.5
@@ -344,7 +344,7 @@ filters: `s.visual not in TYPOGRAPHY_VISUALS`. Don't undo this.
 
 ## 5. The Canonical Run, Decoded
 
-The notebook `_phase3_b2c.ipynb` is the authoritative reference for what
+The notebook `_phase3_b3d.ipynb` is the authoritative reference for what
 works today. The cell-by-cell pipeline:
 
 | Cell | What it does | What its output proves |
@@ -767,7 +767,7 @@ in the same shape `user_upload.py` already consumes. One Sonnet call
 
 ## 10. Working Configuration
 
-### CLI invocations from `_phase3_b2c.ipynb`
+### CLI invocations from `_phase3_b3d.ipynb`
 
 ```bash
 # Cell 8 — alignment sanity check (interpolation only; instant)

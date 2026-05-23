@@ -13,7 +13,7 @@
 > previous 48-shot, avg 8.15 s plan is superseded).
 > **Latest render**: ~31 MB MP4, captions OFF, default Family A.
 > Family B and Family C renders also validated in smoke tests.
-> **Canonical notebook**: `_phase3_b3c.ipynb` (note: **b3c**, not b2c —
+> **Canonical notebook**: `_phase3_b3d.ipynb` (note: **b3d**, not b2c —
 > Phase3.md still references the old `_phase3_b2c.ipynb`).
 >
 > **What this session shipped**: issues 2 and 3 closed, plus a
@@ -290,7 +290,7 @@ fails, fix before rendering — they’re ~5 s of execution, render is
 
 ## 4. Repo state and the Colab/repo dance
 
-**The notebook is `_phase3_b3c.ipynb`.**  Cell 0 clones the GitHub
+**The notebook is `_phase3_b3d.ipynb`.**  Cell 0 clones the GitHub
 repo into `/content/`, so any patched file must either be in the
 repo (then cell 0 picks it up) or copied into `/content/` *after*
 cell 0 runs.  This bit users repeatedly during the v3 iterations;
@@ -522,7 +522,7 @@ A few patterns that emerged across the v3 iterations:
   v3 / v3.1 / v3.2 / v3.3 / v3.4).  Each README documents what
   changed *from the previous version*.
 - **The user runs in Colab; the patched files live at `/content/`.**
-  Cell 0 of `_phase3_b3c.ipynb` clones the GitHub repo into
+  Cell 0 of `_phase3_b3d.ipynb` clones the GitHub repo into
   `/content/`.  If patched files aren’t in the repo yet, apply them
   *after* cell 0.  When the user reports “no change”, the first
   hypothesis is “cell 0 overwrote your patched files.”  The second
