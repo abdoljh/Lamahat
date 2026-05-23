@@ -95,6 +95,27 @@ GRADE_PRESETS: dict[str, str] = {
 }
 DEFAULT_GRADE = "warm"
 
+# ── Issue 4 Patch B: caption charcoal-bar backplate ─────────────────── #
+#
+# Layered behind the burned ASS captions to improve legibility against
+# bright/varied backgrounds.  Three modes:
+#
+#   off    — no backplate (the historic baseline; relies on Outline only)
+#   subtle — charcoal #1A1A1A at α=0.55, ~12% of frame height (default)
+#   solid  — same charcoal at α=0.80 (for very bright source material)
+#
+# Geometry: y=ih*0.85 + h=ih*0.12 places the band in the bottom 12% of
+# the frame, sitting directly behind the ASS Style 'Arabic' (MarginV=40,
+# Alignment=2 = bottom-centre).  Full-width (w=iw) so wrapped 2-line
+# captions are fully backed.  Runs AFTER grade and BEFORE ass in the
+# filter chain.
+CAPTION_BACKPLATES: dict[str, str | None] = {
+    "off": None,
+    "subtle": "drawbox=x=0:y=ih*0.85:w=iw:h=ih*0.12:color=0x1A1A1A@0.55:t=fill",
+    "solid":  "drawbox=x=0:y=ih*0.85:w=iw:h=ih*0.12:color=0x1A1A1A@0.80:t=fill",
+}
+DEFAULT_CAPTION_BACKPLATE = "subtle"
+
 # Shots whose `visual` is in this set are rendered by typography.py;
 # all others get a placeholder card in Stage 1.
 TYPOGRAPHY_VISUALS = {"title_card", "section_mark", "chapter_heading",
@@ -698,19 +719,19 @@ def _mux_final(background: Path, out_path: Path,
               audio_path: Path | None,
               subtitle_path: Path | None,
               max_duration: float,
-              grade: str | None = None) -> Path:
+              grade: str | None = None,
+              caption_backplate: str | None = None) -> Path:
     """
-    Final pass: apply color grade, burn captions, mux audio, hard-trim.
+    Final pass: apply color grade, draw caption backplate, burn captions,
+    mux audio, hard-trim.
 
-    Single FFmpeg invocation — keeps RAM low and avoids intermediate
-    files.  Always re-encodes the video (necessary to burn subtitles).
+    Filter chain order: grade → backplate → ass.
+    - Grade first so subtitles and backplate sit on the graded plate.
+    - Backplate before ass so captions render ON TOP of the charcoal bar.
+    - Backplate skipped if no subtitle file (nothing to back).
 
-    `grade`: one of GRADE_PRESETS keys, or None for ungraded.  The grade
-    filter is prepended to vf_parts so it runs BEFORE the ass subtitle
-    burn-in.  This is deliberate — libass overlays captions onto the
-    graded frame; grading after subs would tint the caption text.
-
-    Unknown grade names fall back to ungraded with a warning.
+    `caption_backplate`: one of CAPTION_BACKPLATES keys, or None.
+    Unknown values fall back to no backplate with a warning.
     """
     inputs = ["-i", str(background)]
     if audio_path and audio_path.exists():
@@ -731,7 +752,21 @@ def _mux_final(background: Path, out_path: Path,
                 grade, sorted(GRADE_PRESETS),
             )
 
-    if subtitle_path and subtitle_path.exists():
+    # Caption backplate goes between grade and ass: behind the text,
+    # on top of the graded plate.  Only useful if subtitles are present.
+    has_subs = subtitle_path and subtitle_path.exists()
+    if caption_backplate and caption_backplate != "off" and has_subs:
+        bp = CAPTION_BACKPLATES.get(caption_backplate)
+        if bp is not None:
+            vf_parts.append(bp)
+            log.info("Caption backplate applied: %s", caption_backplate)
+        else:
+            log.warning(
+                "Unknown --caption-backplate '%s'; skipping. "
+                "Valid: %s", caption_backplate, sorted(CAPTION_BACKPLATES),
+            )
+
+    if has_subs:
         # FFmpeg filtergraph escaping for paths: : and \ need escaping
         safe = str(subtitle_path).replace("\\", "/").replace(":", "\\:")
         # Pass the Amiri font directory to libass as `fontsdir`.  Without
@@ -821,6 +856,13 @@ class RenderConfig:
     # remain crisp white regardless of preset.  Selectable via --grade
     # in render_plan.py.
     grade: str | None = DEFAULT_GRADE
+    # Caption charcoal-bar backplate (issue 4 patch B).  One of
+    # CAPTION_BACKPLATES keys ("off", "subtle", "solid").  Applied as a
+    # `drawbox` filter after grade and before ass burn-in, so it sits
+    # behind the captions but on top of the graded plate.  "subtle" is
+    # the recommended default for varied source material.  No-ops when
+    # add_captions=False (no captions to back).
+    caption_backplate: str = DEFAULT_CAPTION_BACKPLATE
 
 
 def render_video(shots: list[Shot], out_path: Path, *,
@@ -940,7 +982,8 @@ def render_video(shots: list[Shot], out_path: Path, *,
                   audio_path=audio_path,
                   subtitle_path=ass_path,
                   max_duration=audio_duration_sec,
-                  grade=config.grade)
+                  grade=config.grade,
+                  caption_backplate=config.caption_backplate)
 
     _prog("done", 1.0)
     log.info("Rendered video → %s", out_path)
