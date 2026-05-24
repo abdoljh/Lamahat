@@ -257,6 +257,50 @@ class Decisions:
         )
         return d
 
+    # ── Portrait pool (multi-image character override) ─────────── #
+    #
+    # `pinned_portrait` can point to either:
+    #   * a single file  → all portrait shots use the same image (legacy)
+    #   * a directory    → portrait shots round-robin through the sorted
+    #                      list of *.jpg/*.jpeg/*.png/*.webp inside it
+    #
+    # The round-robin order is by *portrait shot index* (1st portrait
+    # shot → file 0, 2nd → file 1, ...).  This is deterministic and
+    # stable across re-renders.  Selection wraps via modulo, so a pool
+    # of 3 images covers any number of portrait shots.
+
+    _PORTRAIT_POOL_EXTS = (".jpg", ".jpeg", ".png", ".webp")
+
+    def _list_portrait_pool(self, review_dir: Path) -> list[Path]:
+        """Return sorted pool files if `pinned_portrait` is a directory,
+        empty list otherwise.  Case-insensitive extension match."""
+        if not self.pinned_portrait:
+            return []
+        p = (review_dir / self.pinned_portrait).resolve()
+        if not p.is_dir():
+            return []
+        pool: list[Path] = []
+        for f in p.iterdir():
+            if f.is_file() and f.suffix.lower() in self._PORTRAIT_POOL_EXTS:
+                pool.append(f)
+        pool.sort(key=lambda x: x.name.lower())
+        return pool
+
+    def _portrait_rank_of(self, shot_index: int) -> int:
+        """Return the 0-based ordinal of `shot_index` among portrait
+        shots (in shot-index order).  Returns -1 if not a portrait shot.
+        Cached on first call."""
+        cache = getattr(self, "_portrait_rank_cache", None)
+        if cache is None:
+            cache = {}
+            rank = 0
+            for idx in sorted(self.shots):
+                if self.shots[idx].visual == "portrait":
+                    cache[idx] = rank
+                    rank += 1
+            self._portrait_rank_cache = cache
+        return cache.get(shot_index, -1)
+
     # ── Resolution ─────────────────────────────────────────────── #
 
     def resolve(self, shot_index: int, review_dir: Path) -> Path | None:
@@ -302,10 +346,22 @@ class Decisions:
             )
             return user_file
 
-        # 3. Pinned portrait, for portrait shots only
+        # 3. Pinned portrait, for portrait shots only.
+        #    May be a single file (legacy) or a directory pool.
         if shot.visual == "portrait" and self.pinned_portrait:
+            pool = self._list_portrait_pool(review_dir)
+            if pool:
+                rank = self._portrait_rank_of(shot_index)
+                if rank < 0:
+                    rank = 0   # defensive — shouldn't happen
+                chosen = pool[rank % len(pool)]
+                log.info(
+                    "Shot %d: portrait pool hit %s (rank %d of %d)",
+                    shot_index, chosen.name, rank, len(pool),
+                )
+                return chosen
             p = (review_dir / self.pinned_portrait).resolve()
-            if p.exists():
+            if p.exists() and p.is_file():
                 log.info("Shot %d: pinned-portrait hit %s", shot_index, p.name)
                 return p
             log.warning(
