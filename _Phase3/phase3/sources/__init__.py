@@ -221,7 +221,7 @@ class Fetcher:
                 return cached
 
         # 4. Live web fetch
-        result = self._fetch_live(query, shot_index)
+        result = self._fetch_live(query, shot_index, visual_type)
 
         # Store to cache for next time
         if self.cache:
@@ -231,7 +231,8 @@ class Fetcher:
 
     # ── Live web fetch with vision scoring ──────────────────────── #
 
-    def _fetch_live(self, query: str, shot_index: int) -> FetchResult:
+    def _fetch_live(self, query: str, shot_index: int,
+                    visual_type: str | None = None) -> FetchResult:
         all_candidates: list[ImageCandidate] = []
         n = self.config.n_candidates_per_source
 
