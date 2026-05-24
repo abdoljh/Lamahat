@@ -14,7 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from .base import ImageCandidate, Source, is_free_license
+from .base import ImageCandidate, Source, is_free_license, simplify_query
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +23,9 @@ _HEADERS = {
     "User-Agent": "Lamahat/1.0 (https://github.com/abdoljh/Lamahat; bot)",
 }
 
-_SEARCH_EXCLUSIONS = "-diagram -anatomy -chart -schematic"
+# Drop diagram/anatomy/chart exclusions — they were silently rejecting
+# valid hits whose description contained those words.  Bitmap filetype
+# alone keeps us from getting SVG diagrams.
 _MIN_DIMENSION = 400
 
 
@@ -32,10 +34,17 @@ class WikimediaCommons(Source):
 
     def search(self, query: str, n: int = 4,
                thumb_width: int = 1280) -> list[ImageCandidate]:
+        # Wikimedia full-text search is literal AND-of-tokens.  Long
+        # planner queries (10+ tokens with visual descriptors) never
+        # match — no Commons file contains all 10.  Use the simplified
+        # short query (named entity + core nouns, ≤4 tokens).
+        short_query = simplify_query(query, max_tokens=4)
+        if short_query != query:
+            log.debug("Wikimedia: simplified %r → %r", query, short_query)
         params = {
             "action": "query",
             "generator": "search",
-            "gsrsearch": f"{query} filetype:bitmap {_SEARCH_EXCLUSIONS}",
+            "gsrsearch": f"{short_query} filetype:bitmap",
             "gsrnamespace": "6",                       # File:
             "gsrlimit": str(min(n * 3, 30)),
             "prop": "imageinfo",
@@ -95,7 +104,7 @@ class WikimediaCommons(Source):
             if len(candidates) >= n:
                 break
 
-        log.info("Wikimedia: %d candidates for %r", len(candidates), query)
+        log.info("Wikimedia: %d candidates for %r", len(candidates), short_query)
         return candidates
 
     def download(self, candidate, dest):

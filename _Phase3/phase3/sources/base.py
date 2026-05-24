@@ -181,3 +181,73 @@ def is_free_license(license_str: str) -> bool:
     if not ls:
         return True   # Treat unknown as free; assume good faith from APIs
     return any(ls.startswith(p) for p in _FREE_LICENSE_PREFIXES)
+
+# ── Query simplification ──────────────────────────────────────────────── #
+
+# Stop-list of descriptors Sonnet's planner rule 6 appends to make Pexels
+# happy, but which kill Wikimedia/LoC/IA searches (which use AND-of-tokens
+# semantics).  Stripping these leaves the named entity + core nouns.
+#
+# Tokens dropped here are added by the new (post-§7.3) Sonnet prompt as
+# "visual descriptors" — exactly what archive search engines reject.
+_SIMPLIFY_STOPLIST: frozenset[str] = frozenset({
+    # Visual/medium descriptors
+    "sepia", "vintage", "historical", "documentary", "official",
+    "photo", "photograph", "photographs", "photography", "picture",
+    "image", "portrait", "portraits", "panorama", "panoramic",
+    "cityscape", "landscape",
+    # Era hedges (we keep specific years, drop fuzzy hedges)
+    "early", "late", "mid", "century",
+    # Decade words (we keep the named decade if it's a 4-digit year)
+    "1900s", "1910s", "1920s", "1930s", "1940s",
+    # Generic role/wear words that match anything
+    "uniform", "uniforms", "clothing", "clothes", "wearing",
+    "mustache", "mustached", "mustachioed", "bearded", "fez", "turban",
+    # Adjectives that downgrade specificity
+    "ancient", "old", "antique", "classical", "traditional",
+    # Connectives that don't help full-text search
+    "and", "or", "the", "of", "in", "at", "on", "with",
+})
+
+
+def simplify_query(query: str, max_tokens: int = 4) -> str:
+    """Strip visual descriptors from a long planner query, keeping the
+    named entity and core nouns intact.
+
+    Designed for archive search engines (Wikimedia, LoC, Internet Archive)
+    that use literal AND-of-tokens semantics — long queries with 10+
+    tokens never match because no single document contains all tokens.
+
+    Strategy:
+      1. Tokenise on whitespace, preserving original case.
+      2. Filter tokens whose lowercase form appears in _SIMPLIFY_STOPLIST.
+      3. Keep at most `max_tokens` tokens (earliest first — the planner
+         puts the named entity at the head of the query per rule 6).
+      4. Re-join with single spaces.
+
+    Returns the original query if simplification would empty it.
+
+    Examples:
+      "Jafar al-Askari Iraqi Ottoman military officer sepia portrait
+       early 1900s uniform"
+        → "Jafar al-Askari Iraqi Ottoman"
+      "Constantinople Istanbul 1900s Bosphorus cityscape Ottoman historical
+       photograph sepia panorama"
+        → "Constantinople Istanbul Bosphorus Ottoman"
+      "Mosul Iraq Tigris river city 1904 1900s sepia historical photo
+       stone buildings Ottoman"
+        → "Mosul Iraq Tigris river"
+    """
+    if not query:
+        return query
+    raw = query.split()
+    kept: list[str] = []
+    for tok in raw:
+        if tok.lower() in _SIMPLIFY_STOPLIST:
+            continue
+        kept.append(tok)
+        if len(kept) >= max_tokens:
+            break
+    if not kept:
+        return query   # Don't return empty — fall back to original
+    return " ".join(kept)

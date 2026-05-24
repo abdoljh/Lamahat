@@ -31,34 +31,58 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from .base import ImageCandidate, Source, is_free_license
+from .base import ImageCandidate, Source, is_free_license, simplify_query
 
 log = logging.getLogger(__name__)
 
 _API = "https://www.loc.gov/search/"
+_TIMEOUT = 30      # was 20; LoC has 5-10s response times under load
+_RETRIES = 1       # one retry on timeout — most LoC timeouts succeed on retry
 
 
 class LibraryOfCongress(Source):
     name = "loc"
 
     def search(self, query: str, n: int = 4) -> list[ImageCandidate]:
+        # LoC's /search/ uses AND-of-tokens on Subject/Description fields,
+        # which are tagged with formal authority headings, not natural
+        # language.  Long planner queries with descriptors never match.
+        short_query = simplify_query(query, max_tokens=4)
+        if short_query != query:
+            log.debug("LoC: simplified %r → %r", query, short_query)
         params = {
-            "q":   query,
+            "q":   short_query,
             "fa":  "online-format:image|original-format:photo,print",
             "fo":  "json",
             "c":   str(min(n * 3, 25)),   # over-fetch then filter
         }
         url = _API + "?" + urllib.parse.urlencode(params)
-        try:
-            req = urllib.request.Request(url, headers={
-                "User-Agent":
-                    "Lamahat/1.0 (https://github.com/abdoljh/Lamahat)",
-                "Accept": "application/json",
-            })
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                data = json.loads(resp.read())
-        except (urllib.error.URLError, json.JSONDecodeError, OSError) as exc:
-            log.warning("LoC search failed for %r: %s", query, exc)
+        headers = {
+            "User-Agent":
+                "Lamahat/1.0 (https://github.com/abdoljh/Lamahat)",
+            "Accept": "application/json",
+        }
+
+        data = None
+        last_exc: Exception | None = None
+        for attempt in range(_RETRIES + 1):
+            try:
+                req = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+                    data = json.loads(resp.read())
+                break
+            except (urllib.error.URLError, json.JSONDecodeError,
+                    OSError) as exc:
+                last_exc = exc
+                if attempt < _RETRIES:
+                    log.debug("LoC: attempt %d failed (%s); retrying",
+                              attempt + 1, exc)
+                    continue
+                log.warning("LoC search failed for %r: %s", short_query, exc)
+                return []
+
+        if data is None:
+            log.warning("LoC: no data after retries: %s", last_exc)
             return []
 
         results = data.get("results", [])
@@ -117,5 +141,5 @@ class LibraryOfCongress(Source):
             if len(candidates) >= n:
                 break
 
-        log.info("LoC: %d candidates for %r", len(candidates), query)
+        log.info("LoC: %d candidates for %r", len(candidates), short_query)
         return candidates

@@ -18,7 +18,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from .base import ImageCandidate, Source
+from .base import ImageCandidate, Source, simplify_query
 
 log = logging.getLogger(__name__)
 
@@ -29,9 +29,14 @@ class InternetArchive(Source):
     name = "internet_archive"
 
     def search(self, query: str, n: int = 4) -> list[ImageCandidate]:
-        # IA's query syntax supports field-specific search.  Restrict
-        # to image mediatype to skip audio/video/text results.
-        ia_q = f'({query}) AND mediatype:(image)'
+        # IA's advanced search uses Lucene AND semantics — long planner
+        # queries with visual descriptors never match.  Simplify to the
+        # named entity + core nouns.
+        short_query = simplify_query(query, max_tokens=4)
+        if short_query != query:
+            log.debug("Internet Archive: simplified %r → %r",
+                      query, short_query)
+        ia_q = f'({short_query}) AND mediatype:(image)'
         params = [
             ("q", ia_q),
             ("fl[]", "identifier"),
@@ -87,5 +92,5 @@ class InternetArchive(Source):
                 break
 
         log.info("Internet Archive: %d candidates for %r",
-                 len(candidates), query)
+                 len(candidates), short_query)
         return candidates
