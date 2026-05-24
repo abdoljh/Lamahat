@@ -259,24 +259,50 @@ class Decisions:
 
     # ── Portrait pool (multi-image character override) ─────────── #
     #
-    # `pinned_portrait` can point to either:
-    #   * a single file  → all portrait shots use the same image (legacy)
-    #   * a directory    → portrait shots round-robin through the sorted
-    #                      list of *.jpg/*.jpeg/*.png/*.webp inside it
+    # Auto-discovered directory: `<repo_root>/overrides/character/`,
+    # where repo_root is the parent of review_dir (e.g. review_dir is
+    # `output/review/`, overrides is `./overrides/`).  Sibling of
+    # `output/` and `samples/`, not nested under either.
     #
-    # The round-robin order is by *portrait shot index* (1st portrait
-    # shot → file 0, 2nd → file 1, ...).  This is deterministic and
-    # stable across re-renders.  Selection wraps via modulo, so a pool
-    # of 3 images covers any number of portrait shots.
+    # Portrait shots round-robin through sorted `*.jpg/*.jpeg/*.png/
+    # *.webp` inside it (by portrait shot rank, modulo-wrapped).
+    # No `decisions.json` edit required — the user just drops portraits
+    # into `overrides/character/`.
+    #
+    # Fallback chain at resolve-time for portrait shots:
+    #   1. `<repo_root>/overrides/character/` pool  (this code path)
+    #   2. legacy `pinned_portrait` (file path in decisions.json,
+    #      resolved relative to review_dir for back-compat)
+    #   3. shot.chosen_file (prebuild's auto-pick)
 
     _PORTRAIT_POOL_EXTS = (".jpg", ".jpeg", ".png", ".webp")
+    _PORTRAIT_POOL_DIR  = "overrides/character"
+
+    def _portrait_pool_root(self, review_dir: Path) -> Path:
+        """Resolve the directory that contains `overrides/character/`.
+
+        `overrides/` is a top-level sibling of `output/` in the repo
+        layout, so we walk up from `review_dir` (typically
+        `output/review/`) to find a directory whose `overrides/` child
+        exists.  Falls back to `review_dir.parent.parent` if the search
+        finds nothing — keeps behaviour predictable on novel layouts.
+        """
+        review_dir = Path(review_dir).resolve()
+        # Try review_dir itself, then walk up to 3 levels looking for
+        # an `overrides/` sibling.
+        for candidate in [review_dir, *review_dir.parents[:3]]:
+            if (candidate / "overrides").is_dir():
+                return candidate
+        # No `overrides/` found anywhere upward.  Return a path that
+        # `_list_portrait_pool` will treat as "no pool".
+        return review_dir.parent.parent if len(review_dir.parents) >= 2 \
+            else review_dir
 
     def _list_portrait_pool(self, review_dir: Path) -> list[Path]:
-        """Return sorted pool files if `pinned_portrait` is a directory,
-        empty list otherwise.  Case-insensitive extension match."""
-        if not self.pinned_portrait:
-            return []
-        p = (review_dir / self.pinned_portrait).resolve()
+        """Return sorted pool files from `<repo_root>/overrides/character/`,
+        or [] if directory absent / empty.  Case-insensitive extension match."""
+        root = self._portrait_pool_root(review_dir)
+        p = (root / self._PORTRAIT_POOL_DIR).resolve()
         if not p.is_dir():
             return []
         pool: list[Path] = []
@@ -346,9 +372,10 @@ class Decisions:
             )
             return user_file
 
-        # 3. Pinned portrait, for portrait shots only.
-        #    May be a single file (legacy) or a directory pool.
-        if shot.visual == "portrait" and self.pinned_portrait:
+        # 3. Portrait pool / pinned portrait, for portrait shots only.
+        #    Tries auto-discovered `overrides/character/` directory first;
+        #    falls back to legacy `pinned_portrait` file path if set.
+        if shot.visual == "portrait":
             pool = self._list_portrait_pool(review_dir)
             if pool:
                 rank = self._portrait_rank_of(shot_index)
@@ -360,14 +387,16 @@ class Decisions:
                     shot_index, chosen.name, rank, len(pool),
                 )
                 return chosen
-            p = (review_dir / self.pinned_portrait).resolve()
-            if p.exists() and p.is_file():
-                log.info("Shot %d: pinned-portrait hit %s", shot_index, p.name)
-                return p
-            log.warning(
-                "Shot %d: pinned_portrait %s missing — ignoring",
-                shot_index, p,
-            )
+            if self.pinned_portrait:
+                p = (review_dir / self.pinned_portrait).resolve()
+                if p.exists() and p.is_file():
+                    log.info("Shot %d: pinned-portrait hit %s",
+                             shot_index, p.name)
+                    return p
+                log.warning(
+                    "Shot %d: pinned_portrait %s missing — ignoring",
+                    shot_index, p,
+                )
 
         # 4. Pre-downloaded candidate the dossier marked as chosen
         if shot.chosen_file:
