@@ -166,12 +166,11 @@ def main() -> int:
                     type=int, default=1, metavar="N",
                     help="When the auto-discovered book-cover override is "
                          "a DIRECTORY (`<repo>/overrides/book_cover/`) "
-                         "rather than a file, select the Nth cover (1-indexed, "
-                         "sorted by filename, case-insensitive).  Default 1. "
-                         "Out-of-range values wrap via modulo, so --book-cover-pick 6 "
-                         "with 5 covers picks #1.  Ignored when --book-cover "
-                         "is passed explicitly or when overrides/book_cover.<ext> "
-                         "is a single file.")
+                         "rather than a file, select the Nth cover "
+                         "(1-indexed, sorted by filename).  Default 1. "
+                         "Out-of-range values wrap via modulo. "
+                         "Ignored when --book-cover is passed explicitly "
+                         "or when overrides/book_cover.<ext> is a single file.")
 
     ap.add_argument("--typography-family",
                     choices=("A", "B", "C"),
@@ -180,6 +179,27 @@ def main() -> int:
                          "A = Aljazeera-editorial cream/charcoal (default), "
                          "B = Netflix-doc cinematic dark gradient, "
                          "C = Manuscript sepia + ornament.")
+
+    ap.add_argument("--grade",
+                    choices=("warm", "cool", "neutral", "bw"),
+                    default="warm",
+                    help="Color grade applied at the final mux stage. "
+                         "warm (default) = pronounced cinematic teal-shadow / "
+                         "orange-highlight S-curve; cool = editorial blue "
+                         "lean for somber material; neutral = gentle contrast "
+                         "only (use when source imagery is already graded); "
+                         "bw = full desaturation + contrast bump. Grading "
+                         "runs before captions so subtitles stay crisp white.")
+
+    ap.add_argument("--caption-backplate",
+                    choices=("off", "subtle", "solid"),
+                    default="subtle",
+                    help="Charcoal bar drawn behind burned captions to "
+                         "improve legibility (issue 4 patch B). "
+                         "off = none (rely on outline only); "
+                         "subtle (default) = charcoal at 55%% opacity; "
+                         "solid = charcoal at 80%% opacity for very bright "
+                         "source material. No-op when --no-captions is set.")
 
     ap.add_argument("--build-manifest", metavar="PATH",
                     help="Write required-images manifest and exit")
@@ -264,13 +284,10 @@ def main() -> int:
 
     # Resolve the book cover.  Precedence: explicit --book-cover flag
     # over the dossier's book.cover_path, with a final fallback to an
-    # auto-discovered `overrides/book_cover.{jpg,jpeg,png,webp}` file
-    # (case-insensitive).  When none resolve, title cards keep the
-    # original cream design.
-    #
-    # The auto-discovery step matters because running the notebook
-    # end-to-end re-creates decisions.json without book.cover_path; the
-    # user shouldn't have to re-edit it after every regeneration.
+    # auto-discovered `<repo_root>/overrides/book_cover.<ext>` (file)
+    # OR `<repo_root>/overrides/book_cover/` (directory pool with
+    # --book-cover-pick selector).  When none resolve, title cards keep
+    # the original cream design.
     book_cover_path: Path | None = None
     if args.book_cover:
         book_cover_path = Path(args.book_cover).expanduser().resolve()
@@ -291,47 +308,41 @@ def main() -> int:
                       f"missing — trying overrides/ auto-discovery",
                       file=sys.stderr)
 
-    # Auto-discovery fallback: looks for either
-    #   `<repo_root>/overrides/book_cover.<ext>`  (single file, legacy)
-    #   `<repo_root>/overrides/book_cover/`        (directory pool, new)
-    # File wins if both exist (avoid surprising users mid-migration).
-    # When the directory pool wins, --book-cover-pick N selects the Nth
-    # entry (1-indexed, modulo-wrapped).
+    # Auto-discovery: <repo_root>/overrides/book_cover.<ext> (file)
+    # or <repo_root>/overrides/book_cover/ (directory pool).  Walks up
+    # from review_dir to find the overrides/ sibling (max 3 levels).
     BOOK_EXTS = (".jpg", ".jpeg", ".png", ".webp")
     if book_cover_path is None and args.review_dir:
         review_path = Path(args.review_dir).resolve()
-        # Walk up looking for an overrides/ sibling
         overrides_dir: Path | None = None
-        for candidate in [review_path, *review_path.parents[:3]]:
-            d = candidate / "overrides"
+        for c in [review_path, *review_path.parents[:3]]:
+            d = c / "overrides"
             if d.is_dir():
                 overrides_dir = d
                 break
 
         if overrides_dir is not None:
-            # 1. Look for single-file override (legacy).
-            for candidate in sorted(overrides_dir.iterdir(),
-                                    key=lambda x: x.name.lower()):
-                if (candidate.is_file()
-                        and candidate.stem.lower() == "book_cover"
-                        and candidate.suffix.lower() in BOOK_EXTS):
-                    book_cover_path = candidate
-                    print(f"Cover  : {candidate} "
+            # 1. Single-file override (legacy).
+            for c in sorted(overrides_dir.iterdir(),
+                            key=lambda x: x.name.lower()):
+                if (c.is_file()
+                        and c.stem.lower() == "book_cover"
+                        and c.suffix.lower() in BOOK_EXTS):
+                    book_cover_path = c
+                    print(f"Cover  : {c} "
                           f"(auto-discovered from overrides/)")
                     break
 
-            # 2. No single file — look for directory pool.
+            # 2. Directory pool.
             if book_cover_path is None:
                 pool_dir = overrides_dir / "book_cover"
                 if pool_dir.is_dir():
                     pool = sorted(
                         [f for f in pool_dir.iterdir()
-                         if f.is_file()
-                         and f.suffix.lower() in BOOK_EXTS],
+                         if f.is_file() and f.suffix.lower() in BOOK_EXTS],
                         key=lambda x: x.name.lower(),
                     )
                     if pool:
-                        # 1-indexed pick, modulo-wrapped.
                         pick = max(1, args.book_cover_pick)
                         idx = (pick - 1) % len(pool)
                         book_cover_path = pool[idx]
@@ -375,6 +386,8 @@ def main() -> int:
         book_cover_fit=cover_fit,
         book_cover_align=cover_align,
         typography_family=args.typography_family,
+        grade=args.grade,
+        caption_backplate=args.caption_backplate,
     )
 
     t0 = time.perf_counter()
