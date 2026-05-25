@@ -80,6 +80,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -283,7 +284,6 @@ class Decisions:
     def _resources_root() -> Path:
         """Resolve the resources directory.  Env var wins; falls back
         to /content/resources (Colab) or ./resources (anywhere else)."""
-        import os
         env = os.environ.get("LAMAHAT_RESOURCES")
         if env:
             return Path(env).expanduser().resolve()
