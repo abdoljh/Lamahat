@@ -162,6 +162,16 @@ def main() -> int:
                          "Defaults to 'center'.  Only meaningful with "
                          "contain or blur_pad.  The gold title overlay "
                          "shifts to the opposite side automatically.")
+    ap.add_argument("--book-cover-pick",
+                    type=int, default=1, metavar="N",
+                    help="When the auto-discovered book-cover override is "
+                         "a DIRECTORY (`<repo>/overrides/book_cover/`) "
+                         "rather than a file, select the Nth cover (1-indexed, "
+                         "sorted by filename, case-insensitive).  Default 1. "
+                         "Out-of-range values wrap via modulo, so --book-cover-pick 6 "
+                         "with 5 covers picks #1.  Ignored when --book-cover "
+                         "is passed explicitly or when overrides/book_cover.<ext> "
+                         "is a single file.")
 
     ap.add_argument("--typography-family",
                     choices=("A", "B", "C"),
@@ -281,9 +291,13 @@ def main() -> int:
                       f"missing — trying overrides/ auto-discovery",
                       file=sys.stderr)
 
-    # Auto-discovery fallback: any `<repo_root>/overrides/book_cover.<ext>`
-    # file, where repo_root is the parent of review_dir (overrides/ is a
-    # sibling of output/ in the repo layout).
+    # Auto-discovery fallback: looks for either
+    #   `<repo_root>/overrides/book_cover.<ext>`  (single file, legacy)
+    #   `<repo_root>/overrides/book_cover/`        (directory pool, new)
+    # File wins if both exist (avoid surprising users mid-migration).
+    # When the directory pool wins, --book-cover-pick N selects the Nth
+    # entry (1-indexed, modulo-wrapped).
+    BOOK_EXTS = (".jpg", ".jpeg", ".png", ".webp")
     if book_cover_path is None and args.review_dir:
         review_path = Path(args.review_dir).resolve()
         # Walk up looking for an overrides/ sibling
@@ -293,20 +307,37 @@ def main() -> int:
             if d.is_dir():
                 overrides_dir = d
                 break
+
         if overrides_dir is not None:
-            for ext in (".jpg", ".jpeg", ".png", ".webp"):
-                found = False
-                for candidate in overrides_dir.iterdir():
-                    if (candidate.is_file()
-                            and candidate.stem.lower() == "book_cover"
-                            and candidate.suffix.lower() == ext):
-                        book_cover_path = candidate
-                        print(f"Cover  : {candidate} "
-                              f"(auto-discovered from overrides/)")
-                        found = True
-                        break
-                if found:
+            # 1. Look for single-file override (legacy).
+            for candidate in sorted(overrides_dir.iterdir(),
+                                    key=lambda x: x.name.lower()):
+                if (candidate.is_file()
+                        and candidate.stem.lower() == "book_cover"
+                        and candidate.suffix.lower() in BOOK_EXTS):
+                    book_cover_path = candidate
+                    print(f"Cover  : {candidate} "
+                          f"(auto-discovered from overrides/)")
                     break
+
+            # 2. No single file — look for directory pool.
+            if book_cover_path is None:
+                pool_dir = overrides_dir / "book_cover"
+                if pool_dir.is_dir():
+                    pool = sorted(
+                        [f for f in pool_dir.iterdir()
+                         if f.is_file()
+                         and f.suffix.lower() in BOOK_EXTS],
+                        key=lambda x: x.name.lower(),
+                    )
+                    if pool:
+                        # 1-indexed pick, modulo-wrapped.
+                        pick = max(1, args.book_cover_pick)
+                        idx = (pick - 1) % len(pool)
+                        book_cover_path = pool[idx]
+                        print(f"Cover  : {book_cover_path} "
+                              f"(pool pick #{pick} of {len(pool)} "
+                              f"in overrides/book_cover/)")
 
     # Resolve the cover fit mode.  Precedence: CLI flag > dossier > "fill".
     cover_fit = "fill"
