@@ -308,34 +308,38 @@ def main() -> int:
                       f"missing — trying overrides/ auto-discovery",
                       file=sys.stderr)
 
-    # Auto-discovery: <repo_root>/overrides/book_cover.<ext> (file)
-    # or <repo_root>/overrides/book_cover/ (directory pool).  Walks up
-    # from review_dir to find the overrides/ sibling (max 3 levels).
+    # Auto-discovery: looks at `$LAMAHAT_RESOURCES/book_cover.<ext>` (file)
+    # or `$LAMAHAT_RESOURCES/book_cover/` (directory pool).  Falls back
+    # to /content/resources (Colab) or ./resources elsewhere when the
+    # env var is unset.  Explicit rather than walking up from review_dir
+    # — prebuild creates <review_dir>/overrides/ which captured earlier
+    # walk-up searches and broke discovery silently.
     BOOK_EXTS = (".jpg", ".jpeg", ".png", ".webp")
-    if book_cover_path is None and args.review_dir:
-        review_path = Path(args.review_dir).resolve()
-        overrides_dir: Path | None = None
-        for c in [review_path, *review_path.parents[:3]]:
-            d = c / "overrides"
-            if d.is_dir():
-                overrides_dir = d
-                break
+    if book_cover_path is None:
+        import os
+        env = os.environ.get("LAMAHAT_RESOURCES")
+        if env:
+            resources_dir = Path(env).expanduser().resolve()
+        elif Path("/content").is_dir():
+            resources_dir = Path("/content/resources")
+        else:
+            resources_dir = (Path.cwd() / "resources").resolve()
 
-        if overrides_dir is not None:
-            # 1. Single-file override (legacy).
-            for c in sorted(overrides_dir.iterdir(),
+        if resources_dir.is_dir():
+            # 1. Single-file `book_cover.<ext>`.
+            for c in sorted(resources_dir.iterdir(),
                             key=lambda x: x.name.lower()):
                 if (c.is_file()
                         and c.stem.lower() == "book_cover"
                         and c.suffix.lower() in BOOK_EXTS):
                     book_cover_path = c
                     print(f"Cover  : {c} "
-                          f"(auto-discovered from overrides/)")
+                          f"(auto-discovered from {resources_dir.name}/)")
                     break
 
-            # 2. Directory pool.
+            # 2. Directory pool `book_cover/`.
             if book_cover_path is None:
-                pool_dir = overrides_dir / "book_cover"
+                pool_dir = resources_dir / "book_cover"
                 if pool_dir.is_dir():
                     pool = sorted(
                         [f for f in pool_dir.iterdir()
@@ -348,7 +352,7 @@ def main() -> int:
                         book_cover_path = pool[idx]
                         print(f"Cover  : {book_cover_path} "
                               f"(pool pick #{pick} of {len(pool)} "
-                              f"in overrides/book_cover/)")
+                              f"in {resources_dir.name}/book_cover/)")
 
     # Resolve the cover fit mode.  Precedence: CLI flag > dossier > "fill".
     cover_fit = "fill"

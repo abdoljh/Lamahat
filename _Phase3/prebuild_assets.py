@@ -103,19 +103,20 @@ def _copy_into(src: Path, dst: Path) -> None:
     shutil.copyfile(src, dst)
 
 
-def _find_repo_root_with_overrides(review_dir: Path) -> Path | None:
-    """Walk up from `review_dir` looking for a directory whose
-    `overrides/` child exists.  Returns that directory, or None.
+def _resources_root() -> Path:
+    """Resolve the resources directory.  Env LAMAHAT_RESOURCES wins;
+    falls back to /content/resources (Colab) or ./resources elsewhere.
 
-    Used to detect the repo-root `overrides/character/` pool that
-    Decisions._list_portrait_pool() will consume at render time.
-    Max 3 levels up — keeps behaviour predictable on novel layouts.
-    """
-    review_dir = Path(review_dir).resolve()
-    for candidate in [review_dir, *review_dir.parents[:3]]:
-        if (candidate / "overrides").is_dir():
-            return candidate
-    return None
+    This is the SINGLE source of truth for user-supplied character
+    portraits and book covers.  Explicit path avoids the walk-up bug
+    that captured `<review_dir>/overrides/` in earlier takes."""
+    import os
+    env = os.environ.get("LAMAHAT_RESOURCES")
+    if env:
+        return Path(env).expanduser().resolve()
+    if Path("/content").is_dir():
+        return Path("/content/resources")
+    return (Path.cwd() / "resources").resolve()
 
 
 # ── Per-shot processing ───────────────────────────────────────────────── #
@@ -344,15 +345,15 @@ def main():
     write_readme(review_dir)
 
     pinned_portrait_rel: str | None = None
-    # Detect a user-supplied repo-root pool (`<repo_root>/overrides/character/`).
+    # Detect user-supplied portrait pool at `$LAMAHAT_RESOURCES/character/`.
     # When the pool exists with at least one image, skip the
     # single-file pin copy and leave `pinned_portrait` unset in
-    # decisions.json — the renderer's pool resolver (Decisions.
-    # _list_portrait_pool) will discover the pool directly.
-    pool_root = _find_repo_root_with_overrides(review_dir)
-    pool_dir = pool_root / "overrides" / "character" if pool_root else None
+    # decisions.json — the renderer's pool resolver
+    # (Decisions._list_portrait_pool) will discover the pool directly.
+    pool_root = _resources_root()
+    pool_dir = pool_root / "character"
     pool_has_images = (
-        pool_dir is not None and pool_dir.is_dir() and any(
+        pool_dir.is_dir() and any(
             f.is_file() and f.suffix.lower() in (".jpg", ".jpeg",
                                                   ".png", ".webp")
             for f in pool_dir.iterdir()
@@ -377,40 +378,39 @@ def main():
         log.info("Pinned portrait copied → %s", dest)
 
     book_cover_rel: str | None = None
-    # Detect repo-root book cover override.  Either:
-    #   `<repo>/overrides/book_cover.<ext>`  (single file, legacy)
-    #   `<repo>/overrides/book_cover/`        (directory pool, new)
+    # Detect user-supplied book cover at `$LAMAHAT_RESOURCES`:
+    #   `$LAMAHAT_RESOURCES/book_cover.<ext>`  (single file)
+    #   `$LAMAHAT_RESOURCES/book_cover/`        (directory pool)
     # In both cases skip the prebuild copy and leave book.cover_path
     # unset; render_plan.py auto-discovers + applies --book-cover-pick.
-    repo_root_cover: Path | None = None
-    if pool_root:
-        ov = pool_root / "overrides"
+    resources_root_cover: Path | None = None
+    if pool_root.is_dir():
         # 1. Single-file override
         for ext in (".jpg", ".jpeg", ".png", ".webp"):
-            for f in ov.iterdir():
+            for f in pool_root.iterdir():
                 if (f.is_file() and f.stem.lower() == "book_cover"
                         and f.suffix.lower() == ext):
-                    repo_root_cover = f
+                    resources_root_cover = f
                     break
-            if repo_root_cover:
+            if resources_root_cover:
                 break
         # 2. Directory pool
-        if repo_root_cover is None:
-            pool_d = ov / "book_cover"
+        if resources_root_cover is None:
+            pool_d = pool_root / "book_cover"
             if pool_d.is_dir() and any(
                     f.is_file() and f.suffix.lower() in (".jpg", ".jpeg",
                                                           ".png", ".webp")
                     for f in pool_d.iterdir()):
-                repo_root_cover = pool_d
+                resources_root_cover = pool_d
 
-    if repo_root_cover is not None:
-        kind = "directory pool" if repo_root_cover.is_dir() else "file"
-        log.info("Repo-root book cover %s detected at %s — skipping "
-                 "prebuild copy (render_plan will auto-discover it)",
-                 kind, repo_root_cover)
+    if resources_root_cover is not None:
+        kind = "directory pool" if resources_root_cover.is_dir() else "file"
+        log.info("Book cover %s detected at %s — skipping prebuild copy "
+                 "(render_plan will auto-discover it)",
+                 kind, resources_root_cover)
         if args.book_cover is not None:
-            log.info("(--book-cover %s ignored in favour of repo-root "
-                     "overrides/)", args.book_cover)
+            log.info("(--book-cover %s ignored in favour of resources/)",
+                     args.book_cover)
     elif args.book_cover is not None:
         src = args.book_cover.expanduser().resolve()
         if not src.exists():
