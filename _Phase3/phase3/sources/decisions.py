@@ -259,50 +259,45 @@ class Decisions:
 
     # ── Portrait pool (multi-image character override) ─────────── #
     #
-    # Auto-discovered directory: `<repo_root>/overrides/character/`,
-    # where repo_root is the parent of review_dir (e.g. review_dir is
-    # `output/review/`, overrides is `./overrides/`).  Sibling of
-    # `output/` and `samples/`, not nested under either.
+    # Looks at an EXPLICIT directory: `$LAMAHAT_RESOURCES/character/`,
+    # defaulting to `/content/resources/character/` in Colab and
+    # `<cwd>/resources/character/` elsewhere.
+    #
+    # Why explicit rather than walking-up from review_dir: prebuild
+    # creates `<review_dir>/overrides/` itself, which captured the
+    # walk-up search and silently broke pool discovery in earlier takes.
+    # `resources/` is a new name with no historical conflicts.
     #
     # Portrait shots round-robin through sorted `*.jpg/*.jpeg/*.png/
-    # *.webp` inside it (by portrait shot rank, modulo-wrapped).
-    # No `decisions.json` edit required — the user just drops portraits
-    # into `overrides/character/`.
+    # *.webp` (by portrait-shot rank, modulo-wrapped).
     #
     # Fallback chain at resolve-time for portrait shots:
-    #   1. `<repo_root>/overrides/character/` pool  (this code path)
-    #   2. legacy `pinned_portrait` (file path in decisions.json,
-    #      resolved relative to review_dir for back-compat)
+    #   1. `$LAMAHAT_RESOURCES/character/` pool       ← THIS
+    #   2. legacy `pinned_portrait` (file in decisions.json)
     #   3. shot.chosen_file (prebuild's auto-pick)
 
     _PORTRAIT_POOL_EXTS = (".jpg", ".jpeg", ".png", ".webp")
-    _PORTRAIT_POOL_DIR  = "overrides/character"
+    _PORTRAIT_POOL_SUBDIR = "character"
 
-    def _portrait_pool_root(self, review_dir: Path) -> Path:
-        """Resolve the directory that contains `overrides/character/`.
-
-        `overrides/` is a top-level sibling of `output/` in the repo
-        layout, so we walk up from `review_dir` (typically
-        `output/review/`) to find a directory whose `overrides/` child
-        exists.  Falls back to `review_dir.parent.parent` if the search
-        finds nothing — keeps behaviour predictable on novel layouts.
-        """
-        review_dir = Path(review_dir).resolve()
-        # Try review_dir itself, then walk up to 3 levels looking for
-        # an `overrides/` sibling.
-        for candidate in [review_dir, *review_dir.parents[:3]]:
-            if (candidate / "overrides").is_dir():
-                return candidate
-        # No `overrides/` found anywhere upward.  Return a path that
-        # `_list_portrait_pool` will treat as "no pool".
-        return review_dir.parent.parent if len(review_dir.parents) >= 2 \
-            else review_dir
+    @staticmethod
+    def _resources_root() -> Path:
+        """Resolve the resources directory.  Env var wins; falls back
+        to /content/resources (Colab) or ./resources (anywhere else)."""
+        import os
+        env = os.environ.get("LAMAHAT_RESOURCES")
+        if env:
+            return Path(env).expanduser().resolve()
+        colab = Path("/content/resources")
+        if colab.is_dir() or Path("/content").is_dir():
+            return colab
+        return (Path.cwd() / "resources").resolve()
 
     def _list_portrait_pool(self, review_dir: Path) -> list[Path]:
-        """Return sorted pool files from `<repo_root>/overrides/character/`,
-        or [] if directory absent / empty.  Case-insensitive extension match."""
-        root = self._portrait_pool_root(review_dir)
-        p = (root / self._PORTRAIT_POOL_DIR).resolve()
+        """Return sorted pool files from `$LAMAHAT_RESOURCES/character/`,
+        or [] if directory absent / empty.  `review_dir` is unused but
+        kept in the signature for back-compat with earlier takes."""
+        root = self._resources_root()
+        p = (root / self._PORTRAIT_POOL_SUBDIR).resolve()
         if not p.is_dir():
             return []
         pool: list[Path] = []
