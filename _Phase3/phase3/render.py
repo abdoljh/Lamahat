@@ -111,8 +111,8 @@ DEFAULT_GRADE = "warm"
 # filter chain.
 CAPTION_BACKPLATES: dict[str, str | None] = {
     "off": None,
-    "subtle": "drawbox=x=0:y=ih*0.83:w=iw:h=ih*0.15:color=0x1A1A1A@0.55:t=fill",
-    "solid":  "drawbox=x=0:y=ih*0.83:w=iw:h=ih*0.15:color=0x1A1A1A@0.80:t=fill",
+    "subtle": "drawbox=x=0:y=ih*0.85:w=iw:h=ih*0.09:color=0x1A1A1A@0.55:t=fill",
+    "solid":  "drawbox=x=0:y=ih*0.85:w=iw:h=ih*0.09:color=0x1A1A1A@0.80:t=fill",
 }
 DEFAULT_CAPTION_BACKPLATE = "subtle"
 
