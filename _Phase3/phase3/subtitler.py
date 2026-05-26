@@ -188,7 +188,7 @@ def generate_ass(
     titlesub_sz  = max(44,  height // 16)    # author subtitle line
     section_sz   = max(52,  height // 13)    # section heading at top
     keyphrase_sz = max(62,  height // 11)    # key phrase — large, at bottom
-    caption_sz   = max(56,  height // 11)    # regular captions — readable at TV distance
+    caption_sz   = max(60,  height // 11)    # regular captions — readable at TV distance
 
     titlesub_v   = title_sz + titlesub_sz + 20  # TitleSub drops below TitleCard centre
 
