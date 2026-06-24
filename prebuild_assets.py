@@ -48,7 +48,7 @@ import shutil
 import sys
 from pathlib import Path
 
-# Repo-root imports — assumes this file sits at _Phase3/prebuild_assets.py
+# Repo-root imports — this file sits at the repo root, beside the phase3/ package
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))

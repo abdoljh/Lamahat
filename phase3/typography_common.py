@@ -137,11 +137,9 @@ def _discover_amiri_fonts() -> dict:
         ("repo fonts/ (next to phase3)",   pkg_dir.parent / "fonts"),
         ("repo fonts/ (one level up)",     pkg_dir.parent.parent / "fonts"),
         ("CWD fonts/",                     Path.cwd() / "fonts"),
-        ("CWD _Phase3/fonts/",             Path.cwd() / "_Phase3" / "fonts"),
-        ("Colab Drive /content/_Phase3/fonts",
-         Path("/content/_Phase3/fonts")),
-        ("Colab Drive (mounted) _Phase3/fonts",
-         Path("/content/drive/MyDrive/_Phase3/fonts")),
+        ("Colab /content/fonts",           Path("/content/fonts")),
+        ("Colab Drive (mounted) Lamahat/fonts",
+         Path("/content/drive/MyDrive/Lamahat/fonts")),
     ]
     for label, d in repo_relative_candidates:
         found = _try(label, d)
@@ -194,7 +192,7 @@ def _discover_amiri_fonts() -> dict:
         Path.home() / ".fonts",
         Path.home() / "Library/Fonts",
         Path("/content/fonts"),
-        Path("/content/_Phase3/fonts"),
+        Path("/content/Lamahat/fonts"),
         Path(os.environ.get("CONDA_PREFIX", "/nonexistent")) / "share/fonts",
     ]
     for d in well_known:
@@ -238,7 +236,7 @@ def _download_amiri() -> dict:
             raise RuntimeError(
                 f"Amiri font is not installed and could not be downloaded "
                 f"from {url}: {exc}.  Recommended fix: ensure the repo's "
-                f"`_Phase3/fonts/` directory is present at runtime."
+                f"`fonts/` directory is present at runtime."
             ) from exc
 
         with zipfile.ZipFile(io.BytesIO(data)) as zf:

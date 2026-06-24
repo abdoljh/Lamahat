@@ -348,10 +348,20 @@ with st.sidebar:
     )
     p3_color_grade = st.selectbox(
         "Color Grade",
-        ["warm", "neutral", "cool"],
+        ["warm", "neutral", "cool", "bw"],
         index=0,
         key="p3_color_grade",
-        help="warm — amber/gold tone · neutral — no adjustment · cool — blue tones",
+        help="warm — teal-shadow / orange-highlight cinematic · neutral — gentle "
+             "contrast · cool — editorial blue · bw — desaturated",
+    )
+    p3_typography_family = st.selectbox(
+        "Typography family",
+        ["A", "B", "C"],
+        index=0,
+        key="p3_typography_family",
+        help="A — Aljazeera-editorial cream/charcoal (default) · "
+             "B — Netflix-doc cinematic dark gradient · "
+             "C — Manuscript sepia + ornament",
     )
 
     st.markdown("---")
@@ -1093,12 +1103,12 @@ st.markdown("""
 <div class="app-header" style="margin-top:1rem">
   <div class="eyebrow">Arabic Book Brief Engine · Phase 3</div>
   <h1>Final Video Assembly</h1>
-  <div class="sub">Visuals · Arabic voice · Burned-in subtitles · Complete MP4</div>
+  <div class="sub">AI shot plan · Visuals · Arabic voice · Burned-in subtitles · Complete MP4</div>
   <div>
-    <span class="badge b-gold">Wikimedia Commons</span>
-    <span class="badge b-teal">Ken Burns Effect</span>
-    <span class="badge b-rust">Pexels Fallback</span>
-    <span class="badge b-teal">Arabic Subtitles</span>
+    <span class="badge b-gold">Sonnet Shot Planner</span>
+    <span class="badge b-teal">LoC · Wikimedia · IA · Pexels</span>
+    <span class="badge b-rust">Vision-Scored Imagery</span>
+    <span class="badge b-teal">Amiri Typography Cards</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -1127,7 +1137,7 @@ else:
 p3_audio_bytes: bytes | None = None
 if "p2_audio_bytes" in st.session_state:
     p3_audio_bytes = st.session_state["p2_audio_bytes"]
-    st.caption("Using Phase 2 audio for section timing.")
+    st.caption("Using Phase 2 audio for word-level alignment.")
 else:
     p3_audio_up = st.file_uploader(
         "Upload audio (.mp3) for timing — optional",
@@ -1146,7 +1156,7 @@ p3_genre = st.selectbox(
      "science", "religion", "novel"],
     index=0,
     key="p3_genre",
-    help="Affects Wikimedia search terms and colour-grade default.",
+    help="Steers the shot planner's tone and search-query style.",
 )
 
 # ── Book context for better image search ─────────────────────────────── #
@@ -1156,14 +1166,15 @@ with _col_title:
         "Book title (English)",
         key="p3_book_title",
         placeholder="e.g. Memoirs of Jafar al-Askari",
-        help="Used by the keyword generator to find more relevant Wikimedia images.",
+        help="Context for the shot planner and the vision-scoring image rubric.",
     )
 with _col_char:
     p3_character_name = st.text_input(
         "Main character name (English)",
         key="p3_character_name",
         placeholder="e.g. Jafar al-Askari",
-        help="Ensures a portrait photograph of the main subject is searched first.",
+        help="Latin spelling — used to search LoC / Wikimedia / IA for the "
+             "subject's portrait and to anchor the vision-scoring rubric.",
     )
 
 # ── Generate button ───────────────────────────────────────────────────── #
@@ -1183,72 +1194,41 @@ if p3_text:
         except Exception:
             st.text(p3_text[:600])
 
-    # ── Keyword preview (optional step before generating video) ──────── #
-    with st.expander("🔍 Preview search keywords (optional — inspect before generating)"):
-        st.caption(
-            "Click **Generate Keywords** to see exactly what search terms Claude will "
-            "use for Wikimedia and Pexels, and which Arabic key phrases will be "
-            "displayed as on-screen text overlays — before committing to the full video."
+    # ── Render options ───────────────────────────────────────────────── #
+    _opt1, _opt2 = st.columns(2)
+    with _opt1:
+        p3_add_subs = st.checkbox(
+            "Burn Arabic captions into video",
+            value=True,
+            key="p3_add_subs",
+            help="Timed Arabic narration captions (white text, charcoal outline). "
+                 "Typography shots already show their text full-screen.",
         )
-        if st.button("Generate Keywords", key="p3_kw_preview"):
-            if not anthropic_key:
-                st.warning("Anthropic API key required for keyword generation. "
-                           "Add it in the sidebar.")
-            else:
-                with st.spinner("Calling Claude Haiku for keyword ideas…"):
-                    try:
-                        from phase3.parser import parse_sections as _parse
-                        from phase3.keywords import generate_keywords as _gen_kw
+    with _opt2:
+        p3_resolution = st.selectbox(
+            "Resolution",
+            ["1280×720 (faster)", "1920×1080 (full)"],
+            index=0,
+            key="p3_resolution",
+            help="The shot-based render re-encodes every shot; 720p keeps memory "
+                 "and time down on Streamlit Cloud. 1080p is the broadcast target.",
+        )
+    _p3_w, _p3_h = (1280, 720) if p3_resolution.startswith("1280") else (1920, 1080)
 
-                        _kw_sections = _parse(p3_text)
-                        _kw_results  = _gen_kw(
-                            _kw_sections,
-                            p3_genre,
-                            anthropic_key,
-                            book_title=p3_book_title,
-                            character_name=p3_character_name,
-                        )
-                        st.session_state["p3_kw_results"] = _kw_results
-                    except Exception as _e:
-                        st.error(f"Keyword generation failed: {_e}")
-
-        if "p3_kw_results" in st.session_state:
-            for _kw in st.session_state["p3_kw_results"]:
-                st.markdown(
-                    f"<div style='font-family:DM Mono,monospace;font-size:0.7rem;"
-                    f"color:#c9a84c;margin-top:0.8rem;text-transform:uppercase'>"
-                    f"{_kw.section_id}</div>",
-                    unsafe_allow_html=True,
-                )
-                _c1, _c2 = st.columns(2)
-                with _c1:
-                    st.markdown("**Wikimedia searches**")
-                    for _q in _kw.wikimedia:
-                        st.markdown(f"- `{_q}`")
-                with _c2:
-                    st.markdown("**Pexels searches**")
-                    for _q in _kw.pexels:
-                        st.markdown(f"- `{_q}`")
-                if _kw.key_phrases:
-                    st.markdown("**Key phrase overlays**")
-                    for _phrase in _kw.key_phrases:
-                        st.markdown(
-                            f"<div style='direction:rtl;text-align:right;"
-                            f"background:#fefcf8;border-left:3px solid #c9a84c;"
-                            f"padding:0.4rem 0.8rem;margin:0.3rem 0;"
-                            f"font-size:0.9rem'>{_phrase}</div>",
-                            unsafe_allow_html=True,
-                        )
-
-    p3_add_subs = st.checkbox(
-        "Burn Arabic subtitles into video",
-        value=True,
-        key="p3_add_subs",
-        help="Overlays the script text as timed Arabic captions (white text, black outline).",
+    st.caption(
+        "The v2 pipeline aligns the narration, asks Claude Sonnet for a shot "
+        "plan (one call), fetches vision-scored imagery from LoC / Wikimedia / "
+        "Internet Archive / Pexels, and renders Amiri typography cards. "
+        "An Anthropic API key is required; rendering takes several minutes."
     )
 
     if st.button("▶ Generate Final Video", type="primary",
                  use_container_width=True, key="p3_gen"):
+        if not anthropic_key:
+            st.warning("An Anthropic API key is required for the shot planner. "
+                       "Add it in the sidebar.")
+            st.stop()
+
         import tempfile as _tmp
         _out_dir = Path(_tmp.mkdtemp(prefix="bk2v_out_"))
         _out_mp4 = _out_dir / "final_video.mp4"
@@ -1272,21 +1252,22 @@ if p3_text:
             )
 
         try:
-            from phase3 import generate_background_video
-            from phase3.compositor import extract_thumbnail
+            from phase3 import generate_video_v2, extract_thumbnail
 
-            generate_background_video(
+            generate_video_v2(
                 script_text=p3_text,
                 output_path=_out_mp4,
                 audio_bytes=p3_audio_bytes,
                 anthropic_api_key=anthropic_key,
                 pexels_api_key=pexels_api_key,
-                genre=p3_genre,
-                color_grade=p3_color_grade,
-                images_per_section=3,
                 book_title=p3_book_title,
                 character_name=p3_character_name,
-                add_subtitles=p3_add_subs,
+                genre=p3_genre,
+                width=_p3_w,
+                height=_p3_h,
+                grade=p3_color_grade,
+                typography_family=p3_typography_family,
+                add_captions=p3_add_subs,
                 on_progress=_p3_cb,
             )
 
