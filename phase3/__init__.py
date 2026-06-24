@@ -137,7 +137,11 @@ def generate_video_v2(
     add_captions: bool = True,
     align_backend: str = "auto",
     book_cover: Path | None = None,
+    book_cover_fit: str = "contain",
+    book_cover_align: str = "center",
+    character_portrait: Path | None = None,
     music_path: Path | None = None,
+    music_gain_db: float = -18.0,
     book_extracts: Path | None = None,
     user_dir: Path | None = None,
     review_dir: Path | None = None,
@@ -226,6 +230,7 @@ def generate_video_v2(
             character_name=character_name,
             enable_vision=enable_vision,
             review_dir=Path(review_dir) if review_dir else None,
+            pinned_portrait=Path(character_portrait) if character_portrait else None,
         ))
         cfg = RenderConfig(
             width=width,
@@ -234,9 +239,12 @@ def generate_video_v2(
             add_captions=add_captions,
             fetcher=fetcher,
             book_cover=Path(book_cover) if book_cover else None,
+            book_cover_fit=book_cover_fit,
+            book_cover_align=book_cover_align,
             typography_family=typography_family,
             grade=grade,
             music_path=Path(music_path) if music_path else None,
+            music_gain_db=music_gain_db,
         )
 
         def _render_prog(label: str, frac: float) -> None:

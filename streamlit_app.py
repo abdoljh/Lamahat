@@ -364,6 +364,106 @@ with st.sidebar:
              "C — Manuscript sepia + ornament",
     )
 
+    # ── Visual assets: book cover · character portrait · music bed ───── #
+    _P3_RES = Path(__file__).resolve().parent / "resources"
+    _P3_IMG_EXTS = (".jpg", ".jpeg", ".png", ".webp")
+    if "p3_asset_dir" not in st.session_state:
+        st.session_state["p3_asset_dir"] = tempfile.mkdtemp(prefix="bk2v_p3_assets_")
+    _p3_asset_dir = Path(st.session_state["p3_asset_dir"])
+
+    def _p3_pool(subdir: str, exts: tuple[str, ...]) -> list[Path]:
+        d = _P3_RES / subdir
+        if not d.is_dir():
+            return []
+        return sorted(
+            [f for f in d.iterdir() if f.is_file() and f.suffix.lower() in exts],
+            key=lambda x: x.name.lower(),
+        )
+
+    def _p3_save_upload(up, name: str) -> Path:
+        dest = _p3_asset_dir / name
+        dest.write_bytes(up.getvalue())
+        return dest
+
+    st.markdown("**Visual assets**")
+
+    # Book cover → title card
+    _p3_covers = _p3_pool("book_cover", _P3_IMG_EXTS)
+    _p3_cover_choice = st.selectbox(
+        "Book cover",
+        ["None"] + [f.name for f in _p3_covers] + ["Upload…"],
+        index=(1 if _p3_covers else 0),
+        key="p3_cover_choice",
+        help="Shown full-frame on the title card with a gold title overlay. "
+             "Bundled covers live in resources/book_cover/.",
+    )
+    p3_book_cover_path = None
+    if _p3_cover_choice == "Upload…":
+        _p3_cu = st.file_uploader("Upload cover image",
+                                  type=["jpg", "jpeg", "png", "webp"],
+                                  key="p3_cover_up")
+        if _p3_cu:
+            p3_book_cover_path = _p3_save_upload(_p3_cu, "cover_" + _p3_cu.name)
+    elif _p3_cover_choice != "None":
+        p3_book_cover_path = _P3_RES / "book_cover" / _p3_cover_choice
+    p3_book_cover_fit = (
+        st.selectbox(
+            "Cover fit", ["contain", "fill", "blur_pad"], index=0,
+            key="p3_cover_fit",
+            help="contain — letterbox, keeps the whole cover (best for clean "
+                 "covers) · fill — scale-and-crop · blur_pad — blurred backdrop.",
+        ) if p3_book_cover_path else "contain"
+    )
+
+    # Character portrait → pinned across every portrait shot
+    _p3_ports = _p3_pool("character", _P3_IMG_EXTS)
+    _p3_port_choice = st.selectbox(
+        "Character portrait (pinned)",
+        ["None"] + [f.name for f in _p3_ports] + ["Upload…"],
+        index=0,
+        key="p3_port_choice",
+        help="One authentic portrait reused for EVERY portrait shot instead of "
+             "different stock faces — the single biggest documentary-quality "
+             "win. Bundled portraits live in resources/character/.",
+    )
+    p3_character_path = None
+    if _p3_port_choice == "Upload…":
+        _p3_pu = st.file_uploader("Upload portrait image",
+                                  type=["jpg", "jpeg", "png", "webp"],
+                                  key="p3_port_up")
+        if _p3_pu:
+            p3_character_path = _p3_save_upload(_p3_pu, "portrait_" + _p3_pu.name)
+    elif _p3_port_choice != "None":
+        p3_character_path = _P3_RES / "character" / _p3_port_choice
+
+    # Background music bed → mixed under the narration
+    _p3_has_music = (_P3_RES / "audio" / "bg_music.mp3").exists()
+    _p3_music_choice = st.selectbox(
+        "Background music",
+        ["None"] + (["Sample bed (bg_music.mp3)"] if _p3_has_music else [])
+        + ["Upload…"],
+        index=(1 if _p3_has_music else 0),
+        key="p3_music_choice",
+        help="Mixed UNDER the narration: looped to length, side-chain ducked, "
+             "and faded in/out. The swell lives in the gaps (intro, breaths, "
+             "outro). resources/audio/bg_music.mp3 is the bundled bed.",
+    )
+    p3_music_path = None
+    if _p3_music_choice == "Upload…":
+        _p3_mu = st.file_uploader("Upload music file",
+                                  type=["mp3", "m4a", "wav", "ogg"],
+                                  key="p3_music_up")
+        if _p3_mu:
+            p3_music_path = _p3_save_upload(_p3_mu, "music_" + _p3_mu.name)
+    elif _p3_music_choice.startswith("Sample"):
+        p3_music_path = _P3_RES / "audio" / "bg_music.mp3"
+    p3_music_gain = (
+        st.slider("Music level (dB)", -30.0, -6.0, -18.0, 1.0,
+                  key="p3_music_gain",
+                  help="Bed level vs full scale. Lower = quieter under the voice.")
+        if p3_music_path else -18.0
+    )
+
     st.markdown("---")
     with st.expander("🔬 Diagnostics", expanded=False):
         try:
@@ -1268,6 +1368,11 @@ if p3_text:
                 grade=p3_color_grade,
                 typography_family=p3_typography_family,
                 add_captions=p3_add_subs,
+                book_cover=p3_book_cover_path,
+                book_cover_fit=p3_book_cover_fit,
+                character_portrait=p3_character_path,
+                music_path=p3_music_path,
+                music_gain_db=p3_music_gain,
                 on_progress=_p3_cb,
             )
 

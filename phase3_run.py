@@ -162,7 +162,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-captions", action="store_true")
     p.add_argument("--no-vision", action="store_true")
     p.add_argument("--book-cover", metavar="PATH")
+    p.add_argument("--book-cover-fit", default="contain",
+                   choices=["contain", "fill", "blur_pad"])
+    p.add_argument("--character-portrait", metavar="PATH",
+                   help="Pin one portrait for every portrait shot "
+                        "(the biggest documentary-quality win)")
     p.add_argument("--music", metavar="PATH")
+    p.add_argument("--music-gain", type=float, default=-18.0, metavar="DB",
+                   help="Music bed level vs full scale (default -18)")
     p.add_argument("--book-extracts", metavar="PATH")
 
     # Modes
@@ -409,7 +416,11 @@ def main() -> int:
             add_captions=not args.no_captions,
             align_backend=args.align_backend,
             book_cover=Path(args.book_cover) if args.book_cover else None,
+            book_cover_fit=args.book_cover_fit,
+            character_portrait=(Path(args.character_portrait)
+                                if args.character_portrait else None),
             music_path=Path(args.music) if args.music else None,
+            music_gain_db=args.music_gain,
             book_extracts=Path(args.book_extracts) if args.book_extracts else None,
             enable_vision=not args.no_vision,
             on_progress=_make_progress(args.verbose),
