@@ -56,6 +56,11 @@ class FetcherConfig:
     n_candidates_per_source: int = 3
     enable_vision: bool | None = None   # None = enable iff API key provided
 
+    # Pinned character portrait — when set, every `portrait` shot reuses this
+    # one image (the single biggest documentary-quality win) without needing a
+    # full review dossier.  A dossier override/pin still takes precedence.
+    pinned_portrait: Path | None = None
+
     # Pre-render review dossier (see phase3.sources.decisions).  When set,
     # the fetcher consults the dossier before doing any source query and
     # returns the user-approved image when available.
@@ -178,6 +183,24 @@ class Fetcher:
                 log.info("Shot %d: review-dossier hit %s",
                          shot_index, resolved.name)
                 return FetchResult(query=query, candidates=[cand], best=cand)
+
+        # 0.5 Pinned character portrait — set directly on FetcherConfig
+        # (e.g. from generate_video_v2 / the Streamlit sidebar).  Applies to
+        # every portrait shot without a review dossier; a dossier hit above
+        # still wins.
+        if (visual_type == "portrait"
+                and self.config.pinned_portrait
+                and Path(self.config.pinned_portrait).exists()):
+            p = Path(self.config.pinned_portrait).resolve()
+            cand = ImageCandidate(
+                url=f"file://{p}",
+                title=f"pinned-portrait:{p.name}",
+                source="user_upload",
+                license_short="user-supplied",
+            )
+            cand.local_path = p
+            log.info("Shot %d: pinned character portrait %s", shot_index, p.name)
+            return FetchResult(query=query, candidates=[cand], best=cand)
 
         # 1. User upload — highest priority among non-dossier paths
         user_cand = self.user_source.lookup_for_shot(shot_index, query)

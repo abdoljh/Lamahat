@@ -36,7 +36,12 @@ condition_assets.py       # Normalise captured assets before render
 audit_plan.py             # Quality audit of a saved shot plan
 PHASE3.md                 # Phase 3 v2 deep architecture reference
 fonts/                    # Amiri TTFs (incl. AmiriQuranColored for Family C)
-resources/                # Sample inputs: script, narration, music, cover, portraits
+resources/                # Sample inputs + the two Colab notebooks
+                          #   _phase3_main.ipynb (total solution: align→plan→audit→
+                          #     prebuild→condition→render) ·
+                          #   _phase3_render_only.ipynb (render-only: revised review
+                          #     dir → condition → render, no further API cost)
+                          #   plus script, narration, bg_music, book_cover/, character/
 phase1/
   __init__.py             # Exports Phase1Pipeline, Phase1aPipeline, Phase1Config, etc.
   pipeline.py             # Phase1aPipeline (8-step) + Phase1bPipeline + Phase1Pipeline
@@ -249,11 +254,24 @@ Script + Audio ──► align()          ──► word_timings (WhisperX | Whi
                                           grade, music bed, mux)
 ```
 
+### Two routes
+
+- **Total solution** (`resources/_phase3_main.ipynb`): align confirmation →
+  regenerate plan → audit (optional) → prebuild assets → save review dir →
+  condition assets → render. Builds the main video skeleton (costs API).
+- **Render-only** (`resources/_phase3_render_only.ipynb`): load a revised
+  review dir → condition assets → render. Refines the skeleton at **no further
+  API cost**. Both notebooks expose settings cells for flexibility.
+
 ### Entry points
 
 - **`phase3.generate_video_v2()`** — high-level orchestrator (align → plan →
   fetch → render) used by the Streamlit Phase 3 tab and `phase3_run.py`.
-  Requires an Anthropic key (the planner is a Sonnet call).
+  Requires an Anthropic key (the planner is a Sonnet call). Accepts
+  `book_cover` / `book_cover_fit`, `character_portrait` (pinned across every
+  portrait shot via `FetcherConfig.pinned_portrait`), and `music_path` /
+  `music_gain_db`. The Streamlit sidebar exposes all three from `resources/`
+  (book_cover/, character/, audio/bg_music.mp3) plus upload.
 - **CLIs** (inspectable multi-step Colab/CLI workflow):
 
 ```bash
