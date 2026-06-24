@@ -25,6 +25,20 @@ from phase1 import (  # noqa: E402
 )
 from phase2 import synthesize as tts_synthesize  # noqa: E402
 
+
+def _secret(key: str, default: str = "") -> str:
+    """``st.secrets.get()`` that never raises.
+
+    Streamlit raises ``StreamlitSecretNotFoundError`` from ``st.secrets`` when
+    no ``secrets.toml`` exists at all (not just when the key is missing).  That
+    exception would halt the entire sidebar render mid-way, hiding every widget
+    below it.  This wrapper falls back to ``default`` on any failure.
+    """
+    try:
+        return st.secrets.get(key, default)
+    except Exception:
+        return default
+
 # ── Logging ───────────────────────────────────────────────────────────── #
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(name)s | %(message)s")
 
@@ -269,7 +283,7 @@ with st.sidebar:
     anthropic_key = st.text_input(
         "Anthropic API Key",
         type="password",
-        value=st.secrets.get("ANTHROPIC_API_KEY", ""),
+        value=_secret("ANTHROPIC_API_KEY"),
         help="Required for script generation. Leave blank to extract text only.",
     )
     script_genre = st.selectbox(
