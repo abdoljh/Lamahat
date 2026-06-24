@@ -66,9 +66,9 @@ import sys
 import time
 from pathlib import Path
 
-_HERE = Path(__file__).resolve().parent
-if str(_HERE.parent) not in sys.path:
-    sys.path.insert(0, str(_HERE.parent))
+_HERE = Path(__file__).resolve().parent   # repo root — holds the phase3/ package
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 from phase3.plan import load_plan
 from phase3.render import RenderConfig, render_video

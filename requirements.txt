@@ -50,5 +50,17 @@ anthropic>=0.40.0
 gTTS>=2.5.0              # free Google TTS fallback (lang='ar')
 # elevenlabs>=1.0.0      # premium Arabic voices — install locally when needed
 
-# ── Phase 3 — Visual Generation ─────────────────────────────────────────
-# (No extra deps beyond those above — phase3 uses requests, Pillow, ffmpeg)
+# ── Phase 3 — Visual Generation (v2, shot-based) ────────────────────────
+# Core render path needs only deps already listed above:
+#   Pillow (typography cards), numpy + opencv-python-headless (motion/parallax),
+#   anthropic (Sonnet shot planner + Haiku vision scoring), and ffmpeg
+#   (system binary, from packages.txt). HTTP image fetch uses stdlib urllib.
+#
+# Optional accuracy/quality upgrades (lazy-imported — the pipeline degrades
+# gracefully to interpolated timings / flat zoompan motion without them):
+#   - Word-level forced alignment (instead of char-rate interpolation):
+# whisperx              # preferred; or:
+# openai-whisper        # lighter, slightly less accurate boundaries
+#   - 2.5D depth parallax (DepthAnything backend; needs a GPU to be practical):
+# transformers
+# torch

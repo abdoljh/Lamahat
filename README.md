@@ -97,7 +97,7 @@ Both files are available as downloads directly in the app after processing.
 
 ## Phase Roadmap
 
-- [x] **Phase 1** — Extraction & Pre-processing *(this repo)*
-- [ ] **Phase 2** — Multi-agent LangGraph script generation
-- [ ] **Phase 3** — TTS audio synthesis
-- [ ] **Phase 4** — Video assembly
+- [x] **Phase 1** — PDF preprocessing, OCR & summarisation → video script
+- [x] **Phase 2** — Arabic TTS audio synthesis (gTTS; ElevenLabs next)
+- [~] **Phase 3** — Shot-based video assembly (Sonnet shot plan → MP4)
+- [x] **Phase 4** — One-click pipeline integration (Streamlit)
