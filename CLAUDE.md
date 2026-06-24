@@ -20,7 +20,7 @@ Runtime: **Python 3.12.13** (confirmed from Cloud logs — do NOT assume 3.14).
 | 1a | PDF Preprocessing & OCR | PDF → strip margins → page images → Kraken OCR → normalised text | ✅ **Complete** |
 | 1b | Chunking & Summarisation | Normalised text → semantic chunks → 625–850-word video script | ✅ **Complete** |
 | 2 | Audio Synthesis (TTS) | Script → Arabic MP3 via gTTS (ElevenLabs next) | ✅ **Working** (gTTS) |
-| 3 | Visual Generation | Script + audio → final MP4 with visuals, voice, subtitles | 🔧 **In Progress** |
+| 3 | Visual Generation | Script + audio → shot plan (Sonnet) → final MP4 with visuals, voice, subtitles | 🔧 **In Progress** (shot-based v2) |
 | 4 | Workflow Integration | One-click pipeline: PDF → finished video | ✅ **Complete** (follows Phase 3) |
 
 ---
@@ -29,7 +29,14 @@ Runtime: **Python 3.12.13** (confirmed from Cloud logs — do NOT assume 3.14).
 
 ```
 streamlit_app.py          # Streamlit entrypoint (Phases 1–3 UI)
-phase3_run.py             # Standalone Phase 3 CLI (no Streamlit required)
+phase3_run.py             # Phase 3 v2 CLI: dry-run / align / plan / full render
+render_plan.py            # Render a saved shot plan JSON → MP4
+prebuild_assets.py        # Build the review/ dossier (candidate images + pins)
+condition_assets.py       # Normalise captured assets before render
+audit_plan.py             # Quality audit of a saved shot plan
+PHASE3.md                 # Phase 3 v2 deep architecture reference
+fonts/                    # Amiri TTFs (incl. AmiriQuranColored for Family C)
+resources/                # Sample inputs: script, narration, music, cover, portraits
 phase1/
   __init__.py             # Exports Phase1Pipeline, Phase1aPipeline, Phase1Config, etc.
   pipeline.py             # Phase1aPipeline (8-step) + Phase1bPipeline + Phase1Pipeline
@@ -48,15 +55,21 @@ phase1/
 phase2/
   __init__.py
   tts.py                  # gTTS backend; ElevenLabs stub (NotImplementedError)
-phase3/
-  __init__.py             # generate_background_video() full pipeline
-  parser.py               # Script section splitter + duration estimator
-  keywords.py             # Claude Haiku: search terms + key phrases per section
-  wikimedia.py            # Wikimedia Commons image fetcher + Claude vision scoring
-  pexels.py               # Pexels video clip fetcher
-  effects.py              # Ken Burns (zoompan) + trim + probe_duration
-  compositor.py           # Section clips → crossfade → grade → mux
-  subtitler.py            # Multi-layer ASS subtitle generator
+phase3/                   # Phase 3 v2 (shot-based). See PHASE3.md for depth.
+  __init__.py             # generate_video_v2() orchestrator + media helpers
+  align.py                # WhisperX | Whisper | interpolation → word timings
+  plan.py                 # Sonnet shot planner + Shot dataclass + JSON I/O
+  render.py               # plan → MP4: assets, motion, captions, grade, mux
+  motion_parallax.py      # 2.5D depth parallax + fit-to-frame + camera continuity
+  parser.py               # Arabic section regexes + duration estimator
+  subtitler.py            # ASS subtitle helpers
+  typography.py           # dispatcher; re-exports the public typography API
+  typography_common.py    # shared tokens, font discovery, TypographySpec
+  typography_a.py / _b.py / _c.py   # families A (editorial) / B (cinematic) / C (manuscript)
+  sources/                # image-fetch waterfall (LoC → Wikimedia → IA → Pexels)
+    __init__.py           #   Fetcher + FetcherConfig orchestrator
+    base.py loc.py wikimedia.py internet_archive.py pexels.py
+    user_upload.py book_extract.py cache.py vision.py decisions.py
 lightning-compat/         # Local shim: proxies lightning → pytorch-lightning==2.6.1
 packages.txt              # Streamlit Cloud apt deps (ffmpeg, fonts-hosny-amiri, etc.)
 requirements.txt          # Python deps (torch/lightning/kraken all active on Python 3.12)
@@ -215,103 +228,88 @@ so the error message is passed through cleanly as a warning.
 
 ---
 
-## Phase 3 — Visual Generation 🔧 (IN PROGRESS — THE CORNERSTONE)
+## Phase 3 — Visual Generation 🔧 (shot-based v2 — THE CORNERSTONE)
 
-### What works today (all implemented ✅)
+The original section-based pipeline has been **replaced** by a **shot-based**
+architecture. A *shot plan* is the source of truth: a list of 30–65
+timestamped `Shot` dataclasses produced by one Claude Sonnet call. The
+renderer executes the plan without making creative choices, so plans are
+inspectable, diff-able and regeneratable. **`PHASE3.md` is the deep reference**
+— read it before touching this subsystem.
 
-| Feature | Implementation |
-|---------|---------------|
-| Section parsing | Regex-based Arabic section detection (`parser.py`) |
-| Keyword + key phrase generation | Claude Haiku per section; book title + character name as context (`keywords.py`) |
-| Wikimedia image search | Free CC/PD images, license-filtered, 400 px minimum, excludes diagrams/anatomy (`wikimedia.py`) |
-| Claude vision image scoring | Resize to ≤800 px → Haiku vision binary yes/no; discard "no" images (`wikimedia.py`) |
-| Pexels clip fallback | Optional (key is optional); proactively downloaded when key supplied (`pexels.py`) |
-| Ken Burns effect | Zoom span always 0.5 (1.0→1.5) regardless of clip length; cycles zoom_in/out/pan_right/left (`effects.py`) |
-| Crossfade assembly | FFmpeg xfade filter, 1-second fades, all sections connected (`compositor.py`) |
-| Colour grading | Warm/cool/neutral preset curves (`compositor.py`) |
-| Title card | ASS `TitleCard` style, full-screen centred, t=0→5 s (`subtitler.py`) |
-| Section markers | ASS `SectionMark` style at each section boundary, 2.5 s (`subtitler.py`) |
-| Key phrase overlays | Claude Haiku extracts 1-2 per section; ASS `KeyPhrase` style (`subtitler.py`) |
-| Regular captions | ASS `Arabic` style, bottom of screen, full script coverage (`subtitler.py`) |
-| Audio mux | Single FFmpeg pass: video re-encode (crf=22) + AAC (192 kbps) + subtitle burn (`compositor.py`) |
-| Dark fallback background | Navy `#1a1a2e` when no images found (`compositor.py`) |
-| Thumbnail extraction | Frame at t=5 for Streamlit UI preview (`compositor.py`) |
-| Output | 720p MP4, hard duration-capped to audio length |
+### Pipeline
 
-### Standalone CLI — `phase3_run.py`
-A single-file CLI at the repo root that drives the `phase3/` package without
-Streamlit.  Zero changes to any `phase3/` file.
-
-```bash
-# Inspect section plan (no API calls, no network)
-python phase3_run.py --script script.txt --audio-duration 210 --dry-run
-
-# Inspect keywords only — save to JSON for analysis
-python phase3_run.py --script script.txt \
-  --book-title "مذكرات جعفر العسكري" --character-name "جعفر العسكري" \
-  --keywords-only --save-keywords keywords.json
-
-# Full video render
-python phase3_run.py --script script.txt --audio audio.mp3 \
-  --book-title "..." --character-name "..." \
-  --output output/video.mp4 --color-grade warm --thumbnail
+```
+Script + Audio ──► align()          ──► word_timings (WhisperX | Whisper | interp)
+                   build_shot_plan() ──► list[Shot]   (one Sonnet call, ~$0.10)
+                   Fetcher           ──► imagery (LoC → Wikimedia → IA → Pexels,
+                                          Haiku vision-scored; cache / user-upload /
+                                          book-extract / review dossier)
+                   render_video()    ──► MP4 (motion, typography cards, captions,
+                                          grade, music bed, mux)
 ```
 
-API keys: `--anthropic-key` / `--pexels-key` flags, or `ANTHROPIC_API_KEY` /
-`PEXELS_API_KEY` env vars, or a `.env` file in the working directory.
+### Entry points
 
-### Key implementation notes
+- **`phase3.generate_video_v2()`** — high-level orchestrator (align → plan →
+  fetch → render) used by the Streamlit Phase 3 tab and `phase3_run.py`.
+  Requires an Anthropic key (the planner is a Sonnet call).
+- **CLIs** (inspectable multi-step Colab/CLI workflow):
 
-**Vision scoring** (`wikimedia.py → score_images()`):
-- Over-fetches images (2× `images_per_section`) when vision scoring is active
-- Each image resized to ≤800 px wide before base64 encoding (oversized → API 400)
-- Prompt: "Does this image show [character_name] or a scene directly related to [book_title]? Answer only yes or no."
-- **Fail-open**: any API error → keep the image
-- Cost: ~$0.001 per image (Haiku vision pricing)
+```bash
+# Inspect section plan (no API calls)
+python phase3_run.py --script resources/script/main_script.txt --dry-run
 
-**ASS subtitles** (`subtitler.py`):
-- All layers use libass (correct Arabic bidi); **never** FFmpeg `drawtext` (no Arabic shaping)
-- Font family in ASS must be `Amiri` (matches `fonts-hosny-amiri` Debian package)
-- 4 layers: TitleCard → SectionMark → KeyPhrase → Arabic captions
+# Plan only: align + Sonnet shot planner → JSON (no render)
+python phase3_run.py --script ... --audio ... --plan-only \
+  --book-title "مذكرات جعفر العسكري" --character-name "Jafar al-Askari" \
+  --save-plan output/shot_plan.json
+python audit_plan.py output/shot_plan.json          # quality audit
 
-**Section timing** (`parser.py`):
-- Sections: `opening`, `point_1`–`point_5`, `closing`, `cta`
-- Duration proportional to character count; minimum 5 s per section
+# Optional human review: pre-fetch every candidate into a dossier, edit it,
+# then condition the chosen assets
+python prebuild_assets.py --plan ... --review-dir output/review/ \
+  --character-portrait portrait.jpg
+python condition_assets.py --review-dir output/review/
 
-### Current weaknesses
+# Render a saved plan → MP4 (see render_plan.py --help for the full flag set:
+# --grade, --typography-family {A,B,C}, --book-cover*, --parallax, --music, …)
+python render_plan.py --plan output/shot_plan.json --audio ... \
+  --output output/final_cut.mp4 --review-dir output/review/
 
-**Image accuracy**:
-- Wikimedia text search matches file names/descriptions, not image content
-- Vision scoring helps but upstream search quality is the bottleneck
-- Next improvement: more specific search queries (transliterations, dates)
+# Or one-shot align→plan→render in a single command
+python phase3_run.py --script ... --audio ... --output output/video.mp4 \
+  --book-title "..." --character-name "..." --grade warm --typography-family A
+```
 
-**Visual narrative quality**:
-- Ken Burns + images + subtitles is functional but not yet cinematic
-- No typography fallback cards when all images are rejected by vision scoring
+API keys: `--anthropic-key` / `--pexels-key` flags, `ANTHROPIC_API_KEY` /
+`PEXELS_API_KEY` env vars, or a `.env` file.
 
-### Phase 3 Roadmap
+### Things not to break (full list in PHASE3.md §12 + the deleted handoff)
 
-#### Tier 2 — Next priorities
-1. **ElevenLabs TTS** (biggest quality jump):
-   - `phase2/tts.py` — fill in `NotImplementedError` stub
-   - Add `ELEVENLABS_API_KEY` to Streamlit Cloud secrets
-   - Target: Chaouki voice or equivalent high-quality Arabic voice
+- **Plan/render split.** Two responsibilities; mixing them was the v1 mistake.
+- **`_validate_plan` invariants** (contiguous shots, per-visual hard caps,
+  merge-adjacent-duplicates). The renderer assumes them. Don't lower the caps.
+- **Arabic uses libraqm** (Pillow) / **libass** (ASS captions) — **never**
+  FFmpeg `drawtext` (no bidi shaping). `Fontname: Amiri`.
+- **Resize images to ≤ 800 px** before Haiku vision scoring (larger → API 400).
+- **Stream-copy concat** works only because every shot clip shares encoder
+  settings — don't vary a single shot's profile.
+- **Vision scoring is fail-open**; don't flip to fail-closed.
+- **`--character-name` in Latin** (for LoC/Wikimedia/IA search). Title may be Arabic.
+- **Typography:** `typography.py` is a dispatcher re-exporting a fixed public
+  surface; families A/B/C live in sibling modules. Family C needs
+  `AmiriQuranColored.ttf` + `embedded_color=True` for the red i-dots.
 
-2. **Pillow typography cards** (for sections with zero images after vision scoring):
-   - Gradient background + key phrase text in Amiri via Pillow
-   - Use `arabic_reshaper` + `python-bidi` for RTL shaping
-   - Replaces navy fallback with something visually informative
+### Open work (PHASE3.md §15 / §7)
 
-3. **Search query quality**:
-   - Add Arabic transliteration of character name to Wikimedia queries
-   - Add date/century context to historical searches
-
-#### Tier 3 — Future
-- Animated word-by-word text reveal
-- Custom intro/outro jingle
-- Auto-generated book cover placeholder
-- Multiple visual themes (documentary, cinematic, minimal)
-- AI-generated images for scenes with no stock equivalent
+- **Issue 1 — color grade per-section variation** (the `--grade` knob exists;
+  section-level `grade_map.json` is the stretch goal).
+- **Source query quality** (§7.3): LoC/Wikimedia/IA often return 0 candidates;
+  Pexels wins by elimination. Biggest visual-quality lever.
+- **Path (C)** (§8): assign Phase 1a book photos to shots via one Sonnet call,
+  bypassing the web-source waterfall for curated content.
+- **ElevenLabs TTS** (Phase 2) — cleaner audio also helps WhisperX alignment.
 
 ---
 
@@ -325,7 +323,8 @@ The Streamlit UI chains all phases in one session:
 4. **Phase 3** tab: Enter book title + character name → Generate video → Download MP4
 
 Session state keys: `phase1a_result`, `phase1a_zip_parts`, `phase1a_footers_pdf`,
-`phase1a_footers_zip`, `phase1a_photos_zip`, `phase1b_result`, `phase3_video_path`.
+`phase1a_footers_zip`, `phase1a_photos_zip`, `phase1b_result`, `p3_video_bytes`,
+`p3_thumb_bytes`. The Phase 3 tab calls `phase3.generate_video_v2()`.
 
 Phase 4 is complete once Phase 3 produces broadcast-quality output.
 
@@ -338,19 +337,19 @@ Phase 4 is complete once Phase 3 produces broadcast-quality output.
    - Verify footer PDF and page images ZIP download correctly
    - Branch `claude/upgrade-phase1a-ocr-3usw0` must be deployed
 
-2. **Investigate Phase 3 visual quality using `phase3_run.py`**:
-   - Run `--dry-run` to check section parsing on a real script
-   - Run `--keywords-only --save-keywords kw.json` to audit keyword quality
-   - Run a full render and review the MP4 for image relevance, subtitle timing
-   - Identify which Tier 2 improvement has the most impact
+2. **Validate Phase 3 v2 end-to-end** (see PHASE3.md):
+   - `phase3_run.py --plan-only` → `audit_plan.py` to inspect the shot plan
+   - `render_plan.py` (optionally with a `prebuild_assets.py` review dossier)
+   - Review the MP4 for image relevance, caption timing, grade, typography family
 
-3. **Implement ElevenLabs TTS** (Tier 2, highest quality jump):
+3. **Source query quality** (PHASE3.md §7.3) — the biggest visual-quality lever:
+   LoC/Wikimedia/IA return 0 candidates for most queries; Pexels wins by
+   elimination. Or take **Path (C)** (§8): assign Phase 1a book photos to shots.
+
+4. **Implement ElevenLabs TTS** (Phase 2):
    - File: `phase2/tts.py` — fill in `NotImplementedError` stub
    - Add `ELEVENLABS_API_KEY` to Streamlit Cloud secrets
-
-4. **Implement Pillow typography cards** (Tier 2):
-   - For sections where vision scoring leaves zero images
-   - `arabic_reshaper` + `python-bidi` + Pillow gradient + Amiri font
+   - Cleaner audio also improves WhisperX alignment (PHASE3.md §7.5)
 
 ---
 
@@ -379,9 +378,9 @@ Phase 4 is complete once Phase 3 produces broadcast-quality output.
 | Consolidator | `claude-haiku-4-5-20251001` | ~$0.001 |
 | Scriptwriter | `claude-sonnet-4-6` | ~$0.04 |
 | Editor/Scorer | `claude-haiku-4-5-20251001` | ~$0.002 |
-| Keyword + key phrase gen (Phase 3) | `claude-haiku-4-5-20251001` | ~$0.003 |
-| Image relevance vision scoring | `claude-haiku-4-5-20251001` vision | ~$0.005 |
-| **Total (current, gTTS)** | | **~$0.06** |
+| Shot planner (Phase 3, one call) | `claude-sonnet-4-6` | ~$0.10 |
+| Image relevance vision scoring | `claude-haiku-4-5-20251001` vision | ~$0.05 (per ~100 candidates) |
+| **Total (current, gTTS)** | | **~$0.25** |
 | TTS (gTTS) | Free | $0 |
 | TTS (ElevenLabs target) | Chaouki voice | ~$0.10–0.30 |
 
@@ -404,14 +403,14 @@ Phase 4 is complete once Phase 3 produces broadcast-quality output.
 - Ken Burns via `zoompan`; scale image to 2× output resolution first to avoid upscaling artefacts
 
 ### Streamlit patterns
-- Phase outputs in `st.session_state` keyed by phase: `phase1a_result`, `phase3_video_path`, etc.
+- Phase outputs in `st.session_state` keyed by phase: `phase1a_result`, `p3_video_bytes`, etc.
 - Progress callbacks: `on_progress(message: str, fraction: float)` passed into pipeline functions
 - All file paths in session state are absolute paths
 
 ### Git workflow
-- Active development branch: `claude/upgrade-phase1a-ocr-3usw0`
+- Active development branch: `claude/phase3-revision-update-kka9ee`
 - Commit message format: `Phase N: <what changed>`
-- Push to `origin claude/upgrade-phase1a-ocr-3usw0` after each logical unit of work
+- Push to `origin claude/phase3-revision-update-kka9ee` after each logical unit of work
 
 ### Secrets / environment
 - `ANTHROPIC_API_KEY` — required for Phases 1b and 3
