@@ -81,6 +81,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -293,9 +294,15 @@ class Decisions:
         return (Path.cwd() / "resources").resolve()
 
     def _list_portrait_pool(self, review_dir: Path) -> list[Path]:
-        """Return sorted pool files from `$LAMAHAT_RESOURCES/character/`,
+        """Return the character pool files from `$LAMAHAT_RESOURCES/character/`,
         or [] if directory absent / empty.  `review_dir` is unused but
-        kept in the signature for back-compat with earlier takes."""
+        kept in the signature for back-compat with earlier takes.
+
+        The list is deterministically shuffled (seeded by the pool contents)
+        rather than left alphabetical, so portrait shots cycle through a varied
+        order — "show all the character images" — while staying reproducible
+        across a re-render of the same dossier.
+        """
         root = self._resources_root()
         p = (root / self._PORTRAIT_POOL_SUBDIR).resolve()
         if not p.is_dir():
@@ -305,6 +312,8 @@ class Decisions:
             if f.is_file() and f.suffix.lower() in self._PORTRAIT_POOL_EXTS:
                 pool.append(f)
         pool.sort(key=lambda x: x.name.lower())
+        seed = hash(tuple(f.name for f in pool)) & 0xFFFFFFFF
+        random.Random(seed).shuffle(pool)
         return pool
 
     def _portrait_rank_of(self, shot_index: int) -> int:

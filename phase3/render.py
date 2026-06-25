@@ -498,30 +498,52 @@ def _png_to_clip(png_path: Path, out_path: Path,
     else:
         # Motion path: source is rendered into a "zoom buffer" sized
         # 1.6× the output, then zoompan crops a window from it.
-        # For images larger than the buffer (e.g. high-res photos),
-        # we just downscale to fit the buffer.  For smaller images
-        # we upscale to the buffer dimensions — necessary so zoompan
-        # has pixels to work with, but kept modest so we don't blow
-        # up tiny thumbnails.
         zoom_expr = _MOTION_FILTERS[motion](n_frames)
         buf_w = int(width * 1.6)
         buf_h = int(height * 1.6)
+        zoompan = (
+            f"zoompan=z='{zoom_expr['z']}'"
+            f":x='{zoom_expr['x']}'"
+            f":y='{zoom_expr['y']}'"
+            f":d={n_frames}:s={width}x{height}:fps={fps}"
+        )
+
+        # Aspect-aware fit.  A landscape source close to 16:9 is cover-filled
+        # (≤~12 % crop).  A portrait / odd-aspect source (a standing figure, a
+        # tall scan) would lose its head and feet to a cover-crop, so it is
+        # *contained* whole over a blurred fill of itself — mirroring the
+        # parallax path's _fit_to_frame so character portraits are never cut.
+        # The same 0.28 mismatch tolerance keeps the two paths in agreement.
+        try:
+            with Image.open(png_path) as _im:
+                _iw, _ih = _im.size
+            _contain = (abs((_iw / _ih) - (width / height))
+                        / (width / height) > 0.28)
+        except Exception:
+            _contain = False
+
+        if _contain:
+            # Blurred cover background + centred whole subject (no crop).
+            filt = (
+                f"split=2[bg][fg];"
+                f"[bg]scale={buf_w}:{buf_h}:force_original_aspect_ratio=increase,"
+                f"crop={buf_w}:{buf_h},boxblur=24:2[bg];"
+                f"[fg]scale={buf_w}:{buf_h}:force_original_aspect_ratio=decrease[fg];"
+                f"[bg][fg]overlay=(W-w)/2:(H-h)/2,{zoompan},format=yuv420p"
+            )
+            vflag = ["-filter_complex", filt]
+        else:
+            filt = (
+                f"scale={buf_w}:{buf_h}:force_original_aspect_ratio=increase,"
+                f"crop={buf_w}:{buf_h},{zoompan},format=yuv420p"
+            )
+            vflag = ["-vf", filt]
+
         cmd = [
             "ffmpeg", "-y", "-loglevel", "error",
             "-loop", "1", "-framerate", str(fps),
             "-i", str(png_path),
-            "-vf", (
-                # Fit the image to the buffer, preserving aspect; pad
-                # any spare area with a soft cream so blurred edges
-                # don't show during pan.
-                f"scale={buf_w}:{buf_h}:force_original_aspect_ratio=increase,"
-                f"crop={buf_w}:{buf_h},"
-                f"zoompan=z='{zoom_expr['z']}'"
-                f":x='{zoom_expr['x']}'"
-                f":y='{zoom_expr['y']}'"
-                f":d={n_frames}:s={width}x{height}:fps={fps},"
-                f"format=yuv420p"
-            ),
+            *vflag,
             "-t", f"{duration:.3f}",
             "-frames:v", str(n_frames),
             *common_encode,
