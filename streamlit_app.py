@@ -10,6 +10,7 @@ Repository root is the working directory on Community Cloud, so:
 """
 
 import html
+import io
 import json
 import logging
 import sys
@@ -428,6 +429,15 @@ with st.sidebar:
                  "covers) · fill — scale-and-crop · blur_pad — blurred backdrop.",
         ) if p3_book_cover_path else "contain"
     )
+    p3_book_cover_align = (
+        st.selectbox(
+            "Cover align", ["center", "left", "right"], index=0,
+            key="p3_cover_align",
+            help="Horizontal placement when the fit leaves spare space "
+                 "(contain / blur_pad). The gold title shifts to the opposite "
+                 "side automatically.",
+        ) if p3_book_cover_path else "center"
+    )
 
     # Character portrait → pinned across every portrait shot
     _p3_ports = _p3_pool("character", _P3_IMG_EXTS)
@@ -476,6 +486,52 @@ with st.sidebar:
                   key="p3_music_gain",
                   help="Bed level vs full scale. Lower = quieter under the voice.")
         if p3_music_path else -18.0
+    )
+    p3_music_duck = st.checkbox(
+        "Duck music under narration", value=True, key="p3_music_duck",
+        help="Side-chain compress the bed so it dips when the voice speaks.",
+    ) if p3_music_path else True
+
+    st.markdown("**Render options**")
+    p3_add_captions = st.checkbox(
+        "Burn Arabic captions", value=False, key="p3_add_captions",
+        help="Timed narration captions at the bottom. Off by default — on-screen "
+             "Arabic already comes from the typography cards.",
+    )
+    p3_caption_backplate = st.selectbox(
+        "Caption backplate", ["subtle", "off", "solid"], index=0,
+        key="p3_caption_backplate",
+        help="Charcoal bar behind captions for legibility. off = outline only · "
+             "subtle = 55%% · solid = 80%% (bright footage). No effect when "
+             "captions are off.",
+    )
+    p3_caption_size = st.slider(
+        "Caption size", 0.7, 1.6, 1.0, 0.1, key="p3_caption_size",
+        help="Caption text size multiplier (only when captions are on).",
+    )
+    p3_caption_pos = st.slider(
+        "Caption position (from bottom)", 0.03, 0.25, 0.06, 0.01,
+        key="p3_caption_pos",
+        help="Vertical position as a fraction of frame height. Larger = higher.",
+    )
+    p3_title_size = st.slider(
+        "Title size", 0.7, 1.6, 1.0, 0.1, key="p3_title_size",
+        help="Main title-card text size multiplier.",
+    )
+    p3_typography_over_image = st.checkbox(
+        "Typography over image", value=False, key="p3_typo_over_image",
+        help="Composite section/quote text over the most recent photo instead "
+             "of a flat card — cuts the slideshow feel. title_card keeps its cover.",
+    )
+    p3_text_scrim = st.selectbox(
+        "Text scrim", ["off", "soft", "band"], index=0, key="p3_text_scrim",
+        help="Readability plate behind over-image text. off = transparent · "
+             "soft = light veil · band = strong dark band. Needs "
+             "‘Typography over image’.",
+    )
+    p3_fades = st.checkbox(
+        "Cinematic fades", value=True, key="p3_fades",
+        help="Black open/close fades and dip-through-black section breaths.",
     )
 
     st.markdown("---")
@@ -1227,202 +1283,293 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Script source ─────────────────────────────────────────────────────── #
-p3_script_src = st.radio(
-    "Script source",
-    ["Phase 1 output", "Upload .txt file"],
-    horizontal=True,
-    key="p3_script_src",
-    help="Use a script already in session, or upload book_script_rev.txt / book_script.txt.",
+# ── Route (the first step in Phase 3) ─────────────────────────────────── #
+p3_route = st.radio(
+    "Route",
+    ["Total solution — plan → fetch → render (saves a review dossier)",
+     "Rendering only — re-render a saved review .zip (no API cost)"],
+    key="p3_route",
+    help="Total solution builds the video skeleton AND captures every image "
+         "candidate into a review dossier you can download and refine. "
+         "Rendering only re-renders a saved/edited review .zip at no further "
+         "API cost — ideal for tweaking the look or swapping images.",
 )
+_p3_render_only = p3_route.startswith("Rendering only")
 
-p3_text = ""
-if p3_script_src == "Phase 1 output":
-    if "script_bytes" in st.session_state:
-        p3_text = st.session_state["script_bytes"].decode("utf-8", errors="replace")
-    else:
-        st.info("No Phase 1 script in session — switch to **Upload .txt file**.")
-else:
-    p3_up = st.file_uploader("Upload script (.txt)", type=["txt"], key="p3_script_up")
-    if p3_up:
-        p3_text = p3_up.read().decode("utf-8", errors="replace")
-
-# ── Audio source (for duration timing) ───────────────────────────────── #
-p3_audio_bytes: bytes | None = None
-if "p2_audio_bytes" in st.session_state:
-    p3_audio_bytes = st.session_state["p2_audio_bytes"]
-    st.caption("Using Phase 2 audio for word-level alignment.")
-else:
-    p3_audio_up = st.file_uploader(
-        "Upload audio (.mp3) for timing — optional",
-        type=["mp3"],
-        key="p3_audio_up",
-        help="Lets the pipeline size each section accurately. "
-             "Skip to use a character-count estimate.",
-    )
-    if p3_audio_up:
-        p3_audio_bytes = p3_audio_up.read()
-
-# ── Genre (passed to keyword generator) ──────────────────────────────── #
-p3_genre = st.selectbox(
-    "Book genre",
-    ["history", "biography", "non-fiction", "philosophy",
-     "science", "religion", "novel"],
+# ── Resolution (shared by both routes) ────────────────────────────────── #
+p3_resolution = st.selectbox(
+    "Resolution",
+    ["1280×720 (faster)", "1920×1080 (full)"],
     index=0,
-    key="p3_genre",
-    help="Steers the shot planner's tone and search-query style.",
+    key="p3_resolution",
+    help="The shot-based render re-encodes every shot; 720p keeps memory and "
+         "time down on Streamlit Cloud. 1080p is the broadcast target.",
 )
+_p3_w, _p3_h = (1280, 720) if p3_resolution.startswith("1280") else (1920, 1080)
 
-# ── Book context for better image search ─────────────────────────────── #
-_col_title, _col_char = st.columns(2)
-with _col_title:
-    p3_book_title = st.text_input(
-        "Book title (English)",
-        key="p3_book_title",
-        placeholder="e.g. Memoirs of Jafar al-Askari",
-        help="Context for the shot planner and the vision-scoring image rubric.",
-    )
-with _col_char:
-    p3_character_name = st.text_input(
-        "Main character name (English)",
-        key="p3_character_name",
-        placeholder="e.g. Jafar al-Askari",
-        help="Latin spelling — used to search LoC / Wikimedia / IA for the "
-             "subject's portrait and to anchor the vision-scoring rubric.",
+
+def _p3_build_config():
+    """Build a RenderConfig from the sidebar look options (fetcher set later)."""
+    from phase3 import RenderConfig
+    return RenderConfig(
+        width=_p3_w, height=_p3_h, fps=25,
+        add_captions=p3_add_captions,
+        book_cover=p3_book_cover_path,
+        book_cover_fit=p3_book_cover_fit,
+        book_cover_align=p3_book_cover_align,
+        typography_family=p3_typography_family,
+        grade=p3_color_grade,
+        caption_backplate=p3_caption_backplate,
+        caption_size=p3_caption_size,
+        caption_pos=p3_caption_pos,
+        text_scrim=p3_text_scrim,
+        title_scale=p3_title_size,
+        typography_over_image=p3_typography_over_image,
+        music_path=p3_music_path,
+        music_gain_db=p3_music_gain,
+        music_duck=p3_music_duck,
+        fades=p3_fades,
     )
 
-# ── Generate button ───────────────────────────────────────────────────── #
-if p3_text:
-    with st.expander("Preview script sections"):
+
+def _p3_make_cb():
+    """A progress callback that streams a step log into the page."""
+    prog = st.progress(0.0)
+    status = st.empty()
+    logbox = st.empty()
+    lines: list[str] = []
+
+    def cb(label: str, frac: float) -> None:
+        prog.progress(min(max(frac, 0.0), 1.0))
+        status.markdown(f"**{label}**")
+        cls = "done" if frac >= 1.0 else "active"
+        lines.append(f"<span class='{cls}'>{'✓' if frac >= 1.0 else '›'} {label}</span>")
+        logbox.markdown(
+            "<div class='step-log'>" + "<br>".join(lines[-12:]) + "</div>",
+            unsafe_allow_html=True,
+        )
+    return cb
+
+
+def _p3_store_outputs(mp4_path: Path, review_dir: Path | None = None) -> None:
+    """Read the finished MP4 (+ optional review zip + thumbnail) into session."""
+    from phase3 import extract_thumbnail, zip_review_dir
+    st.session_state["p3_video_bytes"] = Path(mp4_path).read_bytes()
+    _thumb = Path(mp4_path).with_suffix(".jpg")
+    try:
+        extract_thumbnail(mp4_path, _thumb, time=5.0)
+        st.session_state["p3_thumb_bytes"] = _thumb.read_bytes()
+    except Exception:
+        st.session_state.pop("p3_thumb_bytes", None)
+    st.session_state.pop("p3_review_zip", None)
+    if review_dir is not None:
         try:
-            from phase3.parser import parse_sections
-            p3_secs = parse_sections(p3_text)
-            for s in p3_secs:
-                st.markdown(
-                    f"<div style='font-family:DM Mono,monospace;font-size:0.7rem;"
-                    f"color:#c9a84c;margin-top:0.6rem'>{s.section_id.upper()}</div>"
-                    f"<div style='direction:rtl;text-align:right;font-size:0.85rem;"
-                    f"line-height:1.7'>{s.text[:200]}{'…' if len(s.text)>200 else ''}</div>",
-                    unsafe_allow_html=True,
+            _zip = Path(mp4_path).parent / "review_dir.zip"
+            zip_review_dir(review_dir, _zip)
+            st.session_state["p3_review_zip"] = _zip.read_bytes()
+        except Exception as _ze:
+            logging.warning("Review zip failed: %s", _ze)
+
+
+if not _p3_render_only:
+    # ═══════════════ TOTAL SOLUTION ═══════════════ #
+    p3_script_src = st.radio(
+        "Script source",
+        ["Phase 1 output", "Upload .txt file"],
+        horizontal=True,
+        key="p3_script_src",
+        help="Use a script already in session, or upload book_script_rev.txt / book_script.txt.",
+    )
+    p3_text = ""
+    if p3_script_src == "Phase 1 output":
+        if "script_bytes" in st.session_state:
+            p3_text = st.session_state["script_bytes"].decode("utf-8", errors="replace")
+        else:
+            st.info("No Phase 1 script in session — switch to **Upload .txt file**.")
+    else:
+        p3_up = st.file_uploader("Upload script (.txt)", type=["txt"], key="p3_script_up")
+        if p3_up:
+            p3_text = p3_up.read().decode("utf-8", errors="replace")
+
+    p3_audio_bytes: bytes | None = None
+    if "p2_audio_bytes" in st.session_state:
+        p3_audio_bytes = st.session_state["p2_audio_bytes"]
+        st.caption("Using Phase 2 audio for word-level alignment.")
+    else:
+        p3_audio_up = st.file_uploader(
+            "Upload audio (.mp3) — recommended for accurate timing",
+            type=["mp3"], key="p3_audio_up",
+            help="Skip to use a character-count estimate.",
+        )
+        if p3_audio_up:
+            p3_audio_bytes = p3_audio_up.read()
+
+    p3_genre = st.selectbox(
+        "Book genre",
+        ["history", "biography", "non-fiction", "philosophy",
+         "science", "religion", "novel"],
+        index=0, key="p3_genre",
+        help="Steers the shot planner's tone and search-query style.",
+    )
+    _col_title, _col_char = st.columns(2)
+    with _col_title:
+        p3_book_title = st.text_input(
+            "Book title (English)", key="p3_book_title",
+            placeholder="e.g. Memoirs of Jafar al-Askari",
+            help="Context for the shot planner and the vision-scoring rubric.",
+        )
+    with _col_char:
+        p3_character_name = st.text_input(
+            "Main character name (English)", key="p3_character_name",
+            placeholder="e.g. Jafar al-Askari",
+            help="Latin spelling — searches LoC / Wikimedia / IA for the "
+                 "subject's portrait and anchors the vision rubric.",
+        )
+
+    if p3_text:
+        with st.expander("Preview script sections"):
+            try:
+                from phase3.parser import parse_sections
+                for s in parse_sections(p3_text):
+                    st.markdown(
+                        f"<div style='font-family:DM Mono,monospace;font-size:0.7rem;"
+                        f"color:#c9a84c;margin-top:0.6rem'>{s.section_id.upper()}</div>"
+                        f"<div style='direction:rtl;text-align:right;font-size:0.85rem;"
+                        f"line-height:1.7'>{s.text[:200]}{'…' if len(s.text)>200 else ''}</div>",
+                        unsafe_allow_html=True,
+                    )
+            except Exception:
+                st.text(p3_text[:600])
+
+        st.caption(
+            "Total solution aligns the narration, asks Claude Sonnet for a shot "
+            "plan, captures every image candidate into a review dossier, then "
+            "conditions and renders. Requires an Anthropic key; takes several "
+            "minutes. You'll get the MP4 **and** a review .zip to refine later."
+        )
+
+        if st.button("▶ Generate Final Video", type="primary",
+                     use_container_width=True, key="p3_gen"):
+            if not anthropic_key:
+                st.warning("An Anthropic API key is required for the shot "
+                           "planner. Add it in the sidebar.")
+                st.stop()
+            import tempfile as _tmp
+            _out_dir = Path(_tmp.mkdtemp(prefix="bk2v_out_"))
+            _out_mp4 = _out_dir / "final_video.mp4"
+            _review = _out_dir / "review"
+            _cb = _p3_make_cb()
+            try:
+                from phase3 import build_total_solution
+                build_total_solution(
+                    script_text=p3_text,
+                    output_path=_out_mp4,
+                    review_dir=_review,
+                    audio_bytes=p3_audio_bytes,
+                    anthropic_api_key=anthropic_key,
+                    pexels_api_key=pexels_api_key,
+                    book_title=p3_book_title,
+                    character_name=p3_character_name,
+                    genre=p3_genre,
+                    character_portrait=p3_character_path,
+                    book_cover=p3_book_cover_path,
+                    book_cover_fit=p3_book_cover_fit,
+                    book_cover_align=p3_book_cover_align,
+                    config=_p3_build_config(),
+                    on_progress=_cb,
                 )
-        except Exception:
-            st.text(p3_text[:600])
+                _p3_store_outputs(_out_mp4, review_dir=_review)
+                _cb("Final video ready ✓", 1.0)
+            except Exception as _exc:
+                st.error(f"Video generation failed: {_exc}")
+                logging.exception("Phase 3 total-solution error")
+            finally:
+                import shutil as _sh
+                _sh.rmtree(_out_dir, ignore_errors=True)
 
-    # ── Render options ───────────────────────────────────────────────── #
-    _opt1, _opt2 = st.columns(2)
-    with _opt1:
-        p3_add_subs = st.checkbox(
-            "Burn Arabic captions into video",
-            value=True,
-            key="p3_add_subs",
-            help="Timed Arabic narration captions (white text, charcoal outline). "
-                 "Typography shots already show their text full-screen.",
-        )
-    with _opt2:
-        p3_resolution = st.selectbox(
-            "Resolution",
-            ["1280×720 (faster)", "1920×1080 (full)"],
-            index=0,
-            key="p3_resolution",
-            help="The shot-based render re-encodes every shot; 720p keeps memory "
-                 "and time down on Streamlit Cloud. 1080p is the broadcast target.",
-        )
-    _p3_w, _p3_h = (1280, 720) if p3_resolution.startswith("1280") else (1920, 1080)
-
+else:
+    # ═══════════════ RENDERING ONLY ═══════════════ #
     st.caption(
-        "The v2 pipeline aligns the narration, asks Claude Sonnet for a shot "
-        "plan (one call), fetches vision-scored imagery from LoC / Wikimedia / "
-        "Internet Archive / Pexels, and renders Amiri typography cards. "
-        "An Anthropic API key is required; rendering takes several minutes."
+        "Upload a review .zip produced by Total solution (or by "
+        "prebuild_assets.py). It is re-rendered with the current sidebar look "
+        "options — no planner or image-fetch API cost. Swap images by editing "
+        "the dossier before zipping."
+    )
+    p3_zip_up = st.file_uploader(
+        "Review dossier (.zip)", type=["zip"], key="p3_review_zip_up",
+        help="Must contain decisions.json and the shot folders. Total-solution "
+             "zips also include shot_plan.json and narration.mp3.",
+    )
+    with st.expander("Plan / audio (only if not inside the zip)"):
+        p3_plan_up = st.file_uploader("Shot plan (.json)", type=["json"],
+                                      key="p3_plan_up")
+        p3_ro_audio_up = st.file_uploader("Narration (.mp3)", type=["mp3"],
+                                          key="p3_ro_audio_up")
+    p3_ro_condition = st.checkbox(
+        "Condition assets before render", value=True, key="p3_ro_condition",
+        help="Normalise captured images to crisp, aspect-correct sizes first.",
     )
 
-    if st.button("▶ Generate Final Video", type="primary",
-                 use_container_width=True, key="p3_gen"):
-        if not anthropic_key:
-            st.warning("An Anthropic API key is required for the shot planner. "
-                       "Add it in the sidebar.")
-            st.stop()
-
-        import tempfile as _tmp
-        _out_dir = Path(_tmp.mkdtemp(prefix="bk2v_out_"))
+    if p3_zip_up and st.button("▶ Render from Review", type="primary",
+                               use_container_width=True, key="p3_render_only_btn"):
+        import tempfile as _tmp, zipfile as _zf
+        _out_dir = Path(_tmp.mkdtemp(prefix="bk2v_ro_"))
+        _review = _out_dir / "review"
+        _review.mkdir(parents=True, exist_ok=True)
         _out_mp4 = _out_dir / "final_video.mp4"
-        _thumb   = _out_dir / "thumb.jpg"
-
-        _p3_progress = st.progress(0.0)
-        _p3_status   = st.empty()
-        _p3_log      = st.empty()
-        _p3_lines: list[str] = []
-
-        def _p3_cb(label: str, frac: float) -> None:
-            _p3_progress.progress(min(frac, 1.0))
-            _p3_status.markdown(f"**{label}**")
-            cls = "done" if frac >= 1.0 else "active"
-            _p3_lines.append(
-                f"<span class='{cls}'>{'✓' if frac>=1.0 else '›'} {label}</span>"
-            )
-            _p3_log.markdown(
-                "<div class='step-log'>" + "<br>".join(_p3_lines[-12:]) + "</div>",
-                unsafe_allow_html=True,
-            )
-
+        _cb = _p3_make_cb()
         try:
-            from phase3 import generate_video_v2, extract_thumbnail
+            with _zf.ZipFile(io.BytesIO(p3_zip_up.getvalue())) as _z:
+                _z.extractall(_review)
+            # A zip may wrap everything in a single top-level folder.
+            _entries = [p for p in _review.iterdir() if p.name != "__MACOSX"]
+            if (len(_entries) == 1 and _entries[0].is_dir()
+                    and not (_review / "decisions.json").exists()):
+                _review = _entries[0]
+            # Resolve plan + audio: prefer files inside the zip, else uploads.
+            _plan_path = _review / "shot_plan.json"
+            if not _plan_path.exists() and p3_plan_up:
+                _plan_path = _review / "shot_plan.json"
+                _plan_path.write_bytes(p3_plan_up.getvalue())
+            _ro_audio = None
+            if (_review / "narration.mp3").exists():
+                _ro_audio = _review / "narration.mp3"
+            elif p3_ro_audio_up:
+                _ro_audio = _review / "narration.mp3"
+                _ro_audio.write_bytes(p3_ro_audio_up.getvalue())
 
-            generate_video_v2(
-                script_text=p3_text,
+            from phase3 import render_from_review
+            render_from_review(
+                review_dir=_review,
                 output_path=_out_mp4,
-                audio_bytes=p3_audio_bytes,
+                audio_path=_ro_audio,
+                plan_path=_plan_path if _plan_path.exists() else None,
+                config=_p3_build_config(),
                 anthropic_api_key=anthropic_key,
                 pexels_api_key=pexels_api_key,
-                book_title=p3_book_title,
-                character_name=p3_character_name,
-                genre=p3_genre,
-                width=_p3_w,
-                height=_p3_h,
-                grade=p3_color_grade,
-                typography_family=p3_typography_family,
-                add_captions=p3_add_subs,
-                book_cover=p3_book_cover_path,
-                book_cover_fit=p3_book_cover_fit,
-                character_portrait=p3_character_path,
-                music_path=p3_music_path,
-                music_gain_db=p3_music_gain,
-                on_progress=_p3_cb,
+                book_title=st.session_state.get("p3_book_title", ""),
+                character_name=st.session_state.get("p3_character_name", ""),
+                condition=p3_ro_condition,
+                on_progress=_cb,
             )
-
-            st.session_state["p3_video_bytes"] = _out_mp4.read_bytes()
-
-            # Extract a preview thumbnail from the middle of the video
-            extract_thumbnail(_out_mp4, _thumb, time=5.0)
-            if _thumb.exists():
-                st.session_state["p3_thumb_bytes"] = _thumb.read_bytes()
-
-            _p3_status.success("Final video ready ✓")
-
+            _p3_store_outputs(_out_mp4)
+            _cb("Final video ready ✓", 1.0)
         except Exception as _exc:
-            st.error(f"Video generation failed: {_exc}")
-            logging.exception("Phase 3 error")
+            st.error(f"Render failed: {_exc}")
+            logging.exception("Phase 3 render-only error")
         finally:
             import shutil as _sh
             _sh.rmtree(_out_dir, ignore_errors=True)
 
+# ── Output (shared) ───────────────────────────────────────────────────── #
 if "p3_video_bytes" in st.session_state:
-    # Thumbnail preview (video itself is too large for in-browser base64 embed)
     if "p3_thumb_bytes" in st.session_state:
-        st.image(
-            st.session_state["p3_thumb_bytes"],
-            caption="First frame preview",
-            use_container_width=True,
-        )
+        st.image(st.session_state["p3_thumb_bytes"],
+                 caption="First frame preview", use_container_width=True)
     p3_sz_mb = len(st.session_state["p3_video_bytes"]) / 1_048_576
-    _has_audio = "p2_audio_bytes" in st.session_state or (
-        "p3_audio_up" in st.session_state and st.session_state.get("p3_audio_up")
-    )
-    _video_desc = "720p"
-    if _has_audio:
-        _video_desc += " · Arabic voice"
-    if st.session_state.get("p3_add_subs", True):
-        _video_desc += " · Arabic subtitles"
+    _video_desc = f"{_p3_h}p"
+    if st.session_state.get("p3_add_captions"):
+        _video_desc += " · Arabic captions"
     st.caption(f"Final video · {p3_sz_mb:.1f} MB · {_video_desc}")
     st.download_button(
         "⬇ Download Final Video (.mp4)",
@@ -1432,3 +1579,15 @@ if "p3_video_bytes" in st.session_state:
         use_container_width=True,
         key="p3_dl",
     )
+    if "p3_review_zip" in st.session_state:
+        _zmb = len(st.session_state["p3_review_zip"]) / 1_048_576
+        st.download_button(
+            f"⬇ Download Review dossier (.zip · {_zmb:.1f} MB)",
+            data=st.session_state["p3_review_zip"],
+            file_name="review_dir.zip",
+            mime="application/zip",
+            use_container_width=True,
+            key="p3_dl_review",
+            help="All captured candidates + decisions.json + plan + narration. "
+                 "Edit and re-upload via the 'Rendering only' route.",
+        )

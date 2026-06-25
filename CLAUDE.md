@@ -263,15 +263,25 @@ Script + Audio ──► align()          ──► word_timings (WhisperX | Whi
   review dir → condition assets → render. Refines the skeleton at **no further
   API cost**. Both notebooks expose settings cells for flexibility.
 
+The **Streamlit Phase 3 tab implements both routes**: a "Route" selector picks
+Total solution (→ `phase3.build_total_solution`, which also offers the review
+dossier as a downloadable `.zip`) or Rendering only (upload that `.zip` →
+`phase3.render_from_review`, no API cost). The sidebar exposes the full
+render-look set — grade, typography family, book cover (+ fit/align), pinned
+character portrait, music (+ level/duck), captions (+ backplate/size/position),
+title size, text scrim, typography-over-image, fades — applied to either route.
+
 ### Entry points
 
 - **`phase3.generate_video_v2()`** — high-level orchestrator (align → plan →
-  fetch → render) used by the Streamlit Phase 3 tab and `phase3_run.py`.
-  Requires an Anthropic key (the planner is a Sonnet call). Accepts
-  `book_cover` / `book_cover_fit`, `character_portrait` (pinned across every
-  portrait shot via `FetcherConfig.pinned_portrait`), and `music_path` /
-  `music_gain_db`. The Streamlit sidebar exposes all three from `resources/`
-  (book_cover/, character/, audio/bg_music.mp3) plus upload.
+  fetch → render) used by `phase3_run.py`'s one-shot render. Requires an
+  Anthropic key (the planner is a Sonnet call). Accepts `book_cover` /
+  `book_cover_fit`, `character_portrait` (pinned across every portrait shot via
+  `FetcherConfig.pinned_portrait`), `music_path` / `music_gain_db`, and the
+  caption/title/scrim look options.
+- **`phase3.build_total_solution()` / `render_from_review()` / `zip_review_dir()`**
+  — the two-route orchestrators (prebuild dossier + condition + render; and
+  render-only from a saved dossier).
 - **CLIs** (inspectable multi-step Colab/CLI workflow):
 
 ```bash
