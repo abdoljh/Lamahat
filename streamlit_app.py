@@ -439,25 +439,28 @@ with st.sidebar:
         ) if p3_book_cover_path else "center"
     )
 
-    # Character portrait → pinned across every portrait shot
+    # Character images → the pool rotates across every portrait shot
     _p3_ports = _p3_pool("character", _P3_IMG_EXTS)
+    _P3_POOL_OPT = f"Pool — rotate all {len(_p3_ports)} images (recommended)"
     _p3_port_choice = st.selectbox(
-        "Character portrait (pinned)",
-        ["None"] + [f.name for f in _p3_ports] + ["Upload…"],
+        "Character images",
+        [_P3_POOL_OPT] + [f.name for f in _p3_ports] + ["Pin one (upload)"],
         index=0,
         key="p3_port_choice",
-        help="One authentic portrait reused for EVERY portrait shot instead of "
-             "different stock faces — the single biggest documentary-quality "
-             "win. Bundled portraits live in resources/character/.",
+        help="The pool in resources/character/ is rotated across the portrait "
+             "shots so the subject is shown through varied authentic photos "
+             "(not stock faces). Pick a single file to pin just that one, or "
+             "upload your own. Total solution always prefers the pool when it "
+             "has images.",
     )
     p3_character_path = None
-    if _p3_port_choice == "Upload…":
+    if _p3_port_choice == "Pin one (upload)":
         _p3_pu = st.file_uploader("Upload portrait image",
                                   type=["jpg", "jpeg", "png", "webp"],
                                   key="p3_port_up")
         if _p3_pu:
             p3_character_path = _p3_save_upload(_p3_pu, "portrait_" + _p3_pu.name)
-    elif _p3_port_choice != "None":
+    elif _p3_port_choice != _P3_POOL_OPT:
         p3_character_path = _P3_RES / "character" / _p3_port_choice
 
     # Background music bed → mixed under the narration
