@@ -1307,6 +1307,16 @@ p3_resolution = st.selectbox(
 )
 _p3_w, _p3_h = (1280, 720) if p3_resolution.startswith("1280") else (1920, 1080)
 
+p3_condition = st.checkbox(
+    "Sharpen assets before render (slow)",
+    value=False,
+    key="p3_condition",
+    help="Optional Lanczos upscaling pass that normalises each chosen image to "
+         "crisp, aspect-correct sizes. The renderer already fits images to the "
+         "frame, so this is a quality polish — it adds a minute or more per run "
+         "on Streamlit Cloud. Leave off for a faster render.",
+)
+
 
 def _p3_build_config():
     """Build a RenderConfig from the sidebar look options (fetcher set later)."""
@@ -1476,6 +1486,7 @@ if not _p3_render_only:
                     book_cover_fit=p3_book_cover_fit,
                     book_cover_align=p3_book_cover_align,
                     config=_p3_build_config(),
+                    condition=p3_condition,
                     on_progress=_cb,
                 )
                 _p3_store_outputs(_out_mp4, review_dir=_review)
@@ -1505,11 +1516,6 @@ else:
                                       key="p3_plan_up")
         p3_ro_audio_up = st.file_uploader("Narration (.mp3)", type=["mp3"],
                                           key="p3_ro_audio_up")
-    p3_ro_condition = st.checkbox(
-        "Condition assets before render", value=True, key="p3_ro_condition",
-        help="Normalise captured images to crisp, aspect-correct sizes first.",
-    )
-
     if p3_zip_up and st.button("▶ Render from Review", type="primary",
                                use_container_width=True, key="p3_render_only_btn"):
         import tempfile as _tmp, zipfile as _zf
@@ -1549,7 +1555,7 @@ else:
                 pexels_api_key=pexels_api_key,
                 book_title=st.session_state.get("p3_book_title", ""),
                 character_name=st.session_state.get("p3_character_name", ""),
-                condition=p3_ro_condition,
+                condition=p3_condition,
                 on_progress=_cb,
             )
             _p3_store_outputs(_out_mp4)

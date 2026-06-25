@@ -53,6 +53,7 @@ import shutil
 import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
+from typing import Callable
 
 from PIL import Image
 
@@ -210,7 +211,8 @@ def condition_file(src: Path, *, mismatch: float, target_cover: int,
 
 def run(review_dir: Path, *, mismatch: float, target_cover: int,
         contain_floor: int, max_cap: int, min_usable: int, sr: str,
-        quality: int, dry_run: bool) -> dict:
+        quality: int, dry_run: bool,
+        on_progress: Callable[[str, float], None] | None = None) -> dict:
     decisions_path = review_dir / "decisions.json"
     if not decisions_path.exists():
         raise SystemExit(f"No decisions.json in {review_dir}")
@@ -223,7 +225,11 @@ def run(review_dir: Path, *, mismatch: float, target_cover: int,
              "low": 0, "cover": 0, "contain": 0, "flipped_to_cover": 0,
              "skipped_no_file": 0}
 
-    for key, shot in shots.items():
+    _n_shots = len(shots) or 1
+    for _i, (key, shot) in enumerate(shots.items()):
+        if on_progress:
+            on_progress(f"Conditioning assets… {_i + 1}/{_n_shots}",
+                        (_i + 1) / _n_shots)
         rel = shot.get("chosen_file")
         if not rel:
             stats["skipped_no_file"] += 1

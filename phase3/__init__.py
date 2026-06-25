@@ -312,6 +312,7 @@ def condition_review_dir(
     min_usable: int = 600,
     mismatch: float = 0.28,
     quality: int = 95,
+    on_progress: Callable[[str, float], None] | None = None,
 ) -> dict:
     """Normalise captured assets to crisp, aspect-correct sizes before render.
 
@@ -326,7 +327,7 @@ def condition_review_dir(
         Path(review_dir),
         mismatch=mismatch, target_cover=target_cover, contain_floor=contain_floor,
         max_cap=max_cap, min_usable=min_usable, sr=sr, quality=quality,
-        dry_run=dry_run,
+        dry_run=dry_run, on_progress=on_progress,
     )
 
 
@@ -440,9 +441,14 @@ def render_from_review(
     audio_path = Path(audio_path) if audio_path else None
 
     if condition:
-        _prog("Conditioning assets…", 0.04)
+        _prog("Conditioning assets…", 0.01)
         try:
-            condition_review_dir(review_dir, sr=sr)
+            # Map conditioning onto the first 8% of the bar so it never looks
+            # frozen during the (CPU-heavy) Lanczos upscales.
+            condition_review_dir(
+                review_dir, sr=sr,
+                on_progress=lambda lbl, f: _prog(lbl, 0.01 + 0.07 * f),
+            )
         except Exception as exc:  # noqa: BLE001 — conditioning is best-effort
             log.warning("Asset conditioning skipped: %s", exc)
 
