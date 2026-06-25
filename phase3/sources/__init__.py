@@ -66,6 +66,11 @@ class FetcherConfig:
     # returns the user-approved image when available.
     review_dir: Path | None = None
 
+    # Offline mode (render-only route): never query the live web sources.
+    # Only the dossier (override → user-marked → pinned/pool → chosen_file),
+    # user_dir and book extracts are used; uncovered shots get a placeholder.
+    offline: bool = False
+
     @property
     def vision_enabled(self) -> bool:
         if self.enable_vision is False:
@@ -84,7 +89,7 @@ class Fetcher:
         self.cache = ImageCache(self.config.cache_dir) if self.config.cache_dir else None
         self.user_source = UserUploadSource(self.config.user_dir)
         self.book_source = BookExtractSource(self.config.book_extracts)
-        self.web_sources: list[Source] = [
+        self.web_sources: list[Source] = [] if self.config.offline else [
             LibraryOfCongress(),
             WikimediaCommons(),
             InternetArchive(),
