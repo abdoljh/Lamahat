@@ -1519,27 +1519,46 @@ else:
                                       key="p3_plan_up")
         p3_ro_audio_up = st.file_uploader("Narration (.mp3)", type=["mp3"],
                                           key="p3_ro_audio_up")
+    p3_ro_web = st.checkbox(
+        "Fill gaps from the web", value=False, key="p3_ro_web",
+        help="Off (default): render ONLY the dossier's images — overrides "
+             "(overrides/ and my_/user_ files), the character pool, and each "
+             "shot's chosen candidate; shots with no image get a placeholder. "
+             "On: also search LoC/Wikimedia/IA/Pexels for shots the dossier "
+             "doesn't cover (costs time and may need API keys).",
+    )
     if p3_zip_up and st.button("▶ Render from Review", type="primary",
                                use_container_width=True, key="p3_render_only_btn"):
         import tempfile as _tmp, zipfile as _zf
         _out_dir = Path(_tmp.mkdtemp(prefix="bk2v_ro_"))
-        _review = _out_dir / "review"
-        _review.mkdir(parents=True, exist_ok=True)
+        _extract_root = _out_dir / "review"
+        _extract_root.mkdir(parents=True, exist_ok=True)
         _out_mp4 = _out_dir / "final_video.mp4"
         _cb = _p3_make_cb()
         try:
             with _zf.ZipFile(io.BytesIO(p3_zip_up.getvalue())) as _z:
-                _z.extractall(_review)
-            # A zip may wrap everything in a single top-level folder.
-            _entries = [p for p in _review.iterdir() if p.name != "__MACOSX"]
-            if (len(_entries) == 1 and _entries[0].is_dir()
-                    and not (_review / "decisions.json").exists()):
-                _review = _entries[0]
-            # Resolve plan + audio: prefer files inside the zip, else uploads.
+                _z.extractall(_extract_root)
+            # The dossier is wherever decisions.json lives — find it no matter
+            # how the zip nests/names folders (e.g. an "Archive/" wrapper).
+            _found = sorted(_extract_root.rglob("decisions.json"))
+            if not _found:
+                st.error(
+                    "No decisions.json found anywhere in the uploaded zip. "
+                    "A review dossier must contain decisions.json (and the "
+                    "shot_NN_* folders). Re-zip the review directory's contents."
+                )
+                import shutil as _sh
+                _sh.rmtree(_out_dir, ignore_errors=True)
+                st.stop()
+            _review = _found[0].parent
+            # Resolve plan + audio: prefer files inside the dossier, else uploads.
             _plan_path = _review / "shot_plan.json"
-            if not _plan_path.exists() and p3_plan_up:
-                _plan_path = _review / "shot_plan.json"
-                _plan_path.write_bytes(p3_plan_up.getvalue())
+            if not _plan_path.exists():
+                _alt = sorted(_extract_root.rglob("shot_plan.json"))
+                if _alt:
+                    _plan_path = _alt[0]
+                elif p3_plan_up:
+                    _plan_path.write_bytes(p3_plan_up.getvalue())
             _ro_audio = None
             if (_review / "narration.mp3").exists():
                 _ro_audio = _review / "narration.mp3"
@@ -1559,6 +1578,7 @@ else:
                 book_title=st.session_state.get("p3_book_title", ""),
                 character_name=st.session_state.get("p3_character_name", ""),
                 condition=p3_condition,
+                offline=not p3_ro_web,
                 on_progress=_cb,
             )
             _p3_store_outputs(_out_mp4)

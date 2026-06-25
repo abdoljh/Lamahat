@@ -402,12 +402,16 @@ def render_from_review(
     condition: bool = True,
     sr: str = "none",
     plan_path: Path | None = None,
+    offline: bool = True,
     on_progress: Callable[[str, float], None] | None = None,
 ) -> Path:
     """Render-only route: render a (revised) review dossier with no planner/
     fetcher API cost.  The dossier supplies each shot's image (override →
-    user-marked → pinned portrait → chosen_file); only shots the dossier can't
-    satisfy fall through to the live waterfall.
+    user-marked → pinned portrait → chosen_file).  With `offline=True`
+    (default) the live web sources are disabled entirely, so only the
+    dossier's images are used and any uncovered shot gets a placeholder card —
+    matching the route's promise to "render only the chosen candidates".  Set
+    `offline=False` to let uncovered shots fall through to the live waterfall.
 
     `config` may be any RenderConfig (its `.fetcher` is overwritten to point at
     the dossier).  The shot plan and narration are read from inside the dossier
@@ -460,6 +464,7 @@ def render_from_review(
         character_name=character_name,
         enable_vision=enable_vision,
         review_dir=review_dir,
+        offline=offline,
     ))
 
     def _render_prog(label: str, frac: float) -> None:
