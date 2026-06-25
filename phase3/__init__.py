@@ -30,7 +30,10 @@ See `PHASE3.md` for the deep architecture reference.
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Callable
@@ -51,6 +54,10 @@ log = logging.getLogger(__name__)
 
 __all__ = [
     "generate_video_v2",
+    "build_total_solution",
+    "render_from_review",
+    "condition_review_dir",
+    "zip_review_dir",
     "extract_thumbnail",
     "probe_audio_duration",
     "Shot",
@@ -65,6 +72,8 @@ __all__ = [
     "save_plan",
     "summarise_plan",
 ]
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Default on-disk image cache (shared with the render_plan.py CLI default).
 _DEFAULT_CACHE_DIR = Path.home() / ".cache" / "lamahat" / "images"
@@ -142,6 +151,16 @@ def generate_video_v2(
     character_portrait: Path | None = None,
     music_path: Path | None = None,
     music_gain_db: float = -18.0,
+    music_duck: bool = True,
+    fades: bool = True,
+    caption_backplate: str = "subtle",
+    text_scrim: str | None = None,
+    title_scale: float = 1.0,
+    title_color: tuple[int, int, int] | None = None,
+    caption_size: float = 1.0,
+    caption_color: str | None = None,
+    caption_pos: float | None = None,
+    typography_over_image: bool = False,
     book_extracts: Path | None = None,
     user_dir: Path | None = None,
     review_dir: Path | None = None,
@@ -243,8 +262,18 @@ def generate_video_v2(
             book_cover_align=book_cover_align,
             typography_family=typography_family,
             grade=grade,
+            caption_backplate=caption_backplate,
+            text_scrim=text_scrim,
+            title_scale=title_scale,
+            title_color=title_color,
+            caption_size=caption_size,
+            caption_color=caption_color,
+            caption_pos=caption_pos,
+            typography_over_image=typography_over_image,
             music_path=Path(music_path) if music_path else None,
             music_gain_db=music_gain_db,
+            music_duck=music_duck,
+            fades=fades,
         )
 
         def _render_prog(label: str, frac: float) -> None:
@@ -261,3 +290,294 @@ def generate_video_v2(
 
     _prog("Final video complete ✓", 1.0)
     return output_path
+
+
+# ── Two routes: total solution (with saved review dossier) & render-only ──── #
+#
+# These mirror the two notebooks:
+#   • build_total_solution() = align → plan → prebuild (capture every candidate
+#     into a review dossier) → condition → render.  Costs API; saves the dossier
+#     so the user can later refine at no further API cost.
+#   • render_from_review()   = load a (revised) review dossier → condition →
+#     render.  No planner / fetcher API cost — uses the dossier's chosen images.
+
+def condition_review_dir(
+    review_dir: Path,
+    *,
+    sr: str = "none",
+    dry_run: bool = False,
+    target_cover: int = 2560,
+    contain_floor: int = 1600,
+    max_cap: int = 3200,
+    min_usable: int = 600,
+    mismatch: float = 0.28,
+    quality: int = 95,
+) -> dict:
+    """Normalise captured assets to crisp, aspect-correct sizes before render.
+
+    Thin wrapper over ``condition_assets.run`` (repo-root module) using its CLI
+    defaults.  Returns the per-file conditioning report; a no-op-safe call when
+    there is nothing to condition.
+    """
+    if str(_REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(_REPO_ROOT))
+    import condition_assets  # repo-root module
+    return condition_assets.run(
+        Path(review_dir),
+        mismatch=mismatch, target_cover=target_cover, contain_floor=contain_floor,
+        max_cap=max_cap, min_usable=min_usable, sr=sr, quality=quality,
+        dry_run=dry_run,
+    )
+
+
+def zip_review_dir(review_dir: Path, out_zip: Path) -> Path:
+    """Zip a review dossier (candidates + decisions.json + plan + narration) so
+    it can be downloaded and later fed back to the render-only route."""
+    review_dir = Path(review_dir)
+    out_zip = Path(out_zip)
+    base = out_zip.with_suffix("") if out_zip.suffix == ".zip" else out_zip
+    archive = shutil.make_archive(str(base), "zip", root_dir=str(review_dir))
+    return Path(archive)
+
+
+def _run_prebuild(
+    plan_path: Path,
+    review_dir: Path,
+    *,
+    script_path: Path | None,
+    audio_path: Path | None,
+    book_title: str,
+    character_name: str,
+    anthropic_api_key: str,
+    pexels_api_key: str,
+    character_portrait: Path | None,
+    book_cover: Path | None,
+    book_cover_fit: str,
+    book_cover_align: str,
+    enable_vision: bool,
+    book_extracts: Path | None,
+) -> None:
+    """Build the review dossier by driving the tested prebuild_assets.py CLI."""
+    cmd = [
+        sys.executable, str(_REPO_ROOT / "prebuild_assets.py"),
+        "--plan", str(plan_path),
+        "--review-dir", str(review_dir),
+        "--book-title", book_title,
+        "--character-name", character_name,
+        "--book-cover-fit", book_cover_fit,
+        "--book-cover-align", book_cover_align,
+    ]
+    if script_path:
+        cmd += ["--script", str(script_path)]
+    if anthropic_api_key:
+        cmd += ["--anthropic-key", anthropic_api_key]
+    if pexels_api_key:
+        cmd += ["--pexels-key", pexels_api_key]
+    if character_portrait:
+        cmd += ["--character-portrait", str(character_portrait)]
+    if book_cover:
+        cmd += ["--book-cover", str(book_cover)]
+    if book_extracts:
+        cmd += ["--book-extracts", str(book_extracts)]
+    if not enable_vision:
+        cmd += ["--no-vision"]
+    log.info("prebuild: %s", " ".join(cmd[2:]))
+    subprocess.run(cmd, check=True, cwd=str(_REPO_ROOT))
+
+
+def render_from_review(
+    review_dir: Path,
+    output_path: Path,
+    *,
+    audio_path: Path | None = None,
+    audio_bytes: bytes | None = None,
+    audio_duration_sec: float | None = None,
+    config: "RenderConfig | None" = None,
+    anthropic_api_key: str = "",
+    pexels_api_key: str = "",
+    book_title: str = "",
+    character_name: str = "",
+    enable_vision: bool = False,
+    condition: bool = True,
+    sr: str = "none",
+    plan_path: Path | None = None,
+    on_progress: Callable[[str, float], None] | None = None,
+) -> Path:
+    """Render-only route: render a (revised) review dossier with no planner/
+    fetcher API cost.  The dossier supplies each shot's image (override →
+    user-marked → pinned portrait → chosen_file); only shots the dossier can't
+    satisfy fall through to the live waterfall.
+
+    `config` may be any RenderConfig (its `.fetcher` is overwritten to point at
+    the dossier).  The shot plan and narration are read from inside the dossier
+    (`shot_plan.json` / `narration.mp3`) unless given explicitly.
+    """
+    review_dir = Path(review_dir)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _prog(label: str, frac: float) -> None:
+        if on_progress:
+            on_progress(label, frac)
+
+    # Plan: explicit > review_dir/shot_plan.json
+    if plan_path is None:
+        plan_path = review_dir / "shot_plan.json"
+    if not Path(plan_path).exists():
+        raise FileNotFoundError(
+            f"No shot plan found for render-only route (looked for {plan_path}). "
+            "The review zip must contain shot_plan.json."
+        )
+    shots = load_plan(plan_path)
+
+    # Audio: explicit > bytes > review_dir/narration.mp3
+    if audio_path is None and audio_bytes:
+        audio_path = review_dir / "narration.mp3"
+        Path(audio_path).write_bytes(audio_bytes)
+    if audio_path is None:
+        cand = review_dir / "narration.mp3"
+        audio_path = cand if cand.exists() else None
+    audio_path = Path(audio_path) if audio_path else None
+
+    if condition:
+        _prog("Conditioning assets…", 0.04)
+        try:
+            condition_review_dir(review_dir, sr=sr)
+        except Exception as exc:  # noqa: BLE001 — conditioning is best-effort
+            log.warning("Asset conditioning skipped: %s", exc)
+
+    cfg = config or RenderConfig()
+    cfg.fetcher = Fetcher(FetcherConfig(
+        anthropic_api_key=anthropic_api_key,
+        pexels_api_key=pexels_api_key,
+        book_title=book_title,
+        character_name=character_name,
+        enable_vision=enable_vision,
+        review_dir=review_dir,
+    ))
+
+    def _render_prog(label: str, frac: float) -> None:
+        _prog(label, 0.08 + 0.92 * frac)
+
+    render_video(
+        shots, output_path,
+        audio_path=audio_path,
+        audio_duration_sec=audio_duration_sec,
+        config=cfg,
+        on_progress=_render_prog,
+    )
+    _prog("Final video complete ✓", 1.0)
+    return output_path
+
+
+def build_total_solution(
+    script_text: str,
+    output_path: Path,
+    review_dir: Path,
+    *,
+    audio_path: Path | None = None,
+    audio_bytes: bytes | None = None,
+    audio_duration_sec: float | None = None,
+    anthropic_api_key: str,
+    pexels_api_key: str = "",
+    book_title: str = "",
+    character_name: str = "",
+    genre: str = "history",
+    align_backend: str = "auto",
+    character_portrait: Path | None = None,
+    book_cover: Path | None = None,
+    book_cover_fit: str = "contain",
+    book_cover_align: str = "center",
+    book_extracts: Path | None = None,
+    enable_vision: bool = True,
+    config: "RenderConfig | None" = None,
+    condition: bool = True,
+    sr: str = "none",
+    on_progress: Callable[[str, float], None] | None = None,
+) -> dict:
+    """Total-solution route: align → plan → prebuild (capture every candidate
+    into a review dossier) → condition → render.
+
+    Leaves a self-contained dossier in `review_dir` (candidates, decisions.json,
+    shot_plan.json, word_timings.json, narration.mp3) that `zip_review_dir` can
+    package for later no-API-cost refinement via `render_from_review`.
+
+    Returns ``{"video": Path, "review_dir": Path, "plan": Path}``.
+    """
+    review_dir = Path(review_dir)
+    review_dir.mkdir(parents=True, exist_ok=True)
+    output_path = Path(output_path)
+
+    def _prog(label: str, frac: float) -> None:
+        log.info("[total %.0f%%] %s", frac * 100, label)
+        if on_progress:
+            on_progress(label, frac)
+
+    if not anthropic_api_key:
+        raise ValueError("build_total_solution requires an Anthropic API key.")
+
+    # Narration: keep a copy inside the dossier so the zip is self-contained.
+    if audio_path is None and audio_bytes:
+        audio_path = review_dir / "narration.mp3"
+        Path(audio_path).write_bytes(audio_bytes)
+    elif audio_path is not None:
+        try:
+            shutil.copy2(audio_path, review_dir / "narration.mp3")
+            audio_path = review_dir / "narration.mp3"
+        except Exception:  # noqa: BLE001
+            audio_path = Path(audio_path)
+    audio_path = Path(audio_path) if audio_path else None
+
+    total_dur = _resolve_duration(audio_path, audio_duration_sec, script_text)
+
+    # Stage 1 — plan (align + Sonnet) and persist into the dossier.
+    _prog("Parsing + aligning…", 0.03)
+    sections = parse_sections(script_text)
+    if not sections:
+        raise ValueError("No recognisable sections found in script text.")
+    timings = align(script_text, audio_path, total_dur, prefer_backend=align_backend)
+
+    _prog("Planning shots (Claude Sonnet)…", 0.08)
+    shots = build_shot_plan(
+        sections=sections, word_timings=timings,
+        book_title=book_title, character_name=character_name, genre=genre,
+        total_duration_sec=total_dur, anthropic_api_key=anthropic_api_key,
+        debug_dir=review_dir,
+    )
+    plan_path = review_dir / "shot_plan.json"
+    save_plan(shots, plan_path)
+    script_path = review_dir / "script.txt"
+    script_path.write_text(script_text, encoding="utf-8")
+    (review_dir / "word_timings.json").write_text(
+        __import__("json").dumps(
+            [{"word": w.word, "start": w.start, "end": w.end, "source": w.source}
+             for w in timings], ensure_ascii=False, indent=2),
+        encoding="utf-8")
+
+    # Stage 2 — prebuild the dossier (capture every candidate, pick the best).
+    _prog("Capturing image candidates (prebuild)…", 0.20)
+    _run_prebuild(
+        plan_path, review_dir,
+        script_path=script_path, audio_path=audio_path,
+        book_title=book_title, character_name=character_name,
+        anthropic_api_key=anthropic_api_key, pexels_api_key=pexels_api_key,
+        character_portrait=character_portrait,
+        book_cover=book_cover, book_cover_fit=book_cover_fit,
+        book_cover_align=book_cover_align,
+        enable_vision=enable_vision, book_extracts=book_extracts,
+    )
+
+    # Stage 3 — condition + render from the dossier.
+    def _render_prog(label: str, frac: float) -> None:
+        _prog(label, 0.55 + 0.45 * frac)
+
+    render_from_review(
+        review_dir, output_path,
+        audio_path=audio_path, audio_duration_sec=total_dur,
+        config=config, anthropic_api_key=anthropic_api_key,
+        pexels_api_key=pexels_api_key, book_title=book_title,
+        character_name=character_name, enable_vision=enable_vision,
+        condition=condition, sr=sr, plan_path=plan_path,
+        on_progress=_render_prog,
+    )
+    return {"video": output_path, "review_dir": review_dir, "plan": plan_path}
