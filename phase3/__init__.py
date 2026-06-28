@@ -29,14 +29,19 @@ See `PHASE3.md` for the deep architecture reference.
 
 from __future__ import annotations
 
+import json as _json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Callable
+
+# Files the user drops in to override a shot's image (kept by slimming).
+_USER_MARK_RE = re.compile(r"^(my|user)[_-].+\.(jpg|jpeg|png|webp)$", re.IGNORECASE)
 
 from .align import align
 from .parser import parse_sections
@@ -57,6 +62,7 @@ __all__ = [
     "build_total_solution",
     "render_from_review",
     "condition_review_dir",
+    "slim_review_dir",
     "zip_review_dir",
     "extract_thumbnail",
     "probe_audio_duration",
@@ -331,6 +337,78 @@ def condition_review_dir(
     )
 
 
+def slim_review_dir(review_dir: Path, *, mode: str = "chosen",
+                    keep_n: int = 3) -> dict:
+    """Trim a review dossier in place so its zip stays small enough to upload.
+
+    Per image shot it keeps the images that actually render — the resolved
+    ``chosen_file``, any ``override``, and any user-dropped ``my_``/``user_``
+    files — and deletes the rest of that shot's downloaded candidates.
+
+      mode="chosen": keep only the above (smallest; conditioned/sharpened copy
+                     wins, original candidates are dropped).
+      mode="top":    additionally keep the top ``keep_n`` candidates by vision
+                     score, so a few alternatives remain to swap to.
+      mode="all":    no-op.
+
+    Portrait shots stay tiny regardless — their image comes from the committed
+    character pool (``resources/character/``), not the dossier.  Returns a
+    summary dict (``removed``, ``kept``, ``bytes_removed``).
+    """
+    review_dir = Path(review_dir)
+    out = {"removed": 0, "kept": 0, "bytes_removed": 0}
+    if mode == "all":
+        return out
+    dpath = review_dir / "decisions.json"
+    if not dpath.exists():
+        return out
+    data = _json.loads(dpath.read_text(encoding="utf-8"))
+    shots = data.get("shots", {})
+    if isinstance(shots, list):
+        shots = {str(i): s for i, s in enumerate(shots)}
+    _exts = (".jpg", ".jpeg", ".png", ".webp")
+
+    for shot in shots.values():
+        cands = shot.get("candidates", []) or []
+        keep_rel: set[str] = set()
+        for f in (shot.get("chosen_file"), shot.get("override")):
+            if f:
+                keep_rel.add(str(f).replace("\\", "/"))
+        if mode == "top":
+            for c in sorted(cands, key=lambda c: c.get("score", -1),
+                            reverse=True)[:max(1, keep_n)]:
+                if c.get("file"):
+                    keep_rel.add(str(c["file"]).replace("\\", "/"))
+
+        # Every shot folder this shot touches (candidates + chosen).
+        folders: set[Path] = set()
+        for c in cands:
+            if c.get("file"):
+                folders.add((review_dir / c["file"]).parent)
+        if shot.get("chosen_file"):
+            folders.add((review_dir / shot["chosen_file"]).parent)
+
+        for folder in folders:
+            if not folder.is_dir() or folder.resolve() == review_dir.resolve():
+                continue
+            for img in folder.iterdir():
+                if not (img.is_file() and img.suffix.lower() in _exts):
+                    continue
+                rel = str(img.relative_to(review_dir)).replace("\\", "/")
+                if rel in keep_rel or _USER_MARK_RE.match(img.name):
+                    out["kept"] += 1
+                    continue
+                try:
+                    out["bytes_removed"] += img.stat().st_size
+                    img.unlink()
+                    out["removed"] += 1
+                except OSError:
+                    pass
+    log.info("slim_review_dir(%s): kept %d, removed %d (%.1f MB freed)",
+             mode, out["kept"], out["removed"], out["bytes_removed"] / 1e6)
+    return out
+
+
 def zip_review_dir(review_dir: Path, out_zip: Path) -> Path:
     """Zip a review dossier (candidates + decisions.json + plan + narration) so
     it can be downloaded and later fed back to the render-only route."""
@@ -504,6 +582,8 @@ def build_total_solution(
     config: "RenderConfig | None" = None,
     condition: bool = True,
     sr: str = "none",
+    slim_mode: str = "chosen",
+    slim_keep_n: int = 3,
     on_progress: Callable[[str, float], None] | None = None,
 ) -> dict:
     """Total-solution route: align → plan → prebuild (capture every candidate
@@ -591,4 +671,9 @@ def build_total_solution(
         condition=condition, sr=sr, plan_path=plan_path,
         on_progress=_render_prog,
     )
-    return {"video": output_path, "review_dir": review_dir, "plan": plan_path}
+
+    # Stage 4 — slim the dossier so its zip stays uploadable (render is done,
+    # so chosen_file already points at the sharpened copy when conditioning ran).
+    slim = slim_review_dir(review_dir, mode=slim_mode, keep_n=slim_keep_n)
+    return {"video": output_path, "review_dir": review_dir,
+            "plan": plan_path, "slim": slim}

@@ -1454,9 +1454,25 @@ if not _p3_render_only:
             except Exception:
                 st.text(p3_text[:600])
 
+        _p3_slim_label = st.selectbox(
+            "Saved dossier candidates",
+            ["Chosen only (smallest)", "Top 3 (swap-friendly)", "All candidates"],
+            index=1,
+            key="p3_slim",
+            help="How many image candidates the downloadable review .zip keeps "
+                 "per shot. Fewer = a much smaller zip that uploads under "
+                 "Streamlit's limit for the Rendering-only route. 'Chosen only' "
+                 "keeps just the picked (sharpened) image; 'Top 3' keeps a few "
+                 "alternatives to swap to; 'All' keeps everything (can exceed "
+                 "the upload limit).",
+        )
+        _p3_slim_mode = {"Chosen only (smallest)": "chosen",
+                         "Top 3 (swap-friendly)": "top",
+                         "All candidates": "all"}[_p3_slim_label]
+
         st.caption(
             "Total solution aligns the narration, asks Claude Sonnet for a shot "
-            "plan, captures every image candidate into a review dossier, then "
+            "plan, captures image candidates into a review dossier, then "
             "conditions and renders. Requires an Anthropic key; takes several "
             "minutes. You'll get the MP4 **and** a review .zip to refine later."
         )
@@ -1490,6 +1506,7 @@ if not _p3_render_only:
                     book_cover_align=p3_book_cover_align,
                     config=_p3_build_config(),
                     condition=p3_condition,
+                    slim_mode=_p3_slim_mode,
                     on_progress=_cb,
                 )
                 _p3_store_outputs(_out_mp4, review_dir=_review)

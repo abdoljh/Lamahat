@@ -1,0 +1,7 @@
+# Streamlit runtime config (committed; secrets.toml stays gitignored).
+[server]
+# Raise the file-uploader cap (default 200 MB) so a review dossier .zip can be
+# uploaded to the Rendering-only route. The Total-solution route also slims the
+# dossier ("Saved dossier candidates"), so zips normally stay well under this.
+# Kept moderate because Streamlit Community Cloud has ~1 GB RAM.
+maxUploadSize = 400
