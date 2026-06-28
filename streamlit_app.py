@@ -1429,6 +1429,27 @@ class _P3LogCapture:
         return self._buf.getvalue()
 
 
+def _p3_fetch_url(url: str, timeout: int = 120) -> bytes:
+    """Download a dossier .zip server-side (bypasses the browser upload limit).
+
+    Rewrites common share links to their direct-download form so a plain
+    Google-Drive / Dropbox / GitHub link works.
+    """
+    import urllib.request as _ur
+    import re as _re
+    u = url.strip()
+    m = _re.search(r"drive\.google\.com/file/d/([^/]+)", u)
+    if m:
+        u = f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+    elif "dropbox.com" in u:
+        u = u.replace("?dl=0", "?dl=1").replace("&dl=0", "&dl=1")
+    elif "github.com" in u and "/blob/" in u:
+        u = u.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+    req = _ur.Request(u, headers={"User-Agent": "Lamahat/1.0"})
+    with _ur.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
 def _p3_store_outputs(mp4_path: Path, review_dir: Path | None = None) -> None:
     """Read the finished MP4 (+ optional review zip + thumbnail) into session."""
     from phase3 import extract_thumbnail, zip_review_dir
@@ -1599,24 +1620,22 @@ else:
     _sess_ok = bool(_sess_dir) and (Path(_sess_dir) / "decisions.json").exists()
 
     p3_zip_up = None
+    p3_zip_url = ""
     p3_plan_up = None
     p3_ro_audio_up = None
 
-    if _sess_ok:
-        # Both sources available → let the user choose.
-        p3_ro_source = st.radio(
-            "Dossier source",
-            ["This session's Total-solution dossier (no upload)",
-             "Upload a review .zip"],
-            key="p3_ro_source",
-            help="Re-render this session's Total-solution dossier directly, or "
-                 "upload a saved review .zip from another session.",
-        )
-        _use_session = p3_ro_source.startswith("This session")
-    else:
-        # Render-only requires a dossier; with none in session the upload is
-        # implied — show the uploader directly (no single-option selector).
-        _use_session = False
+    _SESS = "This session's Total-solution dossier (no upload)"
+    _UP = "Upload a review .zip"
+    _URL = "Fetch a review .zip from a URL"
+    _opts = ([_SESS] if _sess_ok else []) + [_UP, _URL]
+    p3_ro_source = st.radio(
+        "Dossier source", _opts, key="p3_ro_source",
+        help="Re-render this session's dossier (no upload), upload a saved "
+             ".zip, or — when the upload is too big for Streamlit Cloud — have "
+             "the server fetch it from a direct-download URL.",
+    )
+    _use_session = p3_ro_source == _SESS
+    _use_url = p3_ro_source == _URL
 
     if _use_session:
         st.caption(
@@ -1624,11 +1643,27 @@ else:
             "options — no upload, no planner/fetch API cost. Drop my_/user_ "
             "files or edit the dossier on disk between runs to swap images."
         )
+    elif _use_url:
+        st.caption(
+            "The server downloads the .zip directly — no browser-upload size "
+            "limit. Paste a direct-download link (Google Drive / Dropbox / a "
+            "GitHub release asset or raw URL). Best for large dossiers."
+        )
+        p3_zip_url = st.text_input(
+            "Dossier .zip URL", key="p3_zip_url",
+            placeholder="https://… (direct download to the review .zip)",
+        )
+        with st.expander("Plan / audio (only if not inside the zip)"):
+            p3_plan_up = st.file_uploader("Shot plan (.json)", type=["json"],
+                                          key="p3_plan_up")
+            p3_ro_audio_up = st.file_uploader("Narration (.mp3)", type=["mp3"],
+                                              key="p3_ro_audio_up")
     else:
         st.caption(
             "Upload a review .zip produced by Total solution (or "
             "prebuild_assets.py), then re-render it with the current sidebar "
-            "look options — no API cost."
+            "look options — no API cost. If the upload keeps failing, use "
+            "'Fetch a review .zip from a URL' instead."
         )
         p3_zip_up = st.file_uploader(
             "Review dossier (.zip)", type=["zip"], key="p3_review_zip_up",
@@ -1651,7 +1686,8 @@ else:
              "cover (costs time and may need API keys).",
     )
 
-    _ro_ready = _use_session or (p3_zip_up is not None)
+    _ro_ready = (_use_session or (p3_zip_up is not None)
+                 or (_use_url and bool(p3_zip_url.strip())))
     if _ro_ready and st.button("▶ Render from Review", type="primary",
                                use_container_width=True, key="p3_render_only_btn"):
         import tempfile as _tmp, zipfile as _zf, shutil as _sh
@@ -1671,16 +1707,32 @@ else:
                 _ro_audio = (_review / "narration.mp3"
                              if (_review / "narration.mp3").exists() else None)
             else:
+                # Source the zip bytes: server-side URL fetch, or browser upload.
+                if _use_url:
+                    _cb("Downloading dossier…", 0.01)
+                    try:
+                        _zip_bytes = _p3_fetch_url(p3_zip_url)
+                    except Exception as _dl:
+                        _ro_fail(f"Could not download the dossier from that URL: "
+                                 f"{_dl}. Make sure it's a direct-download link "
+                                 f"to the .zip.")
+                else:
+                    _zip_bytes = p3_zip_up.getvalue()
+
                 _extract_root = _out_dir / "review"
                 _extract_root.mkdir(parents=True, exist_ok=True)
-                with _zf.ZipFile(io.BytesIO(p3_zip_up.getvalue())) as _z:
-                    _z.extractall(_extract_root)
+                try:
+                    with _zf.ZipFile(io.BytesIO(_zip_bytes)) as _z:
+                        _z.extractall(_extract_root)
+                except _zf.BadZipFile:
+                    _ro_fail("That file is not a valid .zip. Check the URL/file "
+                             "points at the review dossier zip.")
                 # The dossier is wherever decisions.json lives — find it no
                 # matter how the zip nests/names folders (e.g. "Archive/").
                 _found = sorted(_extract_root.rglob("decisions.json"))
                 if not _found:
-                    _ro_fail("No decisions.json found anywhere in the uploaded "
-                             "zip. A review dossier must contain decisions.json "
+                    _ro_fail("No decisions.json found anywhere in the zip. "
+                             "A review dossier must contain decisions.json "
                              "and the shot_NN_* folders.")
                 _review = _found[0].parent
                 _plan_path = _review / "shot_plan.json"
