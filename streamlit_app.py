@@ -1483,10 +1483,16 @@ if not _p3_render_only:
                 st.warning("An Anthropic API key is required for the shot "
                            "planner. Add it in the sidebar.")
                 st.stop()
-            import tempfile as _tmp
+            import tempfile as _tmp, shutil as _sh
             _out_dir = Path(_tmp.mkdtemp(prefix="bk2v_out_"))
             _out_mp4 = _out_dir / "final_video.mp4"
-            _review = _out_dir / "review"
+            # Keep the review dossier on the server for this session so the
+            # Rendering-only route can reuse it WITHOUT a download/re-upload
+            # round trip (the upload is what fails on Streamlit Cloud).
+            _prev = st.session_state.pop("p3_session_review_dir", None)
+            if _prev:
+                _sh.rmtree(_prev, ignore_errors=True)
+            _review = Path(_tmp.mkdtemp(prefix="bk2v_review_"))
             _cb = _p3_make_cb()
             try:
                 from phase3 import build_total_solution
@@ -1510,32 +1516,62 @@ if not _p3_render_only:
                     on_progress=_cb,
                 )
                 _p3_store_outputs(_out_mp4, review_dir=_review)
+                # Persist for in-session Rendering-only reuse (no upload needed).
+                st.session_state["p3_session_review_dir"] = str(_review)
                 _cb("Final video ready ✓", 1.0)
             except Exception as _exc:
                 st.error(f"Video generation failed: {_exc}")
                 logging.exception("Phase 3 total-solution error")
+                _sh.rmtree(_review, ignore_errors=True)
             finally:
-                import shutil as _sh
                 _sh.rmtree(_out_dir, ignore_errors=True)
 
 else:
     # ═══════════════ RENDERING ONLY ═══════════════ #
-    st.caption(
-        "Upload a review .zip produced by Total solution (or by "
-        "prebuild_assets.py). It is re-rendered with the current sidebar look "
-        "options — no planner or image-fetch API cost. Swap images by editing "
-        "the dossier before zipping."
+    # Prefer the in-session dossier (no upload) when a Total-solution run is
+    # still on the server — uploading a big .zip is what fails on Cloud.
+    _sess_dir = st.session_state.get("p3_session_review_dir")
+    _sess_ok = bool(_sess_dir) and (Path(_sess_dir) / "decisions.json").exists()
+
+    _src_opts = ([] if not _sess_ok else
+                 ["This session's Total-solution dossier (no upload)"]) \
+        + ["Upload a review .zip"]
+    p3_ro_source = st.radio(
+        "Dossier source", _src_opts, key="p3_ro_source",
+        help="If you just ran Total solution in this session, re-render its "
+             "dossier directly — no download/upload needed. Otherwise upload a "
+             "saved review .zip.",
     )
-    p3_zip_up = st.file_uploader(
-        "Review dossier (.zip)", type=["zip"], key="p3_review_zip_up",
-        help="Must contain decisions.json and the shot folders. Total-solution "
-             "zips also include shot_plan.json and narration.mp3.",
-    )
-    with st.expander("Plan / audio (only if not inside the zip)"):
-        p3_plan_up = st.file_uploader("Shot plan (.json)", type=["json"],
-                                      key="p3_plan_up")
-        p3_ro_audio_up = st.file_uploader("Narration (.mp3)", type=["mp3"],
-                                          key="p3_ro_audio_up")
+    _use_session = p3_ro_source.startswith("This session")
+
+    p3_zip_up = None
+    p3_plan_up = None
+    p3_ro_audio_up = None
+    if _use_session:
+        st.caption(
+            "Re-render this session's dossier with the current sidebar look "
+            "options — no upload, no planner/fetch API cost. Drop my_/user_ "
+            "files or edit the dossier on disk between runs to swap images."
+        )
+    else:
+        st.caption(
+            "Upload a review .zip produced by Total solution (or "
+            "prebuild_assets.py). Re-rendered with the current sidebar look "
+            "options — no API cost. Tip: a smaller 'Saved dossier candidates' "
+            "setting in Total solution keeps the zip uploadable."
+        )
+        p3_zip_up = st.file_uploader(
+            "Review dossier (.zip)", type=["zip"], key="p3_review_zip_up",
+            help="Must contain decisions.json and the shot folders. "
+                 "Total-solution zips also include shot_plan.json and "
+                 "narration.mp3.",
+        )
+        with st.expander("Plan / audio (only if not inside the zip)"):
+            p3_plan_up = st.file_uploader("Shot plan (.json)", type=["json"],
+                                          key="p3_plan_up")
+            p3_ro_audio_up = st.file_uploader("Narration (.mp3)", type=["mp3"],
+                                              key="p3_ro_audio_up")
+
     p3_ro_web = st.checkbox(
         "Fill gaps from the web", value=False, key="p3_ro_web",
         help="Off (default): render ONLY the dossier's images — overrides "
@@ -1544,44 +1580,50 @@ else:
              "On: also search LoC/Wikimedia/IA/Pexels for shots the dossier "
              "doesn't cover (costs time and may need API keys).",
     )
-    if p3_zip_up and st.button("▶ Render from Review", type="primary",
+
+    _ro_ready = _use_session or (p3_zip_up is not None)
+    if _ro_ready and st.button("▶ Render from Review", type="primary",
                                use_container_width=True, key="p3_render_only_btn"):
-        import tempfile as _tmp, zipfile as _zf
+        import tempfile as _tmp, zipfile as _zf, shutil as _sh
         _out_dir = Path(_tmp.mkdtemp(prefix="bk2v_ro_"))
-        _extract_root = _out_dir / "review"
-        _extract_root.mkdir(parents=True, exist_ok=True)
         _out_mp4 = _out_dir / "final_video.mp4"
         _cb = _p3_make_cb()
         try:
-            with _zf.ZipFile(io.BytesIO(p3_zip_up.getvalue())) as _z:
-                _z.extractall(_extract_root)
-            # The dossier is wherever decisions.json lives — find it no matter
-            # how the zip nests/names folders (e.g. an "Archive/" wrapper).
-            _found = sorted(_extract_root.rglob("decisions.json"))
-            if not _found:
-                st.error(
-                    "No decisions.json found anywhere in the uploaded zip. "
-                    "A review dossier must contain decisions.json (and the "
-                    "shot_NN_* folders). Re-zip the review directory's contents."
-                )
-                import shutil as _sh
-                _sh.rmtree(_out_dir, ignore_errors=True)
-                st.stop()
-            _review = _found[0].parent
-            # Resolve plan + audio: prefer files inside the dossier, else uploads.
-            _plan_path = _review / "shot_plan.json"
-            if not _plan_path.exists():
-                _alt = sorted(_extract_root.rglob("shot_plan.json"))
-                if _alt:
-                    _plan_path = _alt[0]
-                elif p3_plan_up:
-                    _plan_path.write_bytes(p3_plan_up.getvalue())
-            _ro_audio = None
-            if (_review / "narration.mp3").exists():
-                _ro_audio = _review / "narration.mp3"
-            elif p3_ro_audio_up:
-                _ro_audio = _review / "narration.mp3"
-                _ro_audio.write_bytes(p3_ro_audio_up.getvalue())
+            if _use_session:
+                _review = Path(_sess_dir)
+                _plan_path = _review / "shot_plan.json"
+                _ro_audio = (_review / "narration.mp3"
+                             if (_review / "narration.mp3").exists() else None)
+            else:
+                _extract_root = _out_dir / "review"
+                _extract_root.mkdir(parents=True, exist_ok=True)
+                with _zf.ZipFile(io.BytesIO(p3_zip_up.getvalue())) as _z:
+                    _z.extractall(_extract_root)
+                # The dossier is wherever decisions.json lives — find it no
+                # matter how the zip nests/names folders (e.g. "Archive/").
+                _found = sorted(_extract_root.rglob("decisions.json"))
+                if not _found:
+                    st.error(
+                        "No decisions.json found anywhere in the uploaded zip. "
+                        "A review dossier must contain decisions.json (and the "
+                        "shot_NN_* folders). Re-zip the review dir's contents."
+                    )
+                    _sh.rmtree(_out_dir, ignore_errors=True)
+                    st.stop()
+                _review = _found[0].parent
+                _plan_path = _review / "shot_plan.json"
+                if not _plan_path.exists():
+                    _alt = sorted(_extract_root.rglob("shot_plan.json"))
+                    if _alt:
+                        _plan_path = _alt[0]
+                    elif p3_plan_up:
+                        _plan_path.write_bytes(p3_plan_up.getvalue())
+                _ro_audio = None
+                if (_review / "narration.mp3").exists():
+                    _ro_audio = _review / "narration.mp3"
+                elif p3_ro_audio_up:
+                    _ro_audio = _review / "narration.mp3"
+                    _ro_audio.write_bytes(p3_ro_audio_up.getvalue())
 
             from phase3 import render_from_review
             render_from_review(
@@ -1604,7 +1646,7 @@ else:
             st.error(f"Render failed: {_exc}")
             logging.exception("Phase 3 render-only error")
         finally:
-            import shutil as _sh
+            # Only the scratch dir — never the persistent session dossier.
             _sh.rmtree(_out_dir, ignore_errors=True)
 
 # ── Output (shared) ───────────────────────────────────────────────────── #
