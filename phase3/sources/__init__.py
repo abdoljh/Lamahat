@@ -89,10 +89,13 @@ class Fetcher:
         self.cache = ImageCache(self.config.cache_dir) if self.config.cache_dir else None
         self.user_source = UserUploadSource(self.config.user_dir)
         self.book_source = BookExtractSource(self.config.book_extracts)
+        # Library of Congress and Internet Archive were dropped from the
+        # waterfall: LoC returned 0 candidates for essentially every query and
+        # IA's download URLs 404'd in practice. Wikimedia (which does hit) and
+        # Pexels remain. Re-add the classes here if their query strategy is
+        # ever fixed (see PHASE3.md §7.3).
         self.web_sources: list[Source] = [] if self.config.offline else [
-            LibraryOfCongress(),
             WikimediaCommons(),
-            InternetArchive(),
             Pexels(self.config.pexels_api_key),
         ]
         self.scorer = (
