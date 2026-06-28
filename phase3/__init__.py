@@ -156,7 +156,7 @@ def generate_video_v2(
     book_cover_align: str = "center",
     character_portrait: Path | None = None,
     music_path: Path | None = None,
-    music_gain_db: float = -18.0,
+    music_gain_db: float = -12.0,
     music_duck: bool = True,
     fades: bool = True,
     caption_backplate: str = "subtle",

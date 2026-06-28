@@ -1176,7 +1176,7 @@ class RenderConfig:
     # in/out — the swell lives in the gaps (intro, section breaths, outro).
     # None → narration only (previous behaviour).  --music in render_plan.py.
     music_path: Path | None = None
-    music_gain_db: float = -18.0      # bed level vs full scale (negative dB)
+    music_gain_db: float = -12.0      # bed level vs full scale (negative dB)
     music_duck: bool = True           # side-chain compress bed under narration
     # Fades.  `fades` gates both the whole-film black open/close AND the
     # dip-through-black "breath" on section-break interstitials.  The black

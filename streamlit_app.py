@@ -485,10 +485,10 @@ with st.sidebar:
     elif _p3_music_choice.startswith("Sample"):
         p3_music_path = _P3_RES / "audio" / "bg_music.mp3"
     p3_music_gain = (
-        st.slider("Music level (dB)", -30.0, -6.0, -18.0, 1.0,
+        st.slider("Music level (dB)", -30.0, -6.0, -12.0, 1.0,
                   key="p3_music_gain",
                   help="Bed level vs full scale. Lower = quieter under the voice.")
-        if p3_music_path else -18.0
+        if p3_music_path else -12.0
     )
     p3_music_duck = st.checkbox(
         "Duck music under narration", value=True, key="p3_music_duck",
@@ -521,8 +521,16 @@ with st.sidebar:
         "Title size", 0.7, 1.6, 1.0, 0.1, key="p3_title_size",
         help="Main title-card text size multiplier.",
     )
+    p3_use_title_color = st.checkbox(
+        "Custom title color", value=False, key="p3_use_title_color",
+        help="Override the typography family's title accent (Family A: aged gold).",
+    )
+    p3_title_color_hex = st.color_picker(
+        "Title color", "#C9A84C", key="p3_title_color",
+        disabled=not p3_use_title_color,
+    )
     p3_typography_over_image = st.checkbox(
-        "Typography over image", value=False, key="p3_typo_over_image",
+        "Typography over image", value=True, key="p3_typo_over_image",
         help="Composite section/quote text over the most recent photo instead "
              "of a flat card — cuts the slideshow feel. title_card keeps its cover.",
     )
@@ -536,6 +544,31 @@ with st.sidebar:
         "Cinematic fades", value=True, key="p3_fades",
         help="Black open/close fades and dip-through-black section breaths.",
     )
+
+    # 2.5D parallax (depth-based motion). Off by default — CPU-heavy; the
+    # depthanything backend needs torch+GPU, so 'classical' is the Cloud-safe
+    # choice when this is enabled.
+    p3_parallax = st.checkbox(
+        "2.5D parallax (slow)", value=False, key="p3_parallax",
+        help="Depth-based motion (foreground moves more than background) "
+             "instead of flat zoom. Heavier per shot; on Streamlit Cloud use "
+             "the 'classical' backend.",
+    )
+    if p3_parallax:
+        p3_parallax_backend = st.selectbox(
+            "Parallax backend", ["classical", "depthanything"], index=0,
+            key="p3_parallax_backend",
+            help="classical = dependency-free CPU (Cloud-safe). "
+                 "depthanything = better depth but needs transformers+torch+GPU.",
+        )
+        p3_parallax_warp = st.selectbox(
+            "Parallax warp", ["auto", "backward", "inpaint"], index=0,
+            key="p3_parallax_warp",
+            help="auto = per-visual default · backward = fast soft edges · "
+                 "inpaint = clean disocclusions (~2× cost).",
+        )
+    else:
+        p3_parallax_backend, p3_parallax_warp = "classical", "auto"
 
     st.markdown("---")
     with st.expander("🔬 Diagnostics", expanded=False):
@@ -1311,14 +1344,23 @@ p3_resolution = st.selectbox(
 _p3_w, _p3_h = (1280, 720) if p3_resolution.startswith("1280") else (1920, 1080)
 
 p3_condition = st.checkbox(
-    "Sharpen assets before render (slow)",
+    "Sharpen assets before render",
     value=False,
     key="p3_condition",
-    help="Optional Lanczos upscaling pass that normalises each chosen image to "
-         "crisp, aspect-correct sizes. The renderer already fits images to the "
-         "frame, so this is a quality polish — it adds a minute or more per run "
-         "on Streamlit Cloud. Leave off for a faster render.",
+    help="Lanczos upscaling pass that normalises each chosen image to crisp, "
+         "aspect-correct sizes. The renderer already fits images to the frame, "
+         "so this is a quality polish. Leave off for a faster render.",
 )
+
+
+def _p3_hex_to_rgb(h):
+    s = (h or "").lstrip("#")
+    if len(s) != 6:
+        return None
+    try:
+        return tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return None
 
 
 def _p3_build_config():
@@ -1337,7 +1379,11 @@ def _p3_build_config():
         caption_pos=p3_caption_pos,
         text_scrim=p3_text_scrim,
         title_scale=p3_title_size,
+        title_color=_p3_hex_to_rgb(p3_title_color_hex) if p3_use_title_color else None,
         typography_over_image=p3_typography_over_image,
+        parallax=p3_parallax,
+        parallax_backend=p3_parallax_backend,
+        parallax_warp=p3_parallax_warp,
         music_path=p3_music_path,
         music_gain_db=p3_music_gain,
         music_duck=p3_music_duck,
@@ -1362,6 +1408,25 @@ def _p3_make_cb():
             unsafe_allow_html=True,
         )
     return cb
+
+
+class _P3LogCapture:
+    """Capture phase3.* log records during a render so they can be downloaded."""
+
+    def __enter__(self):
+        self._buf = io.StringIO()
+        self._h = logging.StreamHandler(self._buf)
+        self._h.setLevel(logging.INFO)
+        self._h.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | "
+                                               "%(name)s | %(message)s"))
+        logging.getLogger("phase3").addHandler(self._h)
+        return self
+
+    def __exit__(self, *exc):
+        logging.getLogger("phase3").removeHandler(self._h)
+
+    def text(self) -> str:
+        return self._buf.getvalue()
 
 
 def _p3_store_outputs(mp4_path: Path, review_dir: Path | None = None) -> None:
@@ -1533,20 +1598,26 @@ else:
     _sess_dir = st.session_state.get("p3_session_review_dir")
     _sess_ok = bool(_sess_dir) and (Path(_sess_dir) / "decisions.json").exists()
 
-    _src_opts = ([] if not _sess_ok else
-                 ["This session's Total-solution dossier (no upload)"]) \
-        + ["Upload a review .zip"]
-    p3_ro_source = st.radio(
-        "Dossier source", _src_opts, key="p3_ro_source",
-        help="If you just ran Total solution in this session, re-render its "
-             "dossier directly — no download/upload needed. Otherwise upload a "
-             "saved review .zip.",
-    )
-    _use_session = p3_ro_source.startswith("This session")
-
     p3_zip_up = None
     p3_plan_up = None
     p3_ro_audio_up = None
+
+    if _sess_ok:
+        # Both sources available → let the user choose.
+        p3_ro_source = st.radio(
+            "Dossier source",
+            ["This session's Total-solution dossier (no upload)",
+             "Upload a review .zip"],
+            key="p3_ro_source",
+            help="Re-render this session's Total-solution dossier directly, or "
+                 "upload a saved review .zip from another session.",
+        )
+        _use_session = p3_ro_source.startswith("This session")
+    else:
+        # Render-only requires a dossier; with none in session the upload is
+        # implied — show the uploader directly (no single-option selector).
+        _use_session = False
+
     if _use_session:
         st.caption(
             "Re-render this session's dossier with the current sidebar look "
@@ -1556,9 +1627,8 @@ else:
     else:
         st.caption(
             "Upload a review .zip produced by Total solution (or "
-            "prebuild_assets.py). Re-rendered with the current sidebar look "
-            "options — no API cost. Tip: a smaller 'Saved dossier candidates' "
-            "setting in Total solution keeps the zip uploadable."
+            "prebuild_assets.py), then re-render it with the current sidebar "
+            "look options — no API cost."
         )
         p3_zip_up = st.file_uploader(
             "Review dossier (.zip)", type=["zip"], key="p3_review_zip_up",
@@ -1577,8 +1647,8 @@ else:
         help="Off (default): render ONLY the dossier's images — overrides "
              "(overrides/ and my_/user_ files), the character pool, and each "
              "shot's chosen candidate; shots with no image get a placeholder. "
-             "On: also search LoC/Wikimedia/IA/Pexels for shots the dossier "
-             "doesn't cover (costs time and may need API keys).",
+             "On: also search Wikimedia/Pexels for shots the dossier doesn't "
+             "cover (costs time and may need API keys).",
     )
 
     _ro_ready = _use_session or (p3_zip_up is not None)
@@ -1588,6 +1658,12 @@ else:
         _out_dir = Path(_tmp.mkdtemp(prefix="bk2v_ro_"))
         _out_mp4 = _out_dir / "final_video.mp4"
         _cb = _p3_make_cb()
+
+        def _ro_fail(msg: str) -> None:
+            st.error(msg)
+            _sh.rmtree(_out_dir, ignore_errors=True)
+            st.stop()
+
         try:
             if _use_session:
                 _review = Path(_sess_dir)
@@ -1603,13 +1679,9 @@ else:
                 # matter how the zip nests/names folders (e.g. "Archive/").
                 _found = sorted(_extract_root.rglob("decisions.json"))
                 if not _found:
-                    st.error(
-                        "No decisions.json found anywhere in the uploaded zip. "
-                        "A review dossier must contain decisions.json (and the "
-                        "shot_NN_* folders). Re-zip the review dir's contents."
-                    )
-                    _sh.rmtree(_out_dir, ignore_errors=True)
-                    st.stop()
+                    _ro_fail("No decisions.json found anywhere in the uploaded "
+                             "zip. A review dossier must contain decisions.json "
+                             "and the shot_NN_* folders.")
                 _review = _found[0].parent
                 _plan_path = _review / "shot_plan.json"
                 if not _plan_path.exists():
@@ -1625,24 +1697,37 @@ else:
                     _ro_audio = _review / "narration.mp3"
                     _ro_audio.write_bytes(p3_ro_audio_up.getvalue())
 
+            # Both the plan and the narration must be present before rendering.
+            if not _plan_path.exists():
+                _ro_fail("Missing shot_plan.json. It must be inside the zip or "
+                         "uploaded under 'Plan / audio'.")
+            if _ro_audio is None or not Path(_ro_audio).exists():
+                _ro_fail("Missing narration.mp3. It must be inside the zip or "
+                         "uploaded under 'Plan / audio'.")
+
             from phase3 import render_from_review
-            render_from_review(
-                review_dir=_review,
-                output_path=_out_mp4,
-                audio_path=_ro_audio,
-                plan_path=_plan_path if _plan_path.exists() else None,
-                config=_p3_build_config(),
-                anthropic_api_key=anthropic_key,
-                pexels_api_key=pexels_api_key,
-                book_title=st.session_state.get("p3_book_title", ""),
-                character_name=st.session_state.get("p3_character_name", ""),
-                condition=p3_condition,
-                offline=not p3_ro_web,
-                on_progress=_cb,
-            )
+            with _P3LogCapture() as _logcap:
+                render_from_review(
+                    review_dir=_review,
+                    output_path=_out_mp4,
+                    audio_path=_ro_audio,
+                    plan_path=_plan_path,
+                    config=_p3_build_config(),
+                    anthropic_api_key=anthropic_key,
+                    pexels_api_key=pexels_api_key,
+                    book_title=st.session_state.get("p3_book_title", ""),
+                    character_name=st.session_state.get("p3_character_name", ""),
+                    condition=p3_condition,
+                    offline=not p3_ro_web,
+                    on_progress=_cb,
+                )
+            st.session_state["p3_ro_log"] = _logcap.text()
             _p3_store_outputs(_out_mp4)
             _cb("Final video ready ✓", 1.0)
         except Exception as _exc:
+            st.session_state["p3_ro_log"] = (
+                st.session_state.get("p3_ro_log", "")
+                + f"\nERROR: {_exc}\n")
             st.error(f"Render failed: {_exc}")
             logging.exception("Phase 3 render-only error")
         finally:
@@ -1678,4 +1763,15 @@ if "p3_video_bytes" in st.session_state:
             key="p3_dl_review",
             help="All captured candidates + decisions.json + plan + narration. "
                  "Edit and re-upload via the 'Rendering only' route.",
+        )
+    if st.session_state.get("p3_ro_log"):
+        st.download_button(
+            "⬇ Download render log (.txt)",
+            data=st.session_state["p3_ro_log"].encode("utf-8"),
+            file_name="render_log.txt",
+            mime="text/plain",
+            use_container_width=True,
+            key="p3_dl_log",
+            help="phase3 log of the Rendering-only run (sources, resolutions, "
+                 "fallbacks) — useful for diagnosing image choices.",
         )
