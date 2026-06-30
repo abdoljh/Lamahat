@@ -573,6 +573,7 @@ def build_total_solution(
     character_name: str = "",
     genre: str = "history",
     align_backend: str = "auto",
+    word_timings_path: Path | None = None,
     character_portrait: Path | None = None,
     book_cover: Path | None = None,
     book_cover_fit: str = "contain",
@@ -626,7 +627,15 @@ def build_total_solution(
     sections = parse_sections(script_text)
     if not sections:
         raise ValueError("No recognisable sections found in script text.")
-    timings = align(script_text, audio_path, total_dur, prefer_backend=align_backend)
+    if word_timings_path:
+        # Precomputed (e.g. WhisperX in Colab) — skip on-Cloud ASR entirely.
+        from .align import load_word_timings
+        timings = load_word_timings(word_timings_path)
+        log.info("Loaded %d precomputed word timings from %s",
+                 len(timings), word_timings_path)
+    else:
+        timings = align(script_text, audio_path, total_dur,
+                        prefer_backend=align_backend)
 
     _prog("Planning shots (Claude Sonnet)…", 0.08)
     shots = build_shot_plan(

@@ -58,9 +58,13 @@ gTTS>=2.5.0              # free Google TTS fallback (lang='ar')
 #
 # Optional accuracy/quality upgrades (lazy-imported — the pipeline degrades
 # gracefully to interpolated timings / flat zoompan motion without them):
-#   - Word-level forced alignment (instead of char-rate interpolation):
-# whisperx              # preferred; or:
-# openai-whisper        # lighter, slightly less accurate boundaries
+#   - Word-level forced alignment (instead of char-rate interpolation).
+#     Both pull in torch (~CPU 200 MB+); WhisperX also downloads a ~1 GB Arabic
+#     wav2vec2 model — it generally will NOT fit in Streamlit Community Cloud's
+#     ~1 GB RAM. On Cloud, prefer computing word_timings.json elsewhere (Colab)
+#     and uploading it in the Total-solution "Alignment" expander.
+# openai-whisper        # CPU-feasible with the tiny/base model; slow but fits
+# whisperx              # most accurate, but needs torch + GPU + the big model
 #   - 2.5D depth parallax (DepthAnything backend; needs a GPU to be practical):
 # transformers
 # torch
