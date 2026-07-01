@@ -193,12 +193,14 @@ class Fetcher:
                 return FetchResult(query=query, candidates=[cand], best=cand)
 
         # 0.5 Pinned character portrait — set directly on FetcherConfig
-        # (e.g. from generate_video_v2 / the Streamlit sidebar).  Applies to
-        # every portrait shot without a review dossier; a dossier hit above
-        # still wins.
+        # (e.g. from generate_video_v2 / the Streamlit sidebar).  Applies only
+        # to portrait shots ABOUT the main character (so it never lands on a
+        # portrait of someone else); a dossier hit above still wins.
+        from .decisions import subject_is_character
         if (visual_type == "portrait"
                 and self.config.pinned_portrait
-                and Path(self.config.pinned_portrait).exists()):
+                and Path(self.config.pinned_portrait).exists()
+                and subject_is_character(query, self.config.character_name)):
             p = Path(self.config.pinned_portrait).resolve()
             cand = ImageCandidate(
                 url=f"file://{p}",

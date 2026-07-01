@@ -114,6 +114,36 @@ _USER_FILE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Tokens too generic to identify a person when matching a portrait shot's
+# query against the main character's name.
+_NAME_STOPWORDS = {
+    "al", "el", "ad", "ibn", "bin", "abu", "abd", "abdul", "the", "of", "and",
+    "pasha", "bey", "bay", "effendi", "general", "colonel", "officer", "commander",
+    "portrait", "historical", "photo", "photograph", "picture", "image",
+    "ottoman", "iraqi", "arab", "young", "old", "man", "men",
+}
+
+
+def _name_tokens(name: str) -> list[str]:
+    """Distinctive lowercase tokens of a person's name (drops 'al', 'pasha', …)."""
+    toks = re.split(r"[\s\-_]+", (name or "").lower())
+    return [t for t in toks if len(t) >= 3 and t not in _NAME_STOPWORDS]
+
+
+def subject_is_character(query: str, character_name: str) -> bool:
+    """True if a portrait shot's `query` is about the main `character_name`.
+
+    Used to stop the main-character pool/pin from landing on a portrait shot
+    whose subject is somebody else (e.g. showing Jafar al-Askari while the
+    narration is about Mahmoud Shevket Pasha). When no character is configured
+    every portrait is treated as the main character (back-compat).
+    """
+    toks = _name_tokens(character_name)
+    if not toks:
+        return True
+    q = (query or "").lower()
+    return any(t in q for t in toks)
+
 
 def find_user_marked_file(
     review_dir: Path,
@@ -376,10 +406,13 @@ class Decisions:
             )
             return user_file
 
-        # 3. Portrait pool / pinned portrait, for portrait shots only.
-        #    Tries auto-discovered `overrides/character/` directory first;
-        #    falls back to legacy `pinned_portrait` file path if set.
-        if shot.visual == "portrait":
+        # 3. Portrait pool / pinned portrait, for portrait shots only — and
+        #    only when THIS portrait is about the main character. A portrait
+        #    shot whose query names someone else (e.g. Mahmoud Shevket Pasha)
+        #    must NOT get the main character's face; it falls through to its
+        #    own chosen_file / fetched image instead.
+        _char = (self.book or {}).get("character", "")
+        if shot.visual == "portrait" and subject_is_character(shot.query, _char):
             pool = self._list_portrait_pool(review_dir)
             if pool:
                 rank = self._portrait_rank_of(shot_index)

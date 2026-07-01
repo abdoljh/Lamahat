@@ -1556,6 +1556,31 @@ if not _p3_render_only:
                          "Top 3 (swap-friendly)": "top",
                          "All candidates": "all"}[_p3_slim_label]
 
+        with st.expander("Alignment (word timing)"):
+            _p3_align_label = st.selectbox(
+                "Alignment backend",
+                ["Interpolated — char-rate estimate (fast, default)",
+                 "Whisper — openai-whisper (needs the package + RAM)",
+                 "WhisperX — most accurate (needs torch+GPU)"],
+                index=0, key="p3_align",
+                help="Interpolated spreads time by character count — instant, "
+                     "but cuts can drift ±0.2–0.5 s. Whisper/WhisperX give real "
+                     "word-level timing IF the libraries are installed; on "
+                     "Streamlit Cloud's ~1 GB RAM WhisperX usually won't fit. "
+                     "Best accuracy on Cloud: upload a word_timings.json computed "
+                     "elsewhere (Colab) below.",
+            )
+            _p3_align_backend = {"Interpolated": "interpolated",
+                                 "Whisper": "whisper",
+                                 "WhisperX": "whisperx"}[_p3_align_label.split(" ")[0]]
+            _p3_wt_up = st.file_uploader(
+                "Word timings (.json) — optional, overrides the backend",
+                type=["json"], key="p3_word_timings",
+                help="A precomputed alignment (the JSON phase3_run.py "
+                     "--save-alignment / the Colab notebook writes). When set, "
+                     "ASR is skipped entirely and these exact timings are used.",
+            )
+
         st.caption(
             "Total solution aligns the narration, asks Claude Sonnet for a shot "
             "plan, captures image candidates into a review dossier, then "
@@ -1579,6 +1604,10 @@ if not _p3_render_only:
             if _prev:
                 _sh.rmtree(_prev, ignore_errors=True)
             _review = Path(_tmp.mkdtemp(prefix="bk2v_review_"))
+            _wt_path = None
+            if _p3_wt_up is not None:
+                _wt_path = _review / "word_timings_uploaded.json"
+                _wt_path.write_bytes(_p3_wt_up.getvalue())
             _cb = _p3_make_cb()
             try:
                 from phase3 import build_total_solution
@@ -1592,6 +1621,8 @@ if not _p3_render_only:
                     book_title=p3_book_title,
                     character_name=p3_character_name,
                     genre=p3_genre,
+                    align_backend=_p3_align_backend,
+                    word_timings_path=_wt_path,
                     character_portrait=p3_character_path,
                     book_cover=p3_book_cover_path,
                     book_cover_fit=p3_book_cover_fit,

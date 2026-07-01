@@ -79,6 +79,30 @@ def tokenize_script(script_text: str) -> list[str]:
     return _ARABIC_WORD_RE.findall(script_text)
 
 
+def load_word_timings(path) -> list[WordTiming]:
+    """Load precomputed word timings from a JSON file.
+
+    Accepts the format `align`/`phase3_run.py --save-alignment` writes:
+    a list of `{"word", "start", "end", "source"?}` objects.  Lets accurate
+    timings be computed off-Cloud (e.g. WhisperX in Colab) and fed straight
+    into planning/rendering without running ASR on Streamlit Cloud.
+    """
+    import json
+    from pathlib import Path
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if isinstance(data, dict) and "words" in data:
+        data = data["words"]
+    out: list[WordTiming] = []
+    for d in data:
+        out.append(WordTiming(
+            word=str(d.get("word", "")),
+            start=float(d.get("start", 0.0)),
+            end=float(d.get("end", 0.0)),
+            source=str(d.get("source", "imported")),
+        ))
+    return out
+
+
 def align(
     script_text: str,
     audio_path: Path,
