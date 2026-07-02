@@ -34,7 +34,7 @@ render_plan.py            # Render a saved shot plan JSON → MP4
 prebuild_assets.py        # Build the review/ dossier (candidate images + pins)
 condition_assets.py       # Normalise captured assets before render
 audit_plan.py             # Quality audit of a saved shot plan
-PHASE3.md                 # Phase 3 v2 deep architecture reference
+.streamlit/config.toml    # server.maxUploadSize=400 (bigger dossier .zip uploads)
 fonts/                    # Amiri TTFs (incl. AmiriQuranColored for Family C)
 resources/                # Sample inputs + the two Colab notebooks
                           #   _phase3_main.ipynb (total solution: align→plan→audit→
@@ -60,9 +60,12 @@ phase1/
 phase2/
   __init__.py
   tts.py                  # gTTS backend; ElevenLabs stub (NotImplementedError)
-phase3/                   # Phase 3 v2 (shot-based). See PHASE3.md for depth.
-  __init__.py             # generate_video_v2() orchestrator + media helpers
-  align.py                # WhisperX | Whisper | interpolation → word timings
+phase3/                   # Phase 3 v2 (shot-based). See phase3/PHASE3.md for depth.
+  PHASE3.md               # deep architecture reference + session handoff
+  __init__.py             # route orchestrators (generate_video_v2 /
+                          #   build_total_solution / render_from_review /
+                          #   slim_review_dir / zip_review_dir) + media helpers
+  align.py                # WhisperX | Whisper | interpolation | load_word_timings
   plan.py                 # Sonnet shot planner + Shot dataclass + JSON I/O
   render.py               # plan → MP4: assets, motion, captions, grade, mux
   motion_parallax.py      # 2.5D depth parallax + fit-to-frame + camera continuity
@@ -71,10 +74,12 @@ phase3/                   # Phase 3 v2 (shot-based). See PHASE3.md for depth.
   typography.py           # dispatcher; re-exports the public typography API
   typography_common.py    # shared tokens, font discovery, TypographySpec
   typography_a.py / _b.py / _c.py   # families A (editorial) / B (cinematic) / C (manuscript)
-  sources/                # image-fetch waterfall (LoC → Wikimedia → IA → Pexels)
-    __init__.py           #   Fetcher + FetcherConfig orchestrator
-    base.py loc.py wikimedia.py internet_archive.py pexels.py
-    user_upload.py book_extract.py cache.py vision.py decisions.py
+  sources/                # image-fetch waterfall (Wikimedia → Pexels;
+                          #   LoC + IA removed — see phase3/PHASE3.md §7.3)
+    __init__.py           #   Fetcher + FetcherConfig (pinned_portrait, offline)
+    base.py wikimedia.py pexels.py   # loc.py / internet_archive.py kept, unused
+    user_upload.py book_extract.py cache.py vision.py
+    decisions.py          #   dossier resolve + subject_is_character + pool
 lightning-compat/         # Local shim: proxies lightning → pytorch-lightning==2.6.1
 packages.txt              # Streamlit Cloud apt deps (ffmpeg, fonts-hosny-amiri, etc.)
 requirements.txt          # Python deps (torch/lightning/kraken all active on Python 3.12)
@@ -239,19 +244,21 @@ The original section-based pipeline has been **replaced** by a **shot-based**
 architecture. A *shot plan* is the source of truth: a list of 30–65
 timestamped `Shot` dataclasses produced by one Claude Sonnet call. The
 renderer executes the plan without making creative choices, so plans are
-inspectable, diff-able and regeneratable. **`PHASE3.md` is the deep reference**
-— read it before touching this subsystem.
+inspectable, diff-able and regeneratable. **`phase3/PHASE3.md` is the deep
+reference** — read it before touching this subsystem (its §0 has the current
+state; the rest is design history).
 
 ### Pipeline
 
 ```
-Script + Audio ──► align()          ──► word_timings (WhisperX | Whisper | interp)
+Script + Audio ──► align()          ──► word_timings (WhisperX | Whisper | interp
+                                          | uploaded word_timings.json)
                    build_shot_plan() ──► list[Shot]   (one Sonnet call, ~$0.10)
-                   Fetcher           ──► imagery (LoC → Wikimedia → IA → Pexels,
-                                          Haiku vision-scored; cache / user-upload /
+                   Fetcher           ──► imagery (Wikimedia → Pexels, Haiku
+                                          vision-scored; cache / user-upload /
                                           book-extract / review dossier)
-                   render_video()    ──► MP4 (motion, typography cards, captions,
-                                          grade, music bed, mux)
+                   render_video()    ──► MP4 (aspect-aware motion, typography
+                                          cards, captions, grade, music bed, mux)
 ```
 
 ### Two routes
@@ -264,12 +271,17 @@ Script + Audio ──► align()          ──► word_timings (WhisperX | Whi
   API cost**. Both notebooks expose settings cells for flexibility.
 
 The **Streamlit Phase 3 tab implements both routes**: a "Route" selector picks
-Total solution (→ `phase3.build_total_solution`, which also offers the review
-dossier as a downloadable `.zip`) or Rendering only (upload that `.zip` →
-`phase3.render_from_review`, no API cost). The sidebar exposes the full
-render-look set — grade, typography family, book cover (+ fit/align), pinned
-character portrait, music (+ level/duck), captions (+ backplate/size/position),
-title size, text scrim, typography-over-image, fades — applied to either route.
+Total solution (→ `phase3.build_total_solution`; slims + offers the dossier as a
+downloadable `.zip`) or Rendering only (→ `phase3.render_from_review`, offline,
+no API cost). Render-only's **Dossier source** is *this session's dossier (no
+upload)* · *upload `.zip`* · *fetch `.zip` from URL* (server-side — the fix for
+Cloud upload `ClientDisconnect`s). The sidebar exposes the full render-look set —
+grade, typography family, book cover (+fit/align), character pool/pin, music
+(+level −12 dB/duck), captions (+backplate/size/pos), title size **+ optional
+colour**, text scrim, **typography-over-image (default on)**, fades, **2.5D
+parallax (+backend/warp)** — plus per-run: resolution, **sharpen** (conditioning,
+opt-in), **saved dossier candidates** (chosen/top-3/all), and **alignment**
+(backend + `word_timings.json` upload). The render log is downloadable.
 
 ### Entry points
 
@@ -279,9 +291,14 @@ title size, text scrim, typography-over-image, fades — applied to either route
   `book_cover_fit`, `character_portrait` (pinned across every portrait shot via
   `FetcherConfig.pinned_portrait`), `music_path` / `music_gain_db`, and the
   caption/title/scrim look options.
-- **`phase3.build_total_solution()` / `render_from_review()` / `zip_review_dir()`**
-  — the two-route orchestrators (prebuild dossier + condition + render; and
-  render-only from a saved dossier).
+- **`phase3.build_total_solution()`** — align (or `word_timings_path`) → plan →
+  prebuild dossier → condition → render → `slim_review_dir` → return paths.
+- **`phase3.render_from_review()`** — render-only from a dossier; `offline=True`
+  by default (dossier images only; placeholder for uncovered shots). Per-shot
+  resolution: `override → my_/user_-marked → pinned/pool → chosen_file`.
+- **`condition_review_dir()` / `slim_review_dir()` / `zip_review_dir()` /
+  `align.load_word_timings()`** — dossier conditioning, size-slimming, zipping,
+  and loading precomputed alignment.
 - **CLIs** (inspectable multi-step Colab/CLI workflow):
 
 ```bash
@@ -313,31 +330,43 @@ python phase3_run.py --script ... --audio ... --output output/video.mp4 \
 API keys: `--anthropic-key` / `--pexels-key` flags, `ANTHROPIC_API_KEY` /
 `PEXELS_API_KEY` env vars, or a `.env` file.
 
-### Things not to break (full list in PHASE3.md §12 + the deleted handoff)
+### Things not to break (full list in phase3/PHASE3.md §12 + §0)
 
 - **Plan/render split.** Two responsibilities; mixing them was the v1 mistake.
 - **`_validate_plan` invariants** (contiguous shots, per-visual hard caps,
   merge-adjacent-duplicates). The renderer assumes them. Don't lower the caps.
 - **Arabic uses libraqm** (Pillow) / **libass** (ASS captions) — **never**
   FFmpeg `drawtext` (no bidi shaping). `Fontname: Amiri`.
+- **Aspect-aware fit** in `render._png_to_clip`: landscapes cover-fill, but
+  portrait/odd sources are *contained whole* over a blurred fill — don't revert
+  to a blind cover-crop or figures lose their heads/feet.
+- **Subject-matching** (`decisions.subject_is_character`): the character
+  pool/pin only lands on portraits whose query names the lead. Don't apply it to
+  every `portrait` shot.
+- **Render-only is offline by default** — it must use the dossier's images
+  (`override → my_/user_ → pinned/pool → chosen_file`); don't make it search.
 - **Resize images to ≤ 800 px** before Haiku vision scoring (larger → API 400).
 - **Stream-copy concat** works only because every shot clip shares encoder
   settings — don't vary a single shot's profile.
 - **Vision scoring is fail-open**; don't flip to fail-closed.
-- **`--character-name` in Latin** (for LoC/Wikimedia/IA search). Title may be Arabic.
+- **`--character-name` in Latin** (for Wikimedia search + subject-matching).
+  Title may be Arabic.
 - **Typography:** `typography.py` is a dispatcher re-exporting a fixed public
   surface; families A/B/C live in sibling modules. Family C needs
   `AmiriQuranColored.ttf` + `embedded_color=True` for the red i-dots.
 
-### Open work (PHASE3.md §15 / §7)
+### Open work (phase3/PHASE3.md §15 / §7)
 
-- **Issue 1 — color grade per-section variation** (the `--grade` knob exists;
-  section-level `grade_map.json` is the stretch goal).
-- **Source query quality** (§7.3): LoC/Wikimedia/IA often return 0 candidates;
-  Pexels wins by elimination. Biggest visual-quality lever.
+- **Source query quality** (§7.3): only Wikimedia + Pexels remain (LoC + IA were
+  removed as dead). Wikimedia hits sometimes; Pexels wins the rest. Adding a
+  Wikipedia-lead-image source for named subjects is the likely next win.
 - **Path (C)** (§8): assign Phase 1a book photos to shots via one Sonnet call,
   bypassing the web-source waterfall for curated content.
-- **ElevenLabs TTS** (Phase 2) — cleaner audio also helps WhisperX alignment.
+- **Color grade per-section variation** (the `--grade` knob exists;
+  section-level `grade_map.json` is the stretch goal).
+- **ElevenLabs TTS** (Phase 2) — cleaner audio also helps alignment.
+- **Better placeholders**: replace the Latin-query "TBD" card for un-sourced
+  shots with a styled Arabic typography card (PHASE3.md §7.7).
 
 ---
 
@@ -365,19 +394,21 @@ Phase 4 is complete once Phase 3 produces broadcast-quality output.
    - Verify footer PDF and page images ZIP download correctly
    - Branch `claude/upgrade-phase1a-ocr-3usw0` must be deployed
 
-2. **Validate Phase 3 v2 end-to-end** (see PHASE3.md):
-   - `phase3_run.py --plan-only` → `audit_plan.py` to inspect the shot plan
-   - `render_plan.py` (optionally with a `prebuild_assets.py` review dossier)
-   - Review the MP4 for image relevance, caption timing, grade, typography family
+2. **Exercise the Streamlit Phase 3 routes** (see phase3/PHASE3.md §0):
+   - Total solution → downloads a slimmed review `.zip`; keep it in-session
+   - Rendering only → reuse the in-session dossier (no upload), or the URL fetch
+   - Review the MP4 for image relevance, portrait framing, caption timing, grade
 
-3. **Source query quality** (PHASE3.md §7.3) — the biggest visual-quality lever:
-   LoC/Wikimedia/IA return 0 candidates for most queries; Pexels wins by
-   elimination. Or take **Path (C)** (§8): assign Phase 1a book photos to shots.
+3. **Source query quality** (phase3/PHASE3.md §7.3) — the biggest visual-quality
+   lever: only Wikimedia + Pexels remain. Add a Wikipedia-lead-image source for
+   named subjects, or take **Path (C)** (§8): assign Phase 1a book photos to shots.
 
-4. **Implement ElevenLabs TTS** (Phase 2):
-   - File: `phase2/tts.py` — fill in `NotImplementedError` stub
-   - Add `ELEVENLABS_API_KEY` to Streamlit Cloud secrets
-   - Cleaner audio also improves WhisperX alignment (PHASE3.md §7.5)
+4. **Real alignment on Cloud**: compute `word_timings.json` off-Cloud (Colab /
+   `phase3_run.py --align-only`) and upload it in the Total-solution *Alignment*
+   expander — WhisperX won't fit in Cloud's ~1 GB RAM.
+
+5. **Implement ElevenLabs TTS** (Phase 2): `phase2/tts.py` stub +
+   `ELEVENLABS_API_KEY`; cleaner audio also improves alignment.
 
 ---
 

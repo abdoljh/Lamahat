@@ -24,7 +24,7 @@ Two entry points cover everything:
   `render_plan.py` (render a saved plan) — for the inspectable, multi-step
   Colab/CLI workflow.
 
-See `PHASE3.md` for the deep architecture reference.
+See `phase3/PHASE3.md` for the deep architecture reference.
 """
 
 from __future__ import annotations
