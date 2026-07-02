@@ -1,18 +1,90 @@
 # Phase 3 — Visual Generation · Session Handoff
 
-> **Working tree**: `Lamahat/_Phase3/`
-> **Status**: end-to-end working and feature-complete. Renders an ~6-min,
-> 1920×1080 / 25 fps MP4 with 2.5D depth parallax, transparent typography-
-> over-image, a warm cinematic grade, a side-chain-ducked music bed, and
-> fade-bracketed act breaks. Wall time ~30–40 min on Colab CPU.
-> **Committed inputs** (ship with the repo under `resources/`):
-> `resources/script/main_script.txt` (Phase 1b output) and
-> `resources/audio/narration.mp3` + `resources/audio/bg_music.mp3`.
-> **Narration** is **ElevenLabs v3** (premium neural voice — *not* gTTS; older
-> notes in this file that say gTTS are superseded).
-> **Generated inputs** (supplied at render time, not committed): the shot plan
-> JSON and the `review/` asset dossier.
-> **Canonical render notebook**: `_phase3_render_only.ipynb`.
+> **Location**: this file lives at `phase3/PHASE3.md`. It is the deep reference;
+> the master plan is `../CLAUDE.md`.
+> **Working tree**: the v2 package is `Lamahat/phase3/`; CLIs, `fonts/`,
+> `resources/` and `.streamlit/config.toml` are at the repo root.
+> The old `_Phase3/` staging directory has been removed.
+
+---
+
+## 0. Current state (read this first — supersedes older sections below)
+
+Phase 3 v2 is integrated into the app. The rest of this document is the
+original design handoff; where it conflicts with this section, **this section
+wins**. Nothing below has been deleted so the design rationale stays on record.
+
+### Two routes (mirrors the two notebooks in `resources/`)
+
+- **Total solution** → `phase3.build_total_solution()`: align (or a supplied
+  `word_timings.json`) → Sonnet plan → **prebuild** every candidate into a
+  review dossier → optional condition → render. Slims the dossier
+  (`slim_review_dir`, default keep top-3) and can hand it back as a `.zip`.
+- **Rendering only** → `phase3.render_from_review()`: re-render a saved/edited
+  dossier at **no planner/fetch API cost**. `offline=True` by default (uses only
+  the dossier's images; uncovered shots get a placeholder). Resolution order per
+  shot: `override → my_/user_-marked → pinned/pool → chosen_file → (waterfall
+  only if not offline)`.
+
+### Streamlit Phase 3 tab
+
+- A **Route** selector is the first control. Total solution takes the script +
+  audio + context; Rendering only takes a **Dossier source**: *this session's
+  Total-solution dossier (no upload)* · *upload a `.zip`* · *fetch a `.zip` from
+  a URL* (server-side download — the fix for Cloud upload `ClientDisconnect`s).
+  The Total-solution dossier is kept on the server for the session so it can be
+  re-rendered with **no upload**.
+- Sidebar exposes the full render-look set: grade, typography family, book cover
+  (+fit/align), character pool/pin, music (+level −12 dB default/duck), captions
+  (+backplate/size/pos), title size **+ optional custom colour**, text scrim,
+  **typography-over-image (on by default)**, cinematic fades, **2.5D parallax
+  (+backend/warp)**. Plus per-run: resolution, **sharpen assets** (conditioning,
+  opt-in), **saved dossier candidates** (chosen/top-3/all), and an **alignment**
+  expander (backend + `word_timings.json` upload). A render log is downloadable.
+
+### New/changed public API in `phase3/__init__.py`
+
+`generate_video_v2` (one-shot align→plan→render), `build_total_solution`,
+`render_from_review`, `condition_review_dir`, `slim_review_dir`,
+`zip_review_dir`, `extract_thumbnail`, `probe_audio_duration`, plus the
+re-exports (`RenderConfig`, `render_video`, `build_shot_plan`, `align`,
+`parse_sections`, `Fetcher`, `FetcherConfig`, `load_plan`, `save_plan`,
+`summarise_plan`). `align.load_word_timings()` loads a precomputed alignment.
+
+### Fixes landed this session (older "open issues" now resolved)
+
+- **Portrait cropping** — `render._png_to_clip` is aspect-aware: portrait/odd
+  sources are *contained whole* over a blurred fill (mirrors `_fit_to_frame`),
+  so figures are never cut in the default (non-parallax) motion path.
+- **Wrong face on a portrait** — `decisions.subject_is_character(query, name)`
+  gates the character pool/pin so the lead only appears on portraits whose query
+  is about them; other subjects use their own fetched image.
+- **Character pool** — resolved from `resources/character/`, deterministically
+  shuffled, rotated across the lead's portrait shots.
+- **Sources** — Library of Congress and Internet Archive were **removed** from
+  the waterfall (LoC returned 0 for every query; IA downloads 404'd). Only
+  **Wikimedia + Pexels** remain (`sources/__init__.py`); re-add the classes if
+  their query strategy is fixed (§7.3).
+- **`FetcherConfig`** gained `pinned_portrait` and `offline`.
+- **Streamlit robustness** — `st.secrets` access is wrapped (`_secret`) so a
+  missing `secrets.toml` can't blank the sidebar; `.streamlit/config.toml` sets
+  `maxUploadSize = 400`.
+
+### Alignment on Streamlit Cloud
+
+Interpolation is the default (instant, ±0.2–0.5 s drift). WhisperX needs
+torch + a ~1 GB Arabic model and generally **won't fit** in Cloud's ~1 GB RAM.
+The Cloud-friendly path is to compute `word_timings.json` off-Cloud (Colab /
+`phase3_run.py --align-only`) and upload it in the Total-solution *Alignment*
+expander (`build_total_solution(word_timings_path=…)`), skipping ASR entirely.
+
+### Original design context (still true)
+
+Renders an ~6-min, 1920×1080 / 25 fps MP4. Committed inputs under `resources/`:
+`script/main_script.txt` (Phase 1b), `audio/narration.mp3` (**ElevenLabs v3**,
+not gTTS), `audio/bg_music.mp3`, `book_cover/`, `character/`, and the two
+notebooks. Generated at render time (not committed): the shot-plan JSON and the
+`review/` dossier.
 
 ---
 

@@ -66,7 +66,7 @@ Output extras
 
 For the multi-step review workflow (pre-render dossier, per-shot overrides,
 pinned portrait), use `--plan-only` here then `prebuild_assets.py` and
-`render_plan.py`.  See PHASE3.md.
+`render_plan.py`.  See phase3/PHASE3.md.
 """
 
 from __future__ import annotations
