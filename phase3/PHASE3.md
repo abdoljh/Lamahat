@@ -114,6 +114,40 @@ Ottoman army — see `phase3/SCREENING_REVIEW.md` §2.1).  Five changes:
   summary lists the shots whose *winner* is era-flagged so the curator
   triages those first.
 
+### Running on Colab — single-repo workflow (2026-07-03)
+
+**One repo is the source of truth: `abdoljh/Lamahat`.**  The earlier
+patterns — copying `_Phase3/` from Drive, then mirroring files into a
+separate `Assemble-Video` repo — produced version skew (a new
+`phase3/__init__.py` next to an old `phase3/sources/`,
+`ImportError: cannot import name 'Fetcher'`).  Retired.
+
+Both notebooks now start with a **bootstrap cell** that clones the repo
+at a pinned branch and works *inside the clone*:
+
+```python
+REPO   = "https://github.com/abdoljh/Lamahat.git"
+BRANCH = "main"          # pin a feature branch to test unreleased work
+!git clone --depth 1 --branch {BRANCH} {REPO} /content/Lamahat
+%cd /content/Lamahat
+```
+
+Code, `fonts/`, `resources/` (script, narration, music, pools, photo
+bank) and the notebooks all arrive together at one commit — skew is
+structurally impossible.  Colab-only deps live in
+**`requirements-colab.txt`** (anthropic, arabic-reshaper, python-bidi,
+whisperx, openai-whisper); Streamlit Cloud keeps `requirements.txt`
+untouched.  `align.py` imports whisperx/whisper lazily, so one codebase
+serves both platforms.
+
+`_resources_root()` (prebuild, decisions, render_plan) now prefers
+`<cwd>/resources` when it exists, so pool discovery works from the
+clone layout (`/content/Lamahat/resources`); the legacy
+copy-to-`/content` layout and the `LAMAHAT_RESOURCES` env var still
+work.  To host big/private assets on Drive instead of the repo, set
+`LAMAHAT_RESOURCES=/content/drive/MyDrive/Lamahat/resources` in the
+settings cell — nothing is copied.
+
 ### Alignment on Streamlit Cloud
 
 Interpolation is the default (instant, ±0.2–0.5 s drift). WhisperX needs

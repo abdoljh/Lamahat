@@ -84,6 +84,10 @@ phase3/                   # Phase 3 v2 (shot-based). See phase3/PHASE3.md for de
 lightning-compat/         # Local shim: proxies lightning → pytorch-lightning==2.6.1
 packages.txt              # Streamlit Cloud apt deps (ffmpeg, fonts-hosny-amiri, etc.)
 requirements.txt          # Python deps (torch/lightning/kraken all active on Python 3.12)
+requirements-colab.txt    # Colab-only extras (whisperx, openai-whisper, anthropic, …)
+                          #   installed by the notebooks' bootstrap cell, which
+                          #   git-clones THIS repo at a pinned branch (single
+                          #   source of truth — see PHASE3.md §0 Colab workflow)
 output/                   # Pipeline outputs; gitignored in production
 samples/                  # Test PDFs (Al-Askari, preface, sample docs)
 ```
