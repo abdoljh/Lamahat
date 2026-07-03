@@ -313,15 +313,20 @@ class Decisions:
 
     @staticmethod
     def _resources_root() -> Path:
-        """Resolve the resources directory.  Env var wins; falls back
-        to /content/resources (Colab) or ./resources (anywhere else)."""
+        """Resolve the resources directory.  Env var wins; then
+        `<cwd>/resources` when it exists (repo-clone layout, e.g.
+        /content/Lamahat after `git clone` on Colab); then the legacy
+        copy-to-/content layout; then `<cwd>/resources` regardless."""
         env = os.environ.get("LAMAHAT_RESOURCES")
         if env:
             return Path(env).expanduser().resolve()
+        cwd_resources = (Path.cwd() / "resources").resolve()
+        if cwd_resources.is_dir():
+            return cwd_resources
         colab = Path("/content/resources")
         if colab.is_dir() or Path("/content").is_dir():
             return colab
-        return (Path.cwd() / "resources").resolve()
+        return cwd_resources
 
     def _list_portrait_pool(self, review_dir: Path) -> list[Path]:
         """Return the character pool files from `$LAMAHAT_RESOURCES/character/`,

@@ -396,6 +396,9 @@ def main() -> int:
         env = os.environ.get("LAMAHAT_RESOURCES")
         if env:
             resources_dir = Path(env).expanduser().resolve()
+        elif (Path.cwd() / "resources").is_dir():
+            # Repo-clone layout (e.g. /content/Lamahat on Colab)
+            resources_dir = (Path.cwd() / "resources").resolve()
         elif Path("/content").is_dir():
             resources_dir = Path("/content/resources")
         else:

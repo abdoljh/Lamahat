@@ -111,18 +111,23 @@ def _copy_into(src: Path, dst: Path) -> None:
 
 
 def _resources_root() -> Path:
-    """Resolve the resources directory.  Env LAMAHAT_RESOURCES wins;
-    falls back to /content/resources (Colab) or ./resources elsewhere.
+    """Resolve the resources directory.  Env LAMAHAT_RESOURCES wins; then
+    `<cwd>/resources` when it exists (the repo-clone layout — Colab work
+    happens inside /content/Lamahat after `git clone`); then the legacy
+    Colab copy-to-/content layout; then `<cwd>/resources` regardless.
 
     This is the SINGLE source of truth for user-supplied character
-    portraits and book covers.  Explicit path avoids the walk-up bug
-    that captured `<review_dir>/overrides/` in earlier takes."""
+    portraits, book covers and the photo bank.  Explicit path avoids the
+    walk-up bug that captured `<review_dir>/overrides/` in earlier takes."""
     env = os.environ.get("LAMAHAT_RESOURCES")
     if env:
         return Path(env).expanduser().resolve()
+    cwd_resources = (Path.cwd() / "resources").resolve()
+    if cwd_resources.is_dir():
+        return cwd_resources
     if Path("/content").is_dir():
         return Path("/content/resources")
-    return (Path.cwd() / "resources").resolve()
+    return cwd_resources
 
 
 # ── Per-shot processing ───────────────────────────────────────────────── #

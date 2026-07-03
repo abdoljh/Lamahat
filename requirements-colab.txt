@@ -1,0 +1,15 @@
+# Colab-only dependency set — installed by the bootstrap cells of
+# resources/_phase3_main.ipynb (NOT used by Streamlit Cloud, which
+# installs requirements.txt).
+#
+# Colab already ships torch, Pillow, numpy, opencv and ffmpeg; this file
+# adds only what Phase 3 needs on top.  WhisperX / openai-whisper are
+# heavyweight and GPU-friendly — exactly why alignment runs on Colab
+# instead of Streamlit Cloud (phase3/PHASE3.md "Alignment on Streamlit
+# Cloud").  phase3/align.py imports them lazily, so everything else in
+# the pipeline works even if these two fail to install.
+anthropic
+arabic-reshaper
+python-bidi
+whisperx
+openai-whisper
