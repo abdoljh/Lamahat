@@ -23,10 +23,12 @@ log = logging.getLogger(__name__)
 SourceName = Literal[
     "loc",            # Library of Congress
     "wikimedia",      # Wikimedia Commons
+    "wikipedia",      # Wikipedia article lead image
     "internet_archive",
     "pexels",
     "user_upload",    # User-supplied image
     "book_extract",   # Phase 1a-extracted photo from the source PDF
+    "photo_bank",     # Curated photo bank, Sonnet-assigned (Path C)
 ]
 
 
@@ -64,6 +66,7 @@ class ImageCandidate:
     score_subject: int = -1               # 0-3, -1 = not scored
     score_quality: int = -1               # 0-3
     score_cinematic: int = -1             # 0-3
+    score_era: int = -1                   # 0-3 period plausibility, -1 = not scored
     vision_reason: str = ""               # One-line rationale from Claude
 
     @property
@@ -76,6 +79,13 @@ class ImageCandidate:
     @property
     def is_scored(self) -> bool:
         return self.score_subject >= 0
+
+    @property
+    def era_pass(self) -> bool:
+        """False only when the scorer judged the image anachronistic for the
+        shot's implied period (era 0-1).  Unscored era (-1) passes — the era
+        axis is a demotion signal, never a hard filter (fail-open)."""
+        return self.score_era < 0 or self.score_era >= 2
 
     def __str__(self) -> str:
         s = (self.total_score if self.is_scored

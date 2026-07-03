@@ -435,6 +435,7 @@ def _run_prebuild(
     book_cover_align: str,
     enable_vision: bool,
     book_extracts: Path | None,
+    photo_bank: Path | None = None,
 ) -> None:
     """Build the review dossier by driving the tested prebuild_assets.py CLI."""
     cmd = [
@@ -458,6 +459,8 @@ def _run_prebuild(
         cmd += ["--book-cover", str(book_cover)]
     if book_extracts:
         cmd += ["--book-extracts", str(book_extracts)]
+    if photo_bank:
+        cmd += ["--photo-bank", str(photo_bank)]
     if not enable_vision:
         cmd += ["--no-vision"]
     log.info("prebuild: %s", " ".join(cmd[2:]))
@@ -579,6 +582,7 @@ def build_total_solution(
     book_cover_fit: str = "contain",
     book_cover_align: str = "center",
     book_extracts: Path | None = None,
+    photo_bank: Path | None = None,
     enable_vision: bool = True,
     config: "RenderConfig | None" = None,
     condition: bool = True,
@@ -665,6 +669,7 @@ def build_total_solution(
         book_cover=book_cover, book_cover_fit=book_cover_fit,
         book_cover_align=book_cover_align,
         enable_vision=enable_vision, book_extracts=book_extracts,
+        photo_bank=photo_bank,
     )
 
     # Stage 3 — condition + render from the dossier.

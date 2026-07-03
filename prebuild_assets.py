@@ -56,6 +56,11 @@ if str(ROOT) not in sys.path:
 from phase3.plan import load_plan
 from phase3.sources import Fetcher, FetcherConfig
 from phase3.sources.base import is_free_license
+from phase3.sources.photo_bank import (
+    assign_photo_bank,
+    caption_bank,
+    list_bank_photos,
+)
 from phase3 import motion_parallax as mp
 from phase3.sources.decisions import (
     CandidateEntry,
@@ -125,8 +130,16 @@ def _resources_root() -> Path:
 def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
                   script_text: str,
                   parallax: bool = False,
-                  parallax_backend: str = "depthanything") -> ShotDecision | None:
-    """Run the waterfall for one shot and write its review folder."""
+                  parallax_backend: str = "depthanything",
+                  bank_photo: Path | None = None,
+                  bank_caption: str = "",
+                  skip_waterfall: bool = False) -> ShotDecision | None:
+    """Run the waterfall for one shot and write its review folder.
+
+    `bank_photo`: a curated photo the Sonnet assignment pass matched to
+    this shot.  It becomes the chosen winner; waterfall candidates are
+    still captured as alternates unless `skip_waterfall` is True.
+    """
 
     if not is_image_shot(shot.visual):
         return None
@@ -138,17 +151,21 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
     query = (shot.search_query or "").strip()
     duration = float(shot.end - shot.start)
 
-    log.info("Shot %d/%s: query=%r duration=%.1fs",
-             idx, shot.visual, query[:60], duration)
+    log.info("Shot %d/%s: query=%r duration=%.1fs%s",
+             idx, shot.visual, query[:60], duration,
+             f"  [photo_bank: {bank_photo.name}]" if bank_photo else "")
 
     # Run the fetcher — this writes candidates to the on-disk cache, vision-
     # scores them, and picks a winner.  We replay the data back into our
     # review-dir layout.
-    try:
-        result = fetcher.fetch_for_shot(query=query, shot_index=idx)
-    except Exception as exc:
-        log.warning("Shot %d: fetcher raised %s — emitting empty decision", idx, exc)
-        result = None
+    result = None
+    if not (bank_photo and skip_waterfall):
+        try:
+            result = fetcher.fetch_for_shot(query=query, shot_index=idx)
+        except Exception as exc:
+            log.warning("Shot %d: fetcher raised %s — emitting empty decision",
+                        idx, exc)
+            result = None
 
     # Build the candidate entry list.  We copy each downloaded cache file
     # into the shot folder so the user can browse without traversing the
@@ -156,6 +173,31 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
     candidates: list[CandidateEntry] = []
     seen_per_source: dict[str, int] = {}
     chosen_entry: CandidateEntry | None = None
+
+    # Sonnet-assigned bank photo: copied into the shot folder, recorded as
+    # candidate #1 and the chosen winner.  Waterfall candidates (below)
+    # remain as alternates the curator can swap back to.
+    if bank_photo is not None and bank_photo.exists():
+        dest = shot_dir / f"bank_{bank_photo.name}"
+        try:
+            _copy_into(bank_photo, dest)
+            bank_entry = CandidateEntry(
+                source="photo_bank",
+                title=f"Photo bank: {bank_caption or bank_photo.name}"[:120],
+                url=bank_photo.as_uri(),
+                file=f"{shot_dir_name}/{dest.name}",
+                license_short="user-supplied",
+            )
+            candidates.append(bank_entry)
+            chosen_entry = bank_entry
+            if parallax:
+                try:
+                    mp.ensure_depth_cached(dest, backend=parallax_backend)
+                except Exception as exc:
+                    log.warning("Shot %d: depth pre-warm failed: %s", idx, exc)
+        except OSError as exc:
+            log.warning("Shot %d: couldn't copy bank photo %s → %s: %s",
+                        idx, bank_photo, dest, exc)
 
     if result is not None:
         for cand in result.candidates:
@@ -182,6 +224,8 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
                     "quality":   cand.score_quality,
                     "cinematic": cand.score_cinematic,
                 }
+                if cand.score_era >= 0:
+                    score_breakdown["era"] = cand.score_era
 
             entry = CandidateEntry(
                 source=cand.source,
@@ -197,8 +241,10 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
             )
             candidates.append(entry)
 
-            # The fetcher's `best` is the one that won; mark it.
-            if result.best is not None and (
+            # The fetcher's `best` is the one that won; mark it — unless a
+            # bank photo already claimed the shot (bank wins, waterfall
+            # candidates stay as alternates).
+            if chosen_entry is None and result.best is not None and (
                 cand.url == result.best.url and cand.source == result.best.source
             ):
                 chosen_entry = entry
@@ -229,8 +275,10 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
     else:
         for c in candidates:
             score_str = f"score {c.score}/9" if c.score >= 0 else "unscored"
+            era = (c.score_breakdown or {}).get("era", -1)
+            era_flag = "  ⚠ ERA MISMATCH" if 0 <= era < 2 else ""
             context_lines.append(
-                f"  [{c.source:<16}] {score_str:<12} {c.title[:80]}"
+                f"  [{c.source:<16}] {score_str:<12} {c.title[:80]}{era_flag}"
             )
             if c.vision_reason:
                 context_lines.append(f"      → {c.vision_reason[:120]}")
@@ -323,6 +371,19 @@ def main():
     ap.add_argument("--book-extracts", type=Path, default=None,
                     help="Phase 1a photos.zip or directory.  Vision-scored "
                          "against each shot's query.")
+    ap.add_argument("--photo-bank", type=Path, default=None,
+                    help="Directory of curated photos for the book (Path C). "
+                         "Each photo is Haiku-captioned once (cached in "
+                         "captions.json), then ONE Sonnet call assigns photos "
+                         "to shots; assigned photos become the dossier's "
+                         "chosen winners.  Auto-detected at "
+                         "$LAMAHAT_RESOURCES/photo_bank/ when omitted.")
+    ap.add_argument("--photo-bank-only", action="store_true",
+                    help="For shots that received a photo-bank assignment, "
+                         "skip the web waterfall entirely (faster, cheaper; "
+                         "no alternate candidates captured for those shots).")
+    ap.add_argument("--photo-bank-max-uses", type=int, default=1,
+                    help="How many shots one bank photo may cover (default 1).")
     ap.add_argument("--n-candidates", type=int, default=3,
                     help="Candidates to request per source (default 3)")
     ap.add_argument("--no-vision", action="store_true",
@@ -447,6 +508,52 @@ def main():
         book_cover_rel = f"{OVERRIDES_SUBDIR}/{dest.name}"
         log.info("Book cover copied → %s", dest)
 
+    # ── Photo bank (Path C): caption + one-call Sonnet assignment ── #
+    # Explicit --photo-bank wins; otherwise auto-detect the resources
+    # convention (same pattern as character/ and book_cover/).
+    bank_dir: Path | None = None
+    if args.photo_bank is not None:
+        bank_dir = args.photo_bank.expanduser().resolve()
+        if not bank_dir.is_dir():
+            log.error("--photo-bank path is not a directory: %s", bank_dir)
+            return 2
+    else:
+        auto = pool_root / "photo_bank"
+        if auto.is_dir() and list_bank_photos(auto):
+            bank_dir = auto
+            log.info("Photo bank auto-detected at %s", bank_dir)
+
+    bank_assignments: dict[int, Path] = {}
+    bank_captions: dict[str, str] = {}
+    if bank_dir is not None:
+        n_bank = len(list_bank_photos(bank_dir))
+        if not n_bank:
+            log.warning("Photo bank %s contains no images — skipping", bank_dir)
+        elif not args.anthropic_key:
+            log.warning("Photo bank %s found (%d photos) but no "
+                        "--anthropic-key — captioning/assignment need the "
+                        "API; skipping", bank_dir, n_bank)
+        else:
+            log.info("Photo bank: captioning %d photo(s) (cached ones are "
+                     "free)…", n_bank)
+            bank_captions = caption_bank(
+                bank_dir, anthropic_api_key=args.anthropic_key,
+                book_title=args.book_title,
+                character_name=args.character_name)
+            log.info("Photo bank: assigning photos to shots (one Sonnet "
+                     "call)…")
+            assigned = assign_photo_bank(
+                shots, bank_dir,
+                anthropic_api_key=args.anthropic_key,
+                book_title=args.book_title,
+                character_name=args.character_name,
+                captions=bank_captions,
+                max_uses_per_photo=args.photo_bank_max_uses,
+                debug_dir=review_dir,
+            )
+            bank_assignments = {idx: bank_dir / fname
+                                for idx, fname in assigned.items()}
+
     # ── Configure the fetcher ─────────────────────────────────── #
     cfg = FetcherConfig(
         anthropic_api_key=args.anthropic_key,
@@ -476,6 +583,7 @@ def main():
     processed = 0
     for idx0, shot in enumerate(shots):
         idx = idx0 + 1                # decisions.json uses 1-indexed
+        bank_photo = bank_assignments.get(idx)
         decision = _process_shot(
             idx=idx, shot=shot,
             fetcher=fetcher,
@@ -483,6 +591,10 @@ def main():
             script_text=script_text,
             parallax=args.parallax,
             parallax_backend=args.parallax_backend,
+            bank_photo=bank_photo,
+            bank_caption=(bank_captions.get(bank_photo.name, "")
+                          if bank_photo else ""),
+            skip_waterfall=args.photo_bank_only,
         )
         if decision is None:
             continue
@@ -501,6 +613,16 @@ def main():
             src = d.chosen.split(":", 1)[0]
             by_source[src] = by_source.get(src, 0) + 1
 
+    # Winners whose vision score flagged the era as implausible — the
+    # curator should look at these shots first.
+    era_flagged: list[int] = []
+    for idx, d in decisions.shots.items():
+        for c in d.candidates:
+            if (d.chosen_file and c.file == d.chosen_file
+                    and 0 <= (c.score_breakdown or {}).get("era", -1) < 2):
+                era_flagged.append(idx)
+                break
+
     print()
     print("─" * 64)
     print(f"Review dossier ready: {review_dir}")
@@ -511,6 +633,14 @@ def main():
         print("Winner source breakdown:")
         for src, n in sorted(by_source.items(), key=lambda x: -x[1]):
             print(f"  {src:<16} {n}")
+    if bank_assignments:
+        print(f"Photo bank:             {bank_dir}")
+        print(f"  assigned to {len(bank_assignments)} shot(s): "
+              f"{', '.join(str(i) for i in sorted(bank_assignments))}")
+    if era_flagged:
+        print(f"⚠ Era-mismatch winners on {len(era_flagged)} shot(s): "
+              f"{', '.join(str(i) for i in sorted(era_flagged))}")
+        print("  (see the ⚠ ERA MISMATCH lines in each shot's context.txt)")
     if pinned_portrait_rel:
         print(f"Pinned portrait:        {pinned_portrait_rel}")
         n_portraits = sum(1 for d in decisions.shots.values()

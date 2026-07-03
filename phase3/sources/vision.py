@@ -82,11 +82,23 @@ Score the image on three dimensions, 0-3 each:
    2 = strong (clear subject, evocative atmosphere)
    3 = striking (the kind of image that makes you pause)
 
+4. era (0-3): if the query implies a historical period (a year, a decade,
+   or an era like "Ottoman"), could this image plausibly depict that period?
+   Judge the CONTENT, not the color treatment — a modern photo graded sepia
+   is still modern.  Look at uniforms, weapons, vehicles, clothing,
+   architecture, printing/handwriting style.
+   0 = clearly anachronistic (wrong century, modern staging/reenactors,
+       obviously AI-generated or contemporary stock)
+   1 = doubtful (period ambiguous but details feel wrong)
+   2 = plausible for the implied period
+   3 = clearly authentic period material
+   If the query implies no particular period, score era=2.
+
 If the image is a diagram, chart, anatomical illustration, modern clip
 art, stock-photo cliche, or watermarked sample image, score subject=0.
 
 Return ONLY this JSON:
-{{"subject": N, "quality": N, "cinematic": N, "reason": "one-line rationale in English"}}
+{{"subject": N, "quality": N, "cinematic": N, "era": N, "reason": "one-line rationale in English"}}
 """
 
 
@@ -160,11 +172,14 @@ class VisionScorer:
             candidate.score_subject   = int(scores.get("subject", 0))
             candidate.score_quality   = int(scores.get("quality", 0))
             candidate.score_cinematic = int(scores.get("cinematic", 0))
+            # era is new in the rubric — an older cached response without it
+            # must not read as "anachronistic", so default to passing 2.
+            candidate.score_era       = int(scores.get("era", 2))
             candidate.vision_reason   = str(scores.get("reason", ""))[:200]
 
-            log.info("Vision %d/%d/%d  %s  — %s",
+            log.info("Vision %d/%d/%d era=%d  %s  — %s",
                      candidate.score_subject, candidate.score_quality,
-                     candidate.score_cinematic,
+                     candidate.score_cinematic, candidate.score_era,
                      candidate.title[:40],
                      candidate.vision_reason[:60])
 
@@ -181,6 +196,7 @@ def _apply_neutral_score(c: ImageCandidate, reason: str) -> None:
     c.score_subject = 2
     c.score_quality = 2
     c.score_cinematic = 1
+    c.score_era = 2          # unscored era must not demote (fail-open)
     c.vision_reason = f"[fail-open] {reason}"
 
 
@@ -218,12 +234,22 @@ def passes_threshold(c: ImageCandidate, visual_type: str | None = None) -> bool:
 
 def rank_candidates(candidates: list[ImageCandidate]) -> list[ImageCandidate]:
     """
-    Return candidates sorted best-first by total score.
-    Ties broken by: subject > quality > cinematic > original order.
+    Return candidates sorted best-first.
+
+    Era acts as a DEMOTION TIER, not a filter: every era-passing candidate
+    (era ≥ 2 or unscored) outranks every era-failing one, regardless of
+    total score.  A tricorn-hat reenactor scoring 7/9 must not beat an
+    authentic 5/9 period photograph — but if *every* candidate is
+    anachronistic, the least-bad one still renders (honest degradation,
+    never fail-closed).
+
+    Within a tier: total score, ties broken by subject > quality >
+    cinematic > original order.
     """
     return sorted(
         candidates,
         key=lambda c: (
+            0 if c.era_pass else 1,
             -c.total_score if c.is_scored else 99,
             -c.score_subject if c.is_scored else 0,
             -c.score_quality if c.is_scored else 0,
