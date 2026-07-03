@@ -35,6 +35,7 @@ from .pexels import Pexels
 from .user_upload import UserUploadSource
 from .vision import VisionScorer, passes_threshold, rank_candidates
 from .wikimedia import WikimediaCommons
+from .wikipedia import WikipediaLeadImage
 
 log = logging.getLogger(__name__)
 
@@ -91,11 +92,13 @@ class Fetcher:
         self.book_source = BookExtractSource(self.config.book_extracts)
         # Library of Congress and Internet Archive were dropped from the
         # waterfall: LoC returned 0 candidates for essentially every query and
-        # IA's download URLs 404'd in practice. Wikimedia (which does hit) and
-        # Pexels remain. Re-add the classes here if their query strategy is
-        # ever fixed (see phase3/PHASE3.md §7.3).
+        # IA's download URLs 404'd in practice. Re-add the classes here if
+        # their query strategy is ever fixed (see phase3/PHASE3.md §7.3).
+        # Wikipedia lead images sit between Commons (richer sets when it
+        # hits) and Pexels (modern stock — last resort for historical work).
         self.web_sources: list[Source] = [] if self.config.offline else [
             WikimediaCommons(),
+            WikipediaLeadImage(),
             Pexels(self.config.pexels_api_key),
         ]
         self.scorer = (
@@ -335,6 +338,7 @@ class Fetcher:
                     c.score_subject = 2
                     c.score_quality = 2
                     c.score_cinematic = 1
+                    c.score_era = 2
                     c.vision_reason = f"[error] {exc!s}"[:200]
             kept = [c for c in downloaded if passes_threshold(c, visual_type)]
             if not kept:

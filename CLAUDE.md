@@ -74,11 +74,12 @@ phase3/                   # Phase 3 v2 (shot-based). See phase3/PHASE3.md for de
   typography.py           # dispatcher; re-exports the public typography API
   typography_common.py    # shared tokens, font discovery, TypographySpec
   typography_a.py / _b.py / _c.py   # families A (editorial) / B (cinematic) / C (manuscript)
-  sources/                # image-fetch waterfall (Wikimedia → Pexels;
-                          #   LoC + IA removed — see phase3/PHASE3.md §7.3)
+  sources/                # image-fetch waterfall (Wikimedia → Wikipedia lead
+                          #   image → Pexels; LoC + IA removed — PHASE3.md §7.3)
     __init__.py           #   Fetcher + FetcherConfig (pinned_portrait, offline)
-    base.py wikimedia.py pexels.py   # loc.py / internet_archive.py kept, unused
-    user_upload.py book_extract.py cache.py vision.py
+    base.py wikimedia.py wikipedia.py pexels.py  # loc.py / internet_archive.py unused
+    user_upload.py book_extract.py cache.py vision.py  # vision rubric incl. era axis
+    photo_bank.py         #   Path (C): curated bank → one-Sonnet-call shot assignment
     decisions.py          #   dossier resolve + subject_is_character + pool
 lightning-compat/         # Local shim: proxies lightning → pytorch-lightning==2.6.1
 packages.txt              # Streamlit Cloud apt deps (ffmpeg, fonts-hosny-amiri, etc.)
@@ -355,15 +356,21 @@ API keys: `--anthropic-key` / `--pexels-key` flags, `ANTHROPIC_API_KEY` /
   surface; families A/B/C live in sibling modules. Family C needs
   `AmiriQuranColored.ttf` + `embedded_color=True` for the red i-dots.
 
-### Open work (phase3/PHASE3.md §15 / §7)
+### Open work (phase3/PHASE3.md §15 / §7 + phase3/SCREENING_REVIEW.md)
 
-- **Source query quality** (§7.3): only Wikimedia + Pexels remain (LoC + IA were
-  removed as dead). Wikimedia hits sometimes; Pexels wins the rest. Adding a
-  Wikipedia-lead-image source for named subjects is the likely next win.
-- **Path (C)** (§8): assign Phase 1a book photos to shots via one Sonnet call,
-  bypassing the web-source waterfall for curated content.
+- ~~**Source query quality** (§7.3)~~ / ~~**Path (C)** (§8)~~ — **shipped
+  2026-07-03** (P0 batch, PHASE3.md §0): `sources/photo_bank.py` (curated
+  bank → one Sonnet call → dossier chosen_file; auto-detected at
+  `resources/photo_bank/`), Wikipedia lead-image source, era-fit vision
+  axis (demotion tier), Pexels style-token stripping, era flags in the
+  dossier.  ⚠ Wikipedia source needs live verification on first Colab run.
+- **P1 pacing** (SCREENING_REVIEW.md §4): anti-duplicate resolution
+  (perceptual hash), effective-hold audit in `audit_plan.py`.
+- **P2 typography** (SCREENING_REVIEW.md §4): lower-third overlay anchor,
+  adaptive scrim, §15.4 caption sizes.
 - **Color grade per-section variation** (the `--grade` knob exists;
-  section-level `grade_map.json` is the stretch goal).
+  section-level `grade_map.json` is the stretch goal; blocked on the
+  §7.2 section parser fix).
 - **ElevenLabs TTS** (Phase 2) — cleaner audio also helps alignment.
 - **Better placeholders**: replace the Latin-query "TBD" card for un-sourced
   shots with a styled Arabic typography card (PHASE3.md §7.7).
@@ -399,9 +406,12 @@ Phase 4 is complete once Phase 3 produces broadcast-quality output.
    - Rendering only → reuse the in-session dossier (no upload), or the URL fetch
    - Review the MP4 for image relevance, portrait framing, caption timing, grade
 
-3. **Source query quality** (phase3/PHASE3.md §7.3) — the biggest visual-quality
-   lever: only Wikimedia + Pexels remain. Add a Wikipedia-lead-image source for
-   named subjects, or take **Path (C)** (§8): assign Phase 1a book photos to shots.
+3. **Exercise the P0 sourcing batch** (phase3/PHASE3.md §0, shipped
+   2026-07-03): populate `resources/photo_bank/` with the curated photos,
+   run prebuild on Colab, confirm the `photo_bank: N/59 image shots
+   assigned` log line, verify the Wikipedia lead-image source returns
+   candidates (⚠ not yet live-verified), and check the `⚠ ERA MISMATCH`
+   flags in the dossier before rendering.
 
 4. **Real alignment on Cloud**: compute `word_timings.json` off-Cloud (Colab /
    `phase3_run.py --align-only`) and upload it in the Total-solution *Alignment*

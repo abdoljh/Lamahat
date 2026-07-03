@@ -124,15 +124,21 @@ With those two in place, Pexels is only reached for genuinely abstract broll
 
 ## 4. Improvement plan (priority order, each independently shippable)
 
-### P0 — Period-true imagery (fixes §2.1)
+### P0 — Period-true imagery (fixes §2.1) — ✅ SHIPPED 2026-07-03
 
-| # | Change | Where | Effort |
+Scope adjustment from the user: the book's own plates are mostly murky
+halftone scans (see `output/ph3/Memoirs of Jafar al-Askari Photos.pdf`);
+better copies were prepared by hand.  Path (C)'s photo bank is therefore
+the **user-curated folder** (`resources/photo_bank/`), not raw Phase 1a
+extractions — and the review dossier stays the veto layer.
+
+| # | Change | Where | Status |
 |---|---|---|---|
-| 0.1 | **Path (C)**: `assign_book_photos(plan, photo_bank, key) -> manifest` — one Sonnet call, output in the `user_upload` manifest shape; wire into `prebuild_assets.py` so dossier `chosen_file` prefers book photos | `sources/book_extract.py`, `prebuild_assets.py` | S–M |
-| 0.2 | **Wikipedia lead-image source** ahead of Pexels in the waterfall | new `sources/wikipedia.py`, `sources/__init__.py` | S |
-| 0.3 | **Era-fit vision score**: add `era` (0–3, "plausibly pre-1940s photograph?") to the Haiku rubric; below threshold → demote below every era-passing candidate. Keep fail-open semantics | `sources/vision.py` | S |
-| 0.4 | **Query hygiene for Pexels**: strip style tokens (`sepia`, `historical photograph`, `documentary`, `vintage`) before the Pexels call only — they cause literal styled-modern matches. Keep them for Wikimedia | `sources/pexels.py` | XS |
-| 0.5 | **Dossier era flags**: prebuild writes `era_fit` into `decisions.json` + `context.txt` so the human curator triages flagged shots first | `prebuild_assets.py` | XS |
+| 0.1 | **Path (C)**: photo bank Haiku-captioned once (cached, hand-editable `captions.json`), ONE Sonnet call assigns photos → shots; assigned photos become dossier `chosen_file`, waterfall candidates kept as alternates (`--photo-bank-only` to skip). Auto-detected at `resources/photo_bank/`; `--photo-bank DIR` explicit; `build_total_solution(photo_bank=…)` | new `sources/photo_bank.py`, `prebuild_assets.py`, `phase3/__init__.py` | ✅ tested offline E2E |
+| 0.2 | **Wikipedia lead-image source** between Wikimedia and Pexels; `pilicense=free` server-side license filter | new `sources/wikipedia.py`, `sources/__init__.py` | ✅ code; ⚠ live call unverified (sandbox blocked wikipedia.org) — confirm on first Colab prebuild |
+| 0.3 | **Era-fit vision score**: 4th rubric axis `era` 0–3 judging content (uniforms/vehicles/architecture), not color grade; demotion tier in `rank_candidates`, never a hard filter; fail-open + legacy-scores pass | `sources/vision.py`, `sources/base.py` | ✅ unit-tested |
+| 0.4 | **Pexels query hygiene**: style/period tokens + bare years stripped before the Pexels call only | `sources/pexels.py` | ✅ unit-tested |
+| 0.5 | **Dossier era flags**: `⚠ ERA MISMATCH` in `context.txt`, `era` in `score_breakdown`, era-flagged winners listed in prebuild summary | `prebuild_assets.py` | ✅ |
 
 ### P1 — Recover perceived pacing (fixes §2.2)
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,6 +25,29 @@ from .base import ImageCandidate, Source
 log = logging.getLogger(__name__)
 
 _API = "https://api.pexels.com/v1/search"
+
+# Style/period tokens the planner appends for archive engines.  Pexels
+# matches them LITERALLY against modern stock styled that way — "sepia
+# historical soldier" returns a color-graded WWII reenactor, not 1916.
+# Stripping the styling leaves the content nouns, which is the only part
+# Pexels can actually satisfy.  Wikimedia/Wikipedia keep the full query.
+_STYLE_TOKENS: frozenset[str] = frozenset({
+    "sepia", "vintage", "historical", "historic", "documentary",
+    "archival", "archive", "retro", "antique", "grainy", "monochrome",
+    "photograph", "photo", "early", "late", "mid", "century",
+    "1890s", "1900s", "1910s", "1920s", "1930s", "1940s",
+})
+_YEAR_RE = re.compile(r"^(18|19)\d{2}$")
+
+
+def _strip_style_tokens(query: str) -> str:
+    """Drop style/period descriptors before hitting Pexels.  Falls back to
+    the original query if stripping would leave fewer than two tokens."""
+    kept = [t for t in query.split()
+            if t.lower() not in _STYLE_TOKENS and not _YEAR_RE.match(t)]
+    if len(kept) < 2:
+        return query
+    return " ".join(kept)
 
 
 class Pexels(Source):
@@ -37,8 +61,13 @@ class Pexels(Source):
             log.debug("Pexels: no API key configured — skipping")
             return []
 
+        clean_query = _strip_style_tokens(query)
+        if clean_query != query:
+            log.debug("Pexels: stripped style tokens %r → %r",
+                      query, clean_query)
+
         params = {
-            "query": query,
+            "query": clean_query,
             "per_page": str(min(n * 2, 20)),
             "orientation": "landscape",
             "size": "large",
@@ -80,5 +109,5 @@ class Pexels(Source):
             if len(candidates) >= n:
                 break
 
-        log.info("Pexels: %d candidates for %r", len(candidates), query)
+        log.info("Pexels: %d candidates for %r", len(candidates), clean_query)
         return candidates

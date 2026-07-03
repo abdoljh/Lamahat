@@ -70,6 +70,50 @@ re-exports (`RenderConfig`, `render_video`, `build_shot_plan`, `align`,
   missing `secrets.toml` can't blank the sidebar; `.streamlit/config.toml` sets
   `maxUploadSize = 400`.
 
+### P0 sourcing batch (2026-07-03) — period-true imagery
+
+Landed after the first full 88-shot production render exposed the Pexels
+problem (64% of image shots; tricorn-hat reenactors captioned as the
+Ottoman army — see `phase3/SCREENING_REVIEW.md` §2.1).  Five changes:
+
+- **Path (C) shipped** (`sources/photo_bank.py`): a curated photo-bank
+  folder (auto-detected at `$LAMAHAT_RESOURCES/photo_bank/`, or
+  `prebuild_assets.py --photo-bank DIR`) is Haiku-captioned once (cached
+  in `captions.json`, hand-editable) and ONE Sonnet call assigns photos
+  to image shots.  Assigned photos become the dossier's `chosen_file`
+  (waterfall candidates stay as alternates; `--photo-bank-only` skips
+  the waterfall for assigned shots).  The dossier veto workflow is
+  unchanged — the bank photo is just the pre-selected winner.  Invalid
+  assignments (unknown shot/file, reuse over `--photo-bank-max-uses`)
+  are dropped, and the call is fail-open.  Wired through
+  `build_total_solution(photo_bank=…)`; Streamlit gets it via the
+  resources auto-detect with zero UI change.  This decides §8: the bank
+  is the *user's curated collection* (the book's own plates are mostly
+  murky halftones — better copies were prepared by hand), not raw
+  Phase 1a extractions.
+- **Wikipedia lead-image source** (`sources/wikipedia.py`): for named
+  subjects the article's lead image is usually the canonical documentary
+  photo.  `generator=search` + `prop=pageimages&piprop=original` with
+  `pilicense=free` (server-side license filter).  Sits between Wikimedia
+  and Pexels in the waterfall.  ⚠ Not yet live-verified (sandbox network
+  policy blocked wikipedia.org) — confirm on the first Colab prebuild;
+  failure mode is graceful (0 candidates, waterfall continues).
+- **Era-fit vision score**: the Haiku rubric gained a 4th axis, `era`
+  (0–3, "could the CONTENT plausibly be from the implied period — judge
+  uniforms/vehicles/architecture, not the color grade").  Era acts as a
+  **demotion tier** in `rank_candidates`, never a hard filter: any
+  era-passing candidate outranks every era-failing one, but if all
+  candidates are anachronistic the least-bad still renders (fail-open
+  preserved; unscored/legacy candidates pass).
+- **Pexels query hygiene**: style/period tokens (`sepia`, `historical`,
+  `vintage`, decade words, bare years…) are stripped before the Pexels
+  call only — Pexels matches them literally against modern *styled*
+  stock.  Wikimedia/Wikipedia keep the full query.
+- **Era flags in the dossier**: `context.txt` marks candidates
+  `⚠ ERA MISMATCH`, `score_breakdown` gains `"era"`, and the prebuild
+  summary lists the shots whose *winner* is era-flagged so the curator
+  triages those first.
+
 ### Alignment on Streamlit Cloud
 
 Interpolation is the default (instant, ±0.2–0.5 s drift). WhisperX needs
