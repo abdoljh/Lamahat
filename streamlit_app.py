@@ -535,10 +535,18 @@ with st.sidebar:
              "of a flat card — cuts the slideshow feel. title_card keeps its cover.",
     )
     p3_text_scrim = st.selectbox(
-        "Text scrim", ["off", "soft", "band"], index=0, key="p3_text_scrim",
-        help="Readability plate behind over-image text. off = transparent · "
-             "soft = light veil · band = strong dark band. Needs "
-             "‘Typography over image’.",
+        "Text scrim", ["auto", "off", "soft", "band"], index=0,
+        key="p3_text_scrim",
+        help="Readability plate behind over-image text. auto = plate only "
+             "when the frame under the text is bright/busy · off = always "
+             "transparent · soft = light veil · band = strong dark band. "
+             "Needs ‘Typography over image’.",
+    )
+    p3_overlay_anchor = st.selectbox(
+        "Text position", ["auto", "center", "lower"], index=0,
+        key="p3_overlay_anchor",
+        help="Vertical anchor for over-image text. auto = quotes/names/dates "
+             "sit lower-third (off faces), section marks stay centered.",
     )
     p3_fades = st.checkbox(
         "Cinematic fades", value=True, key="p3_fades",
@@ -1378,6 +1386,7 @@ def _p3_build_config():
         caption_size=p3_caption_size,
         caption_pos=p3_caption_pos,
         text_scrim=p3_text_scrim,
+        overlay_anchor=p3_overlay_anchor,
         title_scale=p3_title_size,
         title_color=_p3_hex_to_rgb(p3_title_color_hex) if p3_use_title_color else None,
         typography_over_image=p3_typography_over_image,

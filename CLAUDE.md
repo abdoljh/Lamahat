@@ -80,6 +80,7 @@ phase3/                   # Phase 3 v2 (shot-based). See phase3/PHASE3.md for de
     base.py wikimedia.py wikipedia.py pexels.py  # loc.py / internet_archive.py unused
     user_upload.py book_extract.py cache.py vision.py  # vision rubric incl. era axis
     photo_bank.py         #   Path (C): curated bank → one-Sonnet-call shot assignment
+    dedupe.py             #   dHash near-duplicate detection (adjacent-shot swap)
     decisions.py          #   dossier resolve + subject_is_character + pool
 lightning-compat/         # Local shim: proxies lightning → pytorch-lightning==2.6.1
 packages.txt              # Streamlit Cloud apt deps (ffmpeg, fonts-hosny-amiri, etc.)
@@ -368,10 +369,13 @@ API keys: `--anthropic-key` / `--pexels-key` flags, `ANTHROPIC_API_KEY` /
   `resources/photo_bank/`), Wikipedia lead-image source, era-fit vision
   axis (demotion tier), Pexels style-token stripping, era flags in the
   dossier.  ⚠ Wikipedia source needs live verification on first Colab run.
-- **P1 pacing** (SCREENING_REVIEW.md §4): anti-duplicate resolution
-  (perceptual hash), effective-hold audit in `audit_plan.py`.
-- **P2 typography** (SCREENING_REVIEW.md §4): lower-third overlay anchor,
-  adaptive scrim, §15.4 caption sizes.
+- ~~**P1 pacing**~~ / ~~**P2 typography**~~ — **shipped 2026-07-04**
+  (PHASE3.md §0 P1/P2 batch): `sources/dedupe.py` adjacent
+  near-duplicate swap (`--no-dedupe` to opt out), effective-holds audit
+  (`audit_plan.py --review-dir`), lower-third overlay anchor
+  (`--overlay-anchor`), adaptive text scrim (`--text-scrim auto` is the
+  new default).  Deferred: P1.3 (overlay backdrop rotation), P2.3
+  (saliency nudge) — revisit after the next screening.
 - **Color grade per-section variation** (the `--grade` knob exists;
   section-level `grade_map.json` is the stretch goal; blocked on the
   §7.2 section parser fix).

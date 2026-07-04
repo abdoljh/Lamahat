@@ -134,6 +134,11 @@ def main() -> int:
     ap.add_argument("--cache-dir", metavar="PATH")
     ap.add_argument("--no-cache", action="store_true")
     ap.add_argument("--no-vision", action="store_true")
+    ap.add_argument("--no-dedupe", action="store_true",
+                    help="Disable adjacent near-duplicate avoidance (by "
+                         "default, an image shot that would show the same "
+                         "picture as the previous shot swaps to its "
+                         "next-ranked dossier candidate).")
     ap.add_argument("--review-dir", metavar="PATH",
                     help="Consume a pre-render review dossier from this "
                          "directory (output of prebuild_assets.py).  When "
@@ -208,12 +213,21 @@ def main() -> int:
     ap.add_argument("--title-color", metavar="HEX", default=None,
                     help="Main-title colour as #RRGGBB (e.g. #E8C9A0). "
                          "Default = family accent (Family A: aged gold).")
-    ap.add_argument("--text-scrim", choices=("off", "soft", "band"),
-                    default="off",
+    ap.add_argument("--text-scrim", choices=("auto", "off", "soft", "band"),
+                    default="auto",
                     help="Background plate behind --typography-over-image text. "
-                         "off = transparent (default); soft = light readability "
-                         "veil; band = strong dark band. No effect without "
-                         "--typography-over-image.")
+                         "auto (default) = sample the backdrop under the text "
+                         "block and escalate off→soft→band only when the frame "
+                         "is bright or busy; off = always transparent; soft = "
+                         "light readability veil; band = strong dark band. No "
+                         "effect without --typography-over-image.")
+    ap.add_argument("--overlay-anchor", choices=("auto", "center", "lower"),
+                    default="auto",
+                    help="Vertical anchor for --typography-over-image text. "
+                         "auto (default) = lower third for pull quotes / name "
+                         "reveals / date stamps (documentary convention — keeps "
+                         "text off faces), centered for section marks; center / "
+                         "lower force one behaviour for every overlay.")
     ap.add_argument("--caption-size", type=float, default=1.0, metavar="MULT",
                     help="Caption size multiplier (default 1.0). Only applies "
                          "when captions are on (not --no-captions).")
@@ -313,6 +327,7 @@ def main() -> int:
         character_name=args.character_name,
         enable_vision=not args.no_vision,
         review_dir=Path(args.review_dir) if args.review_dir else None,
+        dedupe_adjacent=not args.no_dedupe,
     )
 
     # --build-manifest mode: write the manifest and exit
@@ -498,6 +513,7 @@ def main() -> int:
         title_scale=args.title_size,
         title_color=_hex_rgb(args.title_color),
         text_scrim=args.text_scrim,
+        overlay_anchor=args.overlay_anchor,
         caption_size=args.caption_size,
         caption_color=_hex_ass(args.caption_color),
         caption_pos=args.caption_pos,

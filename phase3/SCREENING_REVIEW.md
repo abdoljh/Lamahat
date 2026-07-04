@@ -140,22 +140,22 @@ extractions — and the review dossier stays the veto layer.
 | 0.4 | **Pexels query hygiene**: style/period tokens + bare years stripped before the Pexels call only | `sources/pexels.py` | ✅ unit-tested |
 | 0.5 | **Dossier era flags**: `⚠ ERA MISMATCH` in `context.txt`, `era` in `score_breakdown`, era-flagged winners listed in prebuild summary | `prebuild_assets.py` | ✅ |
 
-### P1 — Recover perceived pacing (fixes §2.2)
+### P1 — Recover perceived pacing (fixes §2.2) — ✅ SHIPPED 2026-07-04 (1.3 deferred)
 
-| # | Change | Where | Effort |
+| # | Change | Where | Status |
 |---|---|---|---|
-| 1.1 | **Anti-duplicate resolution**: perceptual-hash (dHash) each resolved asset at render time; if a shot resolves within Hamming ≤ 8 of the previous image shot, take its next-ranked dossier candidate | `sources/decisions.py` or `render.py` | S |
-| 1.2 | **Audit the cut rhythm**: extend `audit_plan.py --review-dir` to report *effective* holds — merge typography-over-image spans with their backdrop shot and flag any continuous-footage span > 10 s | `audit_plan.py` | S |
-| 1.3 | When a typography-over-image span pushes a backdrop past ~10 s, switch the overlay's backdrop to the shot's next-ranked candidate (camera-cursor logic already supports a new source) | `render.py` | M |
+| 1.1 | **Anti-duplicate resolution**: dHash (`sources/dedupe.py`) each resolved asset; an image shot within Hamming ≤ 8 of the previous image shot swaps to its next-ranked candidate (era-pass first). Applies ONLY to automatic picks — override / user-marked / pool / pin / photo-bank choices are never second-guessed. `FetcherConfig.dedupe_adjacent` (default on), `render_plan.py --no-dedupe` | new `sources/dedupe.py`, `sources/decisions.py` (`resolve_detailed`), `sources/__init__.py` | ✅ tested (re-encoded copy hamming 0, distinct 27; swap + opt-out verified) |
+| 1.2 | **Effective-holds audit**: merges typography-over-image spans with their backdrop and detects adjacent duplicates (dHash with `--review-dir`, query-equality without); flags continuous-footage spans > 10 s. On the 88-shot production plan: effective avg 6.85 s vs plan 4.75 s, 10 flagged spans | `audit_plan.py` (`--review-dir`, `--assume-overlay`) | ✅ verified on real plan + synthetic dossier |
+| 1.3 | Switch an overlay's backdrop to the next-ranked candidate when a span exceeds ~10 s | `render.py` | ⏸ deferred — 1.1 removes the duplicate-driven spans; revisit if overlay-driven spans still read slow after the next screening |
 
-### P2 — Typography placement & legibility (fixes §2.3)
+### P2 — Typography placement & legibility (fixes §2.3) — ✅ SHIPPED 2026-07-04 (2.3 deferred)
 
-| # | Change | Where | Effort |
+| # | Change | Where | Status |
 |---|---|---|---|
-| 2.1 | **Lower-third default anchor** for pull_quote/typography overlays (`y ≈ 0.63`); keep centered for `section_mark`/`title_card`. Expose `--overlay-anchor {center,lower,auto}` | `typography_common.py:render_text_overlay` | XS |
-| 2.2 | **Adaptive scrim**: sample mean luminance + variance of the frame region under the text block (the backdrop PNG is already on disk pre-composite); escalate `off → soft → band` automatically when hostile. `auto` becomes the default; explicit values still win | `render.py` + `typography_common.py` | S |
-| 2.3 | (with 2.1) **saliency-aware nudge**: cheap face/subject bbox via the depth map already computed for parallax — shift the block up/down to the emptier third | `render.py` | M, optional |
-| 2.4 | Finish §15.4 caption sizes (title-sub 0.030→0.040, reveal sub-lines 0.022→0.028, 0.15 s inter-event gap) | `typography_*.py`, `render._write_captions` | XS |
+| 2.1 | **Lower-third anchor**: pull_quote/name_reveal/date_stamp overlays center at y≈0.63 (documentary lower-third, off the faces at frame center); section_mark/chapter_heading stay centered; block clamped to 6%/7% frame margins. `--overlay-anchor {auto,center,lower}`, Streamlit "Text position", notebooks' `OVERLAY_ANCHOR` | `typography_common.py`, `render.py`, `render_plan.py`, `streamlit_app.py`, notebooks | ✅ pixel-verified (0.638 / 0.513 / forced-center 0.523) |
+| 2.2 | **Adaptive scrim**: `"auto"` (new default) samples the backdrop band the text occupies — mean luma > 185 → `band`, > 140 or std > 60 → `soft`, else `off`. Explicit off/soft/band still win; no backdrop → off | `typography_common.py` (`_auto_scrim_for_backdrop`), `render.py` | ✅ pixel-verified (bright→band α213, dark→off α0, busy→soft) |
+| 2.3 | Saliency-aware nudge via the parallax depth map | `render.py` | ⏸ deferred — lower-third + adaptive scrim resolve the observed failures; revisit only if text still lands on faces |
+| 2.4 | §15.4 caption sizes + inter-event gap | — | ✅ found already shipped in a prior session (title_sub 0.040, name_sub 0.028, GAP 0.15 s in `_write_captions`) |
 
 ### P3 — One film, one look (fixes §2.4, §2.5)
 

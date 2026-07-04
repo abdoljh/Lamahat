@@ -114,6 +114,39 @@ Ottoman army — see `phase3/SCREENING_REVIEW.md` §2.1).  Five changes:
   summary lists the shots whose *winner* is era-flagged so the curator
   triages those first.
 
+### P1/P2 batch (2026-07-04) — perceived pacing + overlay typography
+
+Landed after the user verified both routes end-to-end with the P0 batch.
+Details and verification numbers in `phase3/SCREENING_REVIEW.md` §4.
+
+- **Adjacent near-duplicate avoidance** (`sources/dedupe.py`, P1.1):
+  consecutive image shots resolving to perceptually identical pictures
+  (dHash Hamming ≤ 8) swap the later shot to its next-ranked candidate.
+  Only automatic picks are swapped — override / user-marked / pool /
+  pinned / photo-bank choices are respected.  `Decisions.resolve_detailed`
+  now reports the resolution kind + ranked alternates;
+  `Decisions.resolve` is a back-compat wrapper.  Opt out with
+  `render_plan.py --no-dedupe` / `FetcherConfig.dedupe_adjacent=False`.
+- **Effective-holds audit** (`audit_plan.py`, P1.2): reports what the eye
+  sees — typography-over-image spans merged into their backdrop shot,
+  duplicates detected via the dossier (`--review-dir`) or query equality.
+  The 88-shot production plan audits at 6.85 s effective vs 4.75 s
+  planned with 10 spans > 10 s — the numeric confirmation of the
+  screening finding.
+- **Lower-third overlay anchor** (P2.1): pull quotes / name reveals /
+  date stamps now sit at y≈0.63 instead of dead center (off the faces);
+  section marks stay centered.  `--overlay-anchor {auto,center,lower}`,
+  Streamlit "Text position", notebook `OVERLAY_ANCHOR`.
+- **Adaptive scrim** (P2.2): `--text-scrim auto` is the new default —
+  the backdrop band under the text is sampled and the plate escalates
+  off → soft → band only on bright/busy frames (the cream-watercolor
+  legibility failure), keeping the plate-free look on dark footage.
+- §15.4 caption sizes (P2.4) were found already shipped (title_sub
+  0.040, name_sub 0.028, 0.15 s caption gap) — **§15.4 can be marked
+  closed.**
+- Deferred consciously: P1.3 (overlay backdrop rotation past 10 s) and
+  P2.3 (saliency nudge) — re-evaluate after the next screening pass.
+
 ### Running on Colab — single-repo workflow (2026-07-03)
 
 **One repo is the source of truth: `abdoljh/Lamahat`.**  The earlier

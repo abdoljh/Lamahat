@@ -85,6 +85,7 @@ import random
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import NamedTuple
 
 log = logging.getLogger(__name__)
 
@@ -174,6 +175,17 @@ def find_user_marked_file(
             shot_index, len(matches), folder.name, matches[0].name,
         )
     return matches[0]
+
+
+class ResolvedAsset(NamedTuple):
+    """Result of Decisions.resolve_detailed — the path plus how it was
+    resolved, so callers can tell an explicit user choice (never to be
+    second-guessed) from prebuild's auto-pick (swappable when it would
+    duplicate the previous shot's image)."""
+    path: Path | None
+    kind: str                    # override|user_marked|pool|pinned|chosen_file|none
+    alternates: list             # ranked alternate Paths (chosen_file only)
+    chosen_source: str           # winning candidate's source (chosen_file only)
 
 
 @dataclass
@@ -369,9 +381,14 @@ class Decisions:
     # ── Resolution ─────────────────────────────────────────────── #
 
     def resolve(self, shot_index: int, review_dir: Path) -> Path | None:
+        """Back-compat wrapper — see resolve_detailed for the mechanics."""
+        return self.resolve_detailed(shot_index, review_dir).path
+
+    def resolve_detailed(self, shot_index: int,
+                         review_dir: Path) -> "ResolvedAsset":
         """
-        Return an absolute path to the image the renderer should use
-        for `shot_index`, or None if no decision was recorded.
+        Resolve the image the renderer should use for `shot_index`,
+        reporting HOW it was resolved and what the ranked alternates are.
 
         Resolution order:
             1. `override`           — explicit user pick in decisions.json
@@ -379,20 +396,29 @@ class Decisions:
                                       the shot folder (no JSON edit required)
             3. pinned portrait      — for `portrait` visuals only
             4. `chosen_file`        — prebuild's auto-pick
-            5. None                 — caller falls back to the Fetcher
+            5. path=None            — caller falls back to the Fetcher
                                       waterfall at render time
+
+        `kind` is one of "override" / "user_marked" / "pool" / "pinned" /
+        "chosen_file" / "none".  `alternates` (ranked best-first, era-pass
+        before era-fail, existing files only) is populated only for
+        "chosen_file" — the one kind where an automatic swap (adjacent
+        near-duplicate avoidance) is allowed to second-guess the pick.
+        Explicit user choices are never swapped.  `chosen_source` is the
+        winning candidate's source for "chosen_file" (e.g. "photo_bank",
+        "pexels"), "" otherwise.
         """
         review_dir = Path(review_dir).resolve()
         shot = self.shots.get(shot_index)
         if shot is None:
-            return None
+            return ResolvedAsset(None, "none", [], "")
 
         # 1. Explicit override declared in decisions.json
         if shot.override:
             p = (review_dir / shot.override).resolve()
             if p.exists():
                 log.info("Shot %d: override hit %s", shot_index, p.name)
-                return p
+                return ResolvedAsset(p, "override", [], "")
             log.warning(
                 "Shot %d: override declared %s but file is missing — "
                 "ignoring and falling through",
@@ -409,7 +435,7 @@ class Decisions:
                 "Shot %d: user-marked file hit %s",
                 shot_index, user_file.name,
             )
-            return user_file
+            return ResolvedAsset(user_file, "user_marked", [], "")
 
         # 3. Portrait pool / pinned portrait, for portrait shots only — and
         #    only when THIS portrait is about the main character. A portrait
@@ -428,13 +454,13 @@ class Decisions:
                     "Shot %d: portrait pool hit %s (rank %d of %d)",
                     shot_index, chosen.name, rank, len(pool),
                 )
-                return chosen
+                return ResolvedAsset(chosen, "pool", [], "")
             if self.pinned_portrait:
                 p = (review_dir / self.pinned_portrait).resolve()
                 if p.exists() and p.is_file():
                     log.info("Shot %d: pinned-portrait hit %s",
                              shot_index, p.name)
-                    return p
+                    return ResolvedAsset(p, "pinned", [], "")
                 log.warning(
                     "Shot %d: pinned_portrait %s missing — ignoring",
                     shot_index, p,
@@ -445,9 +471,32 @@ class Decisions:
             p = (review_dir / shot.chosen_file).resolve()
             if p.exists():
                 log.info("Shot %d: chosen-file hit %s", shot_index, p.name)
-                return p
+                chosen_source = next(
+                    (c.source for c in shot.candidates
+                     if c.file == shot.chosen_file), "")
+                return ResolvedAsset(
+                    p, "chosen_file",
+                    self._ranked_alternates(shot, review_dir),
+                    chosen_source)
 
-        return None
+        return ResolvedAsset(None, "none", [], "")
+
+    def _ranked_alternates(self, shot: "ShotDecision",
+                           review_dir: Path) -> list[Path]:
+        """Existing candidate files other than chosen_file, best-first:
+        era-passing before era-failing, then by vision score."""
+        def _key(c: CandidateEntry):
+            era = (c.score_breakdown or {}).get("era", -1)
+            era_pass = era < 0 or era >= 2
+            return (0 if era_pass else 1, -c.score)
+        alts: list[Path] = []
+        for c in sorted(shot.candidates, key=_key):
+            if not c.file or c.file == shot.chosen_file:
+                continue
+            p = (review_dir / c.file).resolve()
+            if p.exists():
+                alts.append(p)
+        return alts
 
 
 def is_image_shot(visual: str) -> bool:
