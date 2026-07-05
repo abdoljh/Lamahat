@@ -1,295 +1,0 @@
-
-Plan   : output/re_generated_plan.json  (88 shots)
-Audio  : resources/audio/narration.mp3
-Output : output/final_cut_B.mp4
-Config : 1920×1080 @ 25 fps  captions=off
-Vision : on  Cache: on  User dir: –  Book extracts: –
-Family : B (Netflix-doc cinematic dark)
-Motion : 2.5D parallax ON (backend=depthanything, warp=auto)
-Text   : typography-over-image ON (text overlaid on footage; title_card keeps cover)
-Review : output/review (dossier consulted before fetcher)
-
-INFO  phase3.sources.decisions  Decisions loaded from output/review/decisions.json: 59 shots, pinned_portrait=(none)
-Cover  : /content/resources/book_cover/memoirs_3d.jpg (pool pick #1 of 4 in resources/book_cover/)
-Cover fit: contain (from --book-cover-fit)
-Cover align: right (from --book-cover-align)
-INFO  phase3.render  [render 6%] shot 1/88: title_card
-  [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5%  shot 1/88: title_card                                                 INFO  phase3.sources.decisions  Shot 2: portrait pool hit alayubi_jafar_alsaeed.jpg (rank 0 of 11)
-INFO  phase3.sources  Shot 2: review-dossier hit alayubi_jafar_alsaeed.jpg
-INFO  phase3.render  Shot 2: using fetched image from user_upload
-2026-07-02 06:49:26.002216: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
-To enable the following instructions: AVX2 AVX512F FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
-INFO  numexpr.utils  NumExpr defaulting to 2 threads.
-Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.
-Device set to use cuda:0
-INFO  phase3.render  [render 7%] shot 2/88: portrait
-  [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   6%  shot 2/88: portrait                                                   INFO  phase3.render  [render 7%] shot 3/88: typography
-  [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   7%  shot 3/88: typography                                                 INFO  phase3.sources.decisions  Shot 4: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 4: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 4: using fetched image from user_upload
-INFO  phase3.render  [render 8%] shot 4/88: broll
-  [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   8%  shot 4/88: broll                                                      INFO  phase3.sources.decisions  Shot 5: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 5: review-dossier hit wikimedia_a.cond.jpg
-INFO  phase3.render  Shot 5: using fetched image from user_upload
-INFO  phase3.render  [render 9%] shot 5/88: archive
-INFO  phase3.render  [render 10%] shot 6/88: typography
-  [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   9%  shot 6/88: typography                                                 INFO  phase3.sources.decisions  Shot 7: portrait pool hit jafar_at_window_w.jpg (rank 1 of 11)
-INFO  phase3.sources  Shot 7: review-dossier hit jafar_at_window_w.jpg
-INFO  phase3.render  Shot 7: using fetched image from user_upload
-INFO  phase3.render  [render 11%] shot 7/88: portrait
-  [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  10%  shot 7/88: portrait                                                   INFO  phase3.sources.decisions  Shot 8: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 8: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 8: using fetched image from user_upload
-INFO  phase3.render  [render 11%] shot 8/88: broll
-  [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  11%  shot 8/88: broll                                                      INFO  phase3.sources.decisions  Shot 9: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 9: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 9: using fetched image from user_upload
-INFO  phase3.render  [render 12%] shot 9/88: archive
-  [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  12%  shot 9/88: archive                                                    INFO  phase3.render  [render 13%] shot 10/88: typography
-INFO  phase3.sources.decisions  Shot 11: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 11: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 11: using fetched image from user_upload
-INFO  phase3.render  [render 14%] shot 11/88: broll
-  [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  13%  shot 11/88: broll                                                     INFO  phase3.render  [render 15%] shot 12/88: typography
-  [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  14%  shot 12/88: typography                                                INFO  phase3.sources.decisions  Shot 13: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 13: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 13: using fetched image from user_upload
-INFO  phase3.render  [render 15%] shot 13/88: archive
-  [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  15%  shot 13/88: archive                                                   INFO  phase3.render  [render 16%] shot 14/88: section_mark
-  [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  16%  shot 14/88: section_mark                                              INFO  phase3.sources.decisions  Shot 15: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 15: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 15: using fetched image from user_upload
-INFO  phase3.render  [render 17%] shot 15/88: location
-INFO  phase3.sources.decisions  Shot 16: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 16: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 16: using fetched image from user_upload
-INFO  phase3.render  [render 18%] shot 16/88: archive
-  [█████░░░░░░░░░░░░░░░░░░░░░░░░░]  17%  shot 16/88: archive                                                   INFO  phase3.sources.decisions  Shot 17: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 17: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 17: using fetched image from user_upload
-You seem to be using the pipelines sequentially on GPU. In order to maximize efficiency please use a dataset
-INFO  phase3.render  [render 19%] shot 17/88: location
-  [█████░░░░░░░░░░░░░░░░░░░░░░░░░]  18%  shot 17/88: location                                                  INFO  phase3.sources.decisions  Shot 18: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 18: review-dossier hit wikimedia_a.cond.jpg
-INFO  phase3.render  Shot 18: using fetched image from user_upload
-INFO  phase3.render  [render 19%] shot 18/88: broll
-  [█████░░░░░░░░░░░░░░░░░░░░░░░░░]  19%  shot 18/88: broll                                                     INFO  phase3.render  [render 20%] shot 19/88: typography
-  [██████░░░░░░░░░░░░░░░░░░░░░░░░]  20%  shot 19/88: typography                                                INFO  phase3.sources.decisions  Shot 20: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 20: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 20: using fetched image from user_upload
-INFO  phase3.render  [render 21%] shot 20/88: archive
-INFO  phase3.sources.decisions  Shot 21: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 21: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 21: using fetched image from user_upload
-INFO  phase3.render  [render 22%] shot 21/88: broll
-  [██████░░░░░░░░░░░░░░░░░░░░░░░░]  21%  shot 21/88: broll                                                     INFO  phase3.sources.decisions  Shot 22: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 22: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 22: using fetched image from user_upload
-INFO  phase3.render  [render 22%] shot 22/88: archive
-  [██████░░░░░░░░░░░░░░░░░░░░░░░░]  22%  shot 22/88: archive                                                   INFO  phase3.sources.decisions  Shot 23: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 23: review-dossier hit wikimedia_a.cond.jpg
-INFO  phase3.render  Shot 23: using fetched image from user_upload
-INFO  phase3.render  [render 23%] shot 23/88: broll
-  [██████░░░░░░░░░░░░░░░░░░░░░░░░]  23%  shot 23/88: broll                                                     INFO  phase3.render  [render 24%] shot 24/88: typography
-  [███████░░░░░░░░░░░░░░░░░░░░░░░]  24%  shot 24/88: typography                                                INFO  phase3.sources.decisions  Shot 25: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 25: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 25: using fetched image from user_upload
-INFO  phase3.render  [render 25%] shot 25/88: archive
-INFO  phase3.sources.decisions  Shot 26: portrait pool hit jafar_in_cairo_conf_1921.png (rank 2 of 11)
-INFO  phase3.sources  Shot 26: review-dossier hit jafar_in_cairo_conf_1921.png
-INFO  phase3.render  Shot 26: using fetched image from user_upload
-INFO  phase3.render  [render 26%] shot 26/88: portrait
-  [███████░░░░░░░░░░░░░░░░░░░░░░░]  25%  shot 26/88: portrait                                                  INFO  phase3.sources.decisions  Shot 27: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 27: review-dossier hit wikimedia_a.cond.jpg
-INFO  phase3.render  Shot 27: using fetched image from user_upload
-INFO  phase3.render  [render 26%] shot 27/88: broll
-  [███████░░░░░░░░░░░░░░░░░░░░░░░]  26%  shot 27/88: broll                                                     INFO  phase3.render  [render 27%] shot 28/88: typography
-  [████████░░░░░░░░░░░░░░░░░░░░░░]  27%  shot 28/88: typography                                                INFO  phase3.sources.decisions  Shot 29: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 29: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 29: using fetched image from user_upload
-INFO  phase3.render  [render 28%] shot 29/88: archive
-  [████████░░░░░░░░░░░░░░░░░░░░░░]  28%  shot 29/88: archive                                                   INFO  phase3.render  [render 29%] shot 30/88: typography
-INFO  phase3.sources.decisions  Shot 31: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 31: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 31: using fetched image from user_upload
-INFO  phase3.render  [render 30%] shot 31/88: broll
-  [████████░░░░░░░░░░░░░░░░░░░░░░]  29%  shot 31/88: broll                                                     INFO  phase3.sources.decisions  Shot 32: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 32: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 32: using fetched image from user_upload
-INFO  phase3.render  [render 30%] shot 32/88: archive
-  [█████████░░░░░░░░░░░░░░░░░░░░░]  30%  shot 32/88: archive                                                   INFO  phase3.render  [render 31%] shot 33/88: typography
-  [█████████░░░░░░░░░░░░░░░░░░░░░]  31%  shot 33/88: typography                                                INFO  phase3.render  [render 32%] shot 34/88: section_mark
-  [█████████░░░░░░░░░░░░░░░░░░░░░]  32%  shot 34/88: section_mark                                              INFO  phase3.sources.decisions  Shot 35: chosen-file hit wikimedia_c.cond.jpg
-INFO  phase3.sources  Shot 35: review-dossier hit wikimedia_c.cond.jpg
-INFO  phase3.render  Shot 35: using fetched image from user_upload
-INFO  phase3.render  [render 33%] shot 35/88: location
-INFO  phase3.sources.decisions  Shot 36: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 36: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 36: using fetched image from user_upload
-INFO  phase3.render  [render 34%] shot 36/88: broll
-  [██████████░░░░░░░░░░░░░░░░░░░░]  33%  shot 36/88: broll                                                     INFO  phase3.sources.decisions  Shot 37: chosen-file hit wikimedia_c.cond.jpg
-INFO  phase3.sources  Shot 37: review-dossier hit wikimedia_c.cond.jpg
-INFO  phase3.render  Shot 37: using fetched image from user_upload
-INFO  phase3.render  [render 34%] shot 37/88: archive
-  [██████████░░░░░░░░░░░░░░░░░░░░]  34%  shot 37/88: archive                                                   INFO  phase3.sources.decisions  Shot 38: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 38: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 38: using fetched image from user_upload
-INFO  phase3.render  [render 35%] shot 38/88: broll
-  [██████████░░░░░░░░░░░░░░░░░░░░]  35%  shot 38/88: broll                                                     INFO  phase3.sources.decisions  Shot 39: chosen-file hit wikimedia_c.cond.jpg
-INFO  phase3.sources  Shot 39: review-dossier hit wikimedia_c.cond.jpg
-INFO  phase3.render  Shot 39: using fetched image from user_upload
-INFO  phase3.render  [render 36%] shot 39/88: archive
-  [██████████░░░░░░░░░░░░░░░░░░░░]  36%  shot 39/88: archive                                                   INFO  phase3.sources.decisions  Shot 40: portrait pool hit jafar_in_office.jpg (rank 3 of 11)
-INFO  phase3.sources  Shot 40: review-dossier hit jafar_in_office.jpg
-INFO  phase3.render  Shot 40: using fetched image from user_upload
-INFO  phase3.render  [render 37%] shot 40/88: portrait
-INFO  phase3.render  [render 38%] shot 41/88: typography
-  [███████████░░░░░░░░░░░░░░░░░░░]  37%  shot 41/88: typography                                                INFO  phase3.sources.decisions  Shot 42: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 42: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 42: using fetched image from user_upload
-INFO  phase3.render  [render 38%] shot 42/88: broll
-  [███████████░░░░░░░░░░░░░░░░░░░]  38%  shot 42/88: broll                                                     INFO  phase3.sources.decisions  Shot 43: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 43: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 43: using fetched image from user_upload
-INFO  phase3.render  [render 39%] shot 43/88: archive
-  [███████████░░░░░░░░░░░░░░░░░░░]  39%  shot 43/88: archive                                                   INFO  phase3.render  [render 40%] shot 44/88: typography
-  [███████████░░░░░░░░░░░░░░░░░░░]  40%  shot 44/88: typography                                                INFO  phase3.sources.decisions  Shot 45: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 45: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 45: using fetched image from user_upload
-INFO  phase3.render  [render 41%] shot 45/88: broll
-INFO  phase3.sources.decisions  Shot 46: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 46: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 46: using fetched image from user_upload
-INFO  phase3.render  [render 42%] shot 46/88: archive
-  [████████████░░░░░░░░░░░░░░░░░░]  41%  shot 46/88: archive                                                   INFO  phase3.render  [render 42%] shot 47/88: typography
-  [████████████░░░░░░░░░░░░░░░░░░]  42%  shot 47/88: typography                                                INFO  phase3.sources.decisions  Shot 48: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 48: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 48: using fetched image from user_upload
-INFO  phase3.render  [render 43%] shot 48/88: broll
-  [████████████░░░░░░░░░░░░░░░░░░]  43%  shot 48/88: broll                                                     INFO  phase3.sources.decisions  Shot 49: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 49: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 49: using fetched image from user_upload
-INFO  phase3.render  [render 44%] shot 49/88: archive
-INFO  phase3.render  [render 45%] shot 50/88: typography
-  [█████████████░░░░░░░░░░░░░░░░░]  44%  shot 50/88: typography                                                INFO  phase3.sources.decisions  Shot 51: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 51: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 51: using fetched image from user_upload
-INFO  phase3.render  [render 46%] shot 51/88: broll
-  [█████████████░░░░░░░░░░░░░░░░░]  45%  shot 51/88: broll                                                     INFO  phase3.sources.decisions  Shot 52: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 52: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 52: using fetched image from user_upload
-INFO  phase3.render  [render 46%] shot 52/88: archive
-  [█████████████░░░░░░░░░░░░░░░░░]  46%  shot 52/88: archive                                                   INFO  phase3.render  [render 47%] shot 53/88: section_mark
-  [██████████████░░░░░░░░░░░░░░░░]  47%  shot 53/88: section_mark                                              INFO  phase3.sources.decisions  Shot 54: chosen-file hit wikimedia_c.cond.jpg
-INFO  phase3.sources  Shot 54: review-dossier hit wikimedia_c.cond.jpg
-INFO  phase3.render  Shot 54: using fetched image from user_upload
-INFO  phase3.render  [render 48%] shot 54/88: archive
-INFO  phase3.sources.decisions  Shot 55: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 55: review-dossier hit wikimedia_a.cond.jpg
-INFO  phase3.render  Shot 55: using fetched image from user_upload
-INFO  phase3.render  [render 49%] shot 55/88: broll
-  [██████████████░░░░░░░░░░░░░░░░]  48%  shot 55/88: broll                                                     INFO  phase3.render  [render 50%] shot 56/88: typography
-  [██████████████░░░░░░░░░░░░░░░░]  49%  shot 56/88: typography                                                INFO  phase3.sources.decisions  Shot 57: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 57: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 57: using fetched image from user_upload
-INFO  phase3.render  [render 50%] shot 57/88: location
-  [███████████████░░░░░░░░░░░░░░░]  50%  shot 57/88: location                                                  INFO  phase3.sources.decisions  Shot 58: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 58: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 58: using fetched image from user_upload
-INFO  phase3.render  [render 51%] shot 58/88: archive
-  [███████████████░░░░░░░░░░░░░░░]  51%  shot 58/88: archive                                                   INFO  phase3.sources.decisions  Shot 59: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 59: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 59: using fetched image from user_upload
-INFO  phase3.render  [render 52%] shot 59/88: location
-INFO  phase3.sources.decisions  Shot 60: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 60: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 60: using fetched image from user_upload
-INFO  phase3.render  [render 53%] shot 60/88: broll
-  [███████████████░░░░░░░░░░░░░░░]  52%  shot 60/88: broll                                                     INFO  phase3.sources.decisions  Shot 61: chosen-file hit wikimedia_c.cond.jpg
-INFO  phase3.sources  Shot 61: review-dossier hit wikimedia_c.cond.jpg
-INFO  phase3.render  Shot 61: using fetched image from user_upload
-INFO  phase3.render  [render 54%] shot 61/88: archive
-  [████████████████░░░░░░░░░░░░░░]  53%  shot 61/88: archive                                                   INFO  phase3.render  [render 54%] shot 62/88: typography
-  [████████████████░░░░░░░░░░░░░░]  54%  shot 62/88: typography                                                INFO  phase3.sources.decisions  Shot 63: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 63: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 63: using fetched image from user_upload
-INFO  phase3.render  [render 55%] shot 63/88: archive
-  [████████████████░░░░░░░░░░░░░░]  55%  shot 63/88: archive                                                   INFO  phase3.sources.decisions  Shot 64: chosen-file hit wikimedia_b.jpg
-INFO  phase3.sources  Shot 64: review-dossier hit wikimedia_b.jpg
-INFO  phase3.render  Shot 64: using fetched image from user_upload
-INFO  phase3.render  [render 56%] shot 64/88: broll
-INFO  phase3.render  [render 57%] shot 65/88: typography
-  [█████████████████░░░░░░░░░░░░░]  56%  shot 65/88: typography                                                INFO  phase3.sources.decisions  Shot 66: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 66: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 66: using fetched image from user_upload
-INFO  phase3.render  [render 57%] shot 66/88: archive
-  [█████████████████░░░░░░░░░░░░░]  57%  shot 66/88: archive                                                   INFO  phase3.render  [render 58%] shot 67/88: section_mark
-  [█████████████████░░░░░░░░░░░░░]  58%  shot 67/88: section_mark                                              INFO  phase3.sources.decisions  Shot 68: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 68: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 68: using fetched image from user_upload
-INFO  phase3.render  [render 59%] shot 68/88: archive
-  [█████████████████░░░░░░░░░░░░░]  59%  shot 68/88: archive                                                   INFO  phase3.render  [render 60%] shot 69/88: typography
-INFO  phase3.sources.decisions  Shot 70: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 70: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 70: using fetched image from user_upload
-INFO  phase3.render  [render 61%] shot 70/88: broll
-  [██████████████████░░░░░░░░░░░░]  60%  shot 70/88: broll                                                     INFO  phase3.render  [render 61%] shot 71/88: typography
-  [██████████████████░░░░░░░░░░░░]  61%  shot 71/88: typography                                                INFO  phase3.sources.decisions  Shot 72: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 72: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 72: using fetched image from user_upload
-INFO  phase3.render  [render 62%] shot 72/88: archive
-  [██████████████████░░░░░░░░░░░░]  62%  shot 72/88: archive                                                   INFO  phase3.render  [render 63%] shot 73/88: typography
-  [██████████████████░░░░░░░░░░░░]  63%  shot 73/88: typography                                                INFO  phase3.sources.decisions  Shot 74: portrait pool hit jafar_in_quweira.jpg (rank 4 of 11)
-INFO  phase3.sources  Shot 74: review-dossier hit jafar_in_quweira.jpg
-INFO  phase3.render  Shot 74: using fetched image from user_upload
-INFO  phase3.render  [render 64%] shot 74/88: portrait
-INFO  phase3.sources.decisions  Shot 75: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 75: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 75: using fetched image from user_upload
-INFO  phase3.render  [render 65%] shot 75/88: archive
-  [███████████████████░░░░░░░░░░░]  64%  shot 75/88: archive                                                   INFO  phase3.render  [render 65%] shot 76/88: typography
-  [███████████████████░░░░░░░░░░░]  65%  shot 76/88: typography                                                INFO  phase3.sources.decisions  Shot 77: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 77: review-dossier hit wikimedia_a.cond.jpg
-INFO  phase3.render  Shot 77: using fetched image from user_upload
-INFO  phase3.render  [render 66%] shot 77/88: broll
-  [███████████████████░░░░░░░░░░░]  66%  shot 77/88: broll                                                     INFO  phase3.sources.decisions  Shot 78: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 78: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 78: using fetched image from user_upload
-INFO  phase3.render  [render 67%] shot 78/88: archive
-  [████████████████████░░░░░░░░░░]  67%  shot 78/88: archive                                                   INFO  phase3.sources.decisions  Shot 79: chosen-file hit wikimedia_b.jpg
-INFO  phase3.sources  Shot 79: review-dossier hit wikimedia_b.jpg
-INFO  phase3.render  Shot 79: using fetched image from user_upload
-INFO  phase3.render  [render 68%] shot 79/88: object
-INFO  phase3.render  [render 69%] shot 80/88: typography
-  [████████████████████░░░░░░░░░░]  68%  shot 80/88: typography                                                INFO  phase3.sources.decisions  Shot 81: portrait pool hit jafar_in_uniform.png (rank 5 of 11)
-INFO  phase3.sources  Shot 81: review-dossier hit jafar_in_uniform.png
-INFO  phase3.render  Shot 81: using fetched image from user_upload
-INFO  phase3.render  [render 69%] shot 81/88: portrait
-  [████████████████████░░░░░░░░░░]  69%  shot 81/88: portrait                                                  INFO  phase3.render  [render 70%] shot 82/88: typography
-  [█████████████████████░░░░░░░░░]  70%  shot 82/88: typography                                                INFO  phase3.sources.decisions  Shot 83: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 83: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 83: using fetched image from user_upload
-INFO  phase3.render  [render 71%] shot 83/88: broll
-  [█████████████████████░░░░░░░░░]  71%  shot 83/88: broll                                                     INFO  phase3.render  [render 72%] shot 84/88: typography
-INFO  phase3.sources.decisions  Shot 85: portrait pool hit jafar_order_of_the_medjidie.jpg (rank 6 of 11)
-INFO  phase3.sources  Shot 85: review-dossier hit jafar_order_of_the_medjidie.jpg
-INFO  phase3.render  Shot 85: using fetched image from user_upload
-INFO  phase3.render  [render 73%] shot 85/88: portrait
-  [█████████████████████░░░░░░░░░]  72%  shot 85/88: portrait                                                  INFO  phase3.sources.decisions  Shot 86: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 86: review-dossier hit wikimedia_a.cond.jpg
-INFO  phase3.render  Shot 86: using fetched image from user_upload
-INFO  phase3.render  [render 73%] shot 86/88: object
-  [██████████████████████░░░░░░░░]  73%  shot 86/88: object                                                    INFO  phase3.sources.decisions  Shot 87: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 87: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 87: using fetched image from user_upload
-INFO  phase3.render  [render 74%] shot 87/88: archive
-  [██████████████████████░░░░░░░░]  74%  shot 87/88: archive                                                   INFO  phase3.render  [render 75%] shot 88/88: title_card
-  [██████████████████████░░░░░░░░]  75%  shot 88/88: title_card                                                INFO  phase3.render  [render 80%] concat all shots
-  [████████████████████████░░░░░░]  80%  concat all shots                                                      INFO  phase3.render  [render 92%] mux audio and captions
-  [███████████████████████████░░░]  92%  mux audio and captions                                                INFO  phase3.render  Color grade applied: neutral
-INFO  phase3.render  Music bed: -13 dB, ducked under narration
-INFO  phase3.render  [render 100%] done
-  [██████████████████████████████] 100%  done                                                                  
-INFO  phase3.render  Rendered video → output/final_cut_B.mp4
-
-Done in 2056s  —  output/final_cut_B.mp4  (184.9 MB)
