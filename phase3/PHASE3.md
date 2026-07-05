@@ -147,6 +147,33 @@ Details and verification numbers in `phase3/SCREENING_REVIEW.md` §4.
 - Deferred consciously: P1.3 (overlay backdrop rotation past 10 s) and
   P2.3 (saliency nudge) — re-evaluate after the next screening pass.
 
+### P3/P4 batch (2026-07-05) — one look + hygiene + word reveal
+
+Verification detail in `phase3/SCREENING_REVIEW.md` §4 (P3/P4 tables).
+
+- **Documentary tone in conditioning** (P3.2): Pexels winners are pulled
+  toward the film's palette (desat 0.82, warm curve, fine grain) by
+  `condition_assets.py`; authentic sources untouched.  `--tone off` to
+  disable; idempotent across re-runs.
+- **Section parser fixed** (P3.3, closes §7.2): `sections.json` sidecar →
+  legacy regexes → short-isolated-line heuristic.  The production script
+  now yields opening + 3 points + closing; per-section work (grade_map,
+  §15.1 stretch) is unblocked.  `parse_sections` gained `script_path=`.
+- **Provenance labels honest** (P4.1): render logs now say
+  `review_dossier` / `pinned_portrait` instead of `user_upload`.
+- **Greppable render.log** (P4.2): the \r progress bar draws only on a
+  TTY.
+- **Title card polish** (P4.3): Family B accent rule always draws and
+  centres on the text region (bug: was frame-centred with align=right);
+  block at 0.52; optional `--title-subtitle` sub-line.
+- **Word-by-word reveal** (P4.4 / §7.9, **opt-in** `--word-reveal`):
+  over-image quotes build up in word-groups over ≤ 1.6 s via cumulative
+  overlays + timed FFmpeg enables.  Full-text-render + feathered alpha
+  masking guarantees zero reflow between steps.  Screen it before making
+  it a default.
+- Deferred: P3.4 per-section grade_map (design must respect the
+  stream-copy concat invariant); Phase 1b LLM-emitted section sidecar.
+
 ### Running on Colab — single-repo workflow (2026-07-03)
 
 **One repo is the source of truth: `abdoljh/Lamahat`.**  The earlier

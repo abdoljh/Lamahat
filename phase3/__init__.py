@@ -136,6 +136,7 @@ def generate_video_v2(
     script_text: str,
     output_path: Path,
     *,
+    script_path: Path | None = None,
     audio_path: Path | None = None,
     audio_bytes: bytes | None = None,
     audio_duration_sec: float | None = None,
@@ -215,7 +216,7 @@ def generate_video_v2(
 
         # ── Stage 0: parse + resolve duration ─────────────────────────── #
         _prog("Parsing script sections…", 0.02)
-        sections = parse_sections(script_text)
+        sections = parse_sections(script_text, script_path=script_path)
         if not sections:
             raise ValueError("No recognisable sections found in script text.")
         total_dur = _resolve_duration(audio_path, audio_duration_sec, script_text)
@@ -311,6 +312,7 @@ def condition_review_dir(
     review_dir: Path,
     *,
     sr: str = "none",
+    tone: str = "documentary",
     dry_run: bool = False,
     target_cover: int = 2560,
     contain_floor: int = 1600,
@@ -333,7 +335,7 @@ def condition_review_dir(
         Path(review_dir),
         mismatch=mismatch, target_cover=target_cover, contain_floor=contain_floor,
         max_cap=max_cap, min_usable=min_usable, sr=sr, quality=quality,
-        dry_run=dry_run, on_progress=on_progress,
+        dry_run=dry_run, tone=tone, on_progress=on_progress,
     )
 
 
@@ -567,6 +569,7 @@ def build_total_solution(
     output_path: Path,
     review_dir: Path,
     *,
+    script_path: Path | None = None,
     audio_path: Path | None = None,
     audio_bytes: bytes | None = None,
     audio_duration_sec: float | None = None,
@@ -628,7 +631,7 @@ def build_total_solution(
 
     # Stage 1 — plan (align + Sonnet) and persist into the dossier.
     _prog("Parsing + aligning…", 0.03)
-    sections = parse_sections(script_text)
+    sections = parse_sections(script_text, script_path=script_path)
     if not sections:
         raise ValueError("No recognisable sections found in script text.")
     if word_timings_path:

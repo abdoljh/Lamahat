@@ -245,7 +245,7 @@ class Fetcher:
                 cand = ImageCandidate(
                     url=f"file://{path}",
                     title=f"review-dossier:{path.name}",
-                    source="user_upload",
+                    source="review_dossier",
                     license_short="user-supplied",
                 )
                 cand.local_path = path
@@ -267,7 +267,7 @@ class Fetcher:
             cand = ImageCandidate(
                 url=f"file://{p}",
                 title=f"pinned-portrait:{p.name}",
-                source="user_upload",
+                source="pinned_portrait",
                 license_short="user-supplied",
             )
             cand.local_path = p

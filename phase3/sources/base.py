@@ -29,6 +29,8 @@ SourceName = Literal[
     "user_upload",    # User-supplied image
     "book_extract",   # Phase 1a-extracted photo from the source PDF
     "photo_bank",     # Curated photo bank, Sonnet-assigned (Path C)
+    "review_dossier", # Resolved from the review dossier at render time
+    "pinned_portrait",# FetcherConfig.pinned_portrait hit
 ]
 
 

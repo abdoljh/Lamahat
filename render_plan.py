@@ -94,7 +94,16 @@ _LAST_PCT = {"v": -1}
 
 
 def _make_progress(verbose: bool):
+    # The \r-rewriting bar is a terminal affordance.  When stdout is
+    # redirected (the notebooks run `render_plan.py > render.log 2>&1 &`),
+    # the bar fragments interleave with logging and make the log hard to
+    # grep — and the INFO lines already carry "[render N%] …", so the bar
+    # adds nothing there.  TTY only.
+    tty = sys.stdout.isatty()
+
     def _on_progress(label: str, frac: float) -> None:
+        if not tty:
+            return
         pct = int(frac * 100)
         if pct != _LAST_PCT["v"] or verbose:
             _LAST_PCT["v"] = pct
@@ -213,6 +222,11 @@ def main() -> int:
     ap.add_argument("--title-color", metavar="HEX", default=None,
                     help="Main-title colour as #RRGGBB (e.g. #E8C9A0). "
                          "Default = family accent (Family A: aged gold).")
+    ap.add_argument("--title-subtitle", metavar="TEXT", default="",
+                    help="Optional Arabic sub-line under the main title "
+                         "(author / date range / tagline, e.g. "
+                         "\"١٨٨٥ – ١٩٣٦\"). Empty = title only (the gold "
+                         "accent rule still draws).")
     ap.add_argument("--text-scrim", choices=("auto", "off", "soft", "band"),
                     default="auto",
                     help="Background plate behind --typography-over-image text. "
@@ -221,6 +235,12 @@ def main() -> int:
                          "is bright or busy; off = always transparent; soft = "
                          "light readability veil; band = strong dark band. No "
                          "effect without --typography-over-image.")
+    ap.add_argument("--word-reveal", action="store_true",
+                    help="Word-by-word reveal on over-image pull quotes and "
+                         "name reveals: the text extends word-group by "
+                         "word-group over ~1.6 s instead of appearing whole. "
+                         "Opt-in (experimental until screened); needs "
+                         "--typography-over-image.")
     ap.add_argument("--overlay-anchor", choices=("auto", "center", "lower"),
                     default="auto",
                     help="Vertical anchor for --typography-over-image text. "
@@ -514,6 +534,8 @@ def main() -> int:
         title_color=_hex_rgb(args.title_color),
         text_scrim=args.text_scrim,
         overlay_anchor=args.overlay_anchor,
+        title_subtitle=args.title_subtitle,
+        word_reveal=args.word_reveal,
         caption_size=args.caption_size,
         caption_color=_hex_ass(args.caption_color),
         caption_pos=args.caption_pos,

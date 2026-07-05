@@ -103,9 +103,42 @@ def render_overlay(spec: TypographySpec, out_path: Path) -> Path:
     return out_path
 
 
+def render_overlay_steps(spec: TypographySpec, out_dir: Path, stem: str,
+                         *, words_per_step: int = 3,
+                         max_steps: int = 6) -> list[Path]:
+    """
+    Word-by-word reveal variant of `render_overlay` (PHASE3.md §7.9).
+
+    Renders CUMULATIVE overlay PNGs — step k shows the first k·words_per_step
+    words, the final step the complete card (subtitle + rule included).  The
+    layout never reflows between steps (partial lines are right-edge-aligned
+    to their full-line boxes), so render.py can stack the steps with timed
+    FFmpeg overlays and the text simply extends leftward.
+
+    Returns the step paths in reveal order (≥ 1; short texts collapse to a
+    single complete overlay).
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    total_words = len(spec.text.split())
+    import math
+    n_steps = min(max_steps, max(1, math.ceil(total_words / words_per_step)))
+    # Even word budget per step so the last step isn't a stub.
+    per = math.ceil(total_words / n_steps)
+    paths: list[Path] = []
+    for k in range(1, n_steps + 1):
+        upto = None if k == n_steps else per * k
+        image = render_text_overlay(spec, reveal_upto=upto)
+        p = out_dir / f"{stem}_r{k:02d}.png"
+        image.save(p, format="PNG")
+        paths.append(p)
+    log.debug("Rendered %d reveal steps for %s", len(paths), spec.template)
+    return paths
+
+
 __all__ = [
     # Primary API
-    "render", "render_overlay", "TypographySpec", "TemplateName",
+    "render", "render_overlay", "render_overlay_steps",
+    "TypographySpec", "TemplateName",
     # Palette (Family A, kept for backward compat)
     "CHARCOAL", "CREAM_DEEP", "CREAM_LIGHT", "CREAM_MEDIUM",
     "GRAPHITE", "WARM_GREY", "GOLD_AGED",
