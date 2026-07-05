@@ -239,7 +239,7 @@ def _run_align_only(args, script_text: str) -> None:
     audio_path = Path(args.audio) if args.audio else None
     total_dur = _resolve_audio_duration(audio_path, script_text, args.audio_duration)
 
-    sections = parse_sections(script_text)
+    sections = parse_sections(script_text, script_path=Path(args.script))
     tokens = tokenize_script(script_text)
     print(f"\nScript : {len(tokens)} word tokens, {len(sections)} sections")
     print(f"Audio  : {audio_path or '(none — will interpolate)'}")
@@ -280,7 +280,7 @@ def _run_plan_only(args, script_text: str, anthropic_key: str) -> None:
     audio_path = Path(args.audio) if args.audio else None
     total_dur = _resolve_audio_duration(audio_path, script_text, args.audio_duration)
 
-    sections = parse_sections(script_text)
+    sections = parse_sections(script_text, script_path=Path(args.script))
     if not sections:
         print("ERROR: no sections parsed from script", file=sys.stderr)
         sys.exit(1)
@@ -356,7 +356,7 @@ def main() -> int:
     if args.dry_run:
         from phase3.parser import parse_sections, estimate_durations
         dur_hint = args.audio_duration or len(script_text) / 12.0
-        sections = parse_sections(script_text)
+        sections = parse_sections(script_text, script_path=Path(args.script))
         durations = estimate_durations(sections, dur_hint)
         print(f"Sections found: {len(sections)}")
         _print_plan(sections, durations)

@@ -905,7 +905,8 @@ def _draw_overlay_text_block(
     return draw
 
 
-def render_text_overlay(spec: "TypographySpec") -> Image.Image:
+def render_text_overlay(spec: "TypographySpec",
+                        reveal_upto: int | None = None) -> Image.Image:
     """Transparent RGBA overlay = the shot's text, legible over moving footage.
 
     Used by the typography-over-image path: instead of a full static card, the
@@ -917,6 +918,14 @@ def render_text_overlay(spec: "TypographySpec") -> Image.Image:
     ``spec.scrim`` / ``LAMAHAT_OVERLAY_SCRIM`` ("off" | "soft" | "band"); see
     ``OVERLAY_SCRIM_PRESETS``.  Everything outside the text (and any optional
     scrim) stays transparent.
+
+    ``reveal_upto`` (word-by-word reveal, PHASE3.md §7.9): draw only the
+    first N words of the text.  The LAYOUT is always computed from the full
+    text, and each partial line is right-edge-aligned to its full line's
+    position (Arabic reads right→left, so the first words are the rightmost)
+    — successive steps never reflow or shift, they only extend leftward.
+    Scrim/shadow geometry stays that of the full block from step one.  The
+    subtitle + rule draw only when the reveal is complete (None or ≥ total).
     """
     W, H = spec.width, spec.height
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -991,13 +1000,52 @@ def render_text_overlay(spec: "TypographySpec") -> Image.Image:
     # Legibility treatment: always stroke; add the blurred shadow whenever the
     # plate is light/absent (a heavy "band" plate makes the shadow redundant).
     stroke_px = max(2, main_size // 38)
-    draw = _draw_overlay_text_block(
-        img, lines, main_font, lh, block_top, W,
+
+    # Word-by-word reveal: the text is ALWAYS rendered complete (identical
+    # pixels in every step), then a feathered per-line alpha ramp hides the
+    # not-yet-revealed left portion (RTL: first words are rightmost).
+    # Masking — rather than drawing partial strings — guarantees successive
+    # steps never shift or reflow already-visible glyphs by even a pixel.
+    total_words = sum(len(ln.split()) for ln in lines)
+    reveal_complete = reveal_upto is None or reveal_upto >= total_words
+
+    txt_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    _draw_overlay_text_block(
+        txt_layer, lines, main_font, lh, block_top, W,
         fill=OFF_WHITE, main_size=main_size,
         shadow=(band_peak < 150), stroke_px=stroke_px,
     )
+    if not reveal_complete:
+        import numpy as np
+        meas = ImageDraw.Draw(txt_layer)
+        alpha = np.asarray(txt_layer.getchannel("A"), dtype=np.float32).copy()
+        feather = max(6, main_size // 10)
+        edge_pad = int(main_size * 0.6)   # shadow bleed past the block edges
+        remaining = max(0, reveal_upto)
+        n_lines = len(lines)
+        for i, ln in enumerate(lines):
+            words = ln.split()
+            take = min(len(words), remaining)
+            remaining -= take
+            y0 = block_top + i * lh - (edge_pad if i == 0 else 0)
+            y1 = block_top + (i + 1) * lh + (edge_pad if i == n_lines - 1 else 0)
+            y0, y1 = max(0, y0), min(H, y1)
+            if take == len(words):
+                continue
+            if take == 0:
+                alpha[y0:y1, :] = 0
+                continue
+            w_full, _ = _measure(meas, ln, main_font)
+            w_part, _ = _measure(meas, " ".join(words[:take]), main_font)
+            x_cut = (W - w_full) // 2 + (w_full - w_part)   # revealed left edge
+            xs = np.arange(W, dtype=np.float32)
+            ramp = np.clip((xs - (x_cut - feather)) / feather, 0.0, 1.0)
+            alpha[y0:y1, :] *= ramp[None, :]
+        txt_layer.putalpha(Image.fromarray(alpha.astype("uint8"), "L"))
+    img.alpha_composite(txt_layer)
+    draw = ImageDraw.Draw(img)
 
-    if spec.subtitle:
+    if spec.subtitle and reveal_complete:
         rule_y = block_top + block_h + rule_gap
         rule_len = int(W * 0.16)
         draw.rectangle([(W - rule_len) // 2, rule_y,

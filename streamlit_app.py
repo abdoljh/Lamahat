@@ -548,6 +548,12 @@ with st.sidebar:
         help="Vertical anchor for over-image text. auto = quotes/names/dates "
              "sit lower-third (off faces), section marks stay centered.",
     )
+    p3_word_reveal = st.checkbox(
+        "Word-by-word reveal", value=False, key="p3_word_reveal",
+        help="Quotes build up word-group by word-group over ~1.6 s instead "
+             "of appearing whole. Experimental; needs ‘Typography over "
+             "image’.",
+    )
     p3_fades = st.checkbox(
         "Cinematic fades", value=True, key="p3_fades",
         help="Black open/close fades and dip-through-black section breaths.",
@@ -1387,6 +1393,7 @@ def _p3_build_config():
         caption_pos=p3_caption_pos,
         text_scrim=p3_text_scrim,
         overlay_anchor=p3_overlay_anchor,
+        word_reveal=p3_word_reveal,
         title_scale=p3_title_size,
         title_color=_p3_hex_to_rgb(p3_title_color_hex) if p3_use_title_color else None,
         typography_over_image=p3_typography_over_image,

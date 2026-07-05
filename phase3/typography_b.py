@@ -61,16 +61,21 @@ from .typography_common import (
 def _draw_gold_rule(draw: ImageDraw.ImageDraw, y: int,
                     width: int, height: int,
                     length_pct: float = 0.10,
-                    thickness_mult: float = 1.5) -> None:
+                    thickness_mult: float = 1.5,
+                    center_x: int | None = None) -> None:
     """
     Family-B accent rule: shorter and slightly thicker than Family A's
     hairline, in deep gold rather than warm grey.  The opacity is high
     because the rule must read clearly against the dark gradient — a
     semi-transparent rule disappears.
+
+    `center_x` centres the rule on a specific x (the text region's
+    midpoint when the cover is flushed to one side); None → frame centre.
     """
     rule_len = int(width * length_pct)
     thickness = max(1, int(height * RULE_THICKNESS_PX_1080 * thickness_mult / 1080))
-    x0 = (width - rule_len) // 2
+    cx = center_x if center_x is not None else width // 2
+    x0 = cx - rule_len // 2
     x1 = x0 + rule_len
     # Solid (no overlay).  At 1080p this is 3 px tall, the same visual
     # weight as Family A's hairline reads on cream.
@@ -171,11 +176,15 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
     sub_gap = int(spec.height * 0.025)
     rule_gap = int(spec.height * 0.035)
     rule_thick_v = max(1, int(spec.height * RULE_THICKNESS_PX_1080 * 1.5 / 1080))
+    # The rule now always draws (anchor), so it is always in the block.
     total_block_h = (mh
-                     + (rule_gap + rule_thick_v if sub_lines else 0)
+                     + rule_gap + rule_thick_v
                      + (sub_gap + sub_block_h if sub_lines else 0))
 
-    block_top = int(spec.height * 0.55) - (total_block_h // 2)
+    # 0.52 (was 0.55): the screening note was a floating low title with a
+    # dead zone above; with the rule anchoring the block, near-centre reads
+    # deliberate rather than sunken.
+    block_top = int(spec.height * 0.52) - (total_block_h // 2)
 
     if has_spare_h:
         title_x = text_region_x0 + (text_region_w - mw) // 2
@@ -187,10 +196,15 @@ def _render_title_card_with_cover(spec: TypographySpec) -> Image.Image:
     _draw_text_rtl(draw, (title_x, block_top),
                    spec.text, font=main_font, fill=accent)
 
+    # The accent rule always draws — with no subtitle it anchors the title
+    # against the dead space (the "floating title" screening note); with a
+    # subtitle it separates the two lines.  Centred on the text region, not
+    # the frame, so it tracks the title when the cover is flushed aside.
+    rule_y = block_top + mh + rule_gap
+    _draw_gold_rule(draw, rule_y, spec.width, spec.height,
+                    length_pct=0.08, center_x=sub_x_anchor)
+
     if sub_lines:
-        rule_y = block_top + mh + rule_gap
-        _draw_gold_rule(draw, rule_y, spec.width, spec.height,
-                        length_pct=0.08)
         y = rule_y + rule_thick_v + sub_gap
         for line in sub_lines:
             sw, _ = _measure(draw, line, sub_font)

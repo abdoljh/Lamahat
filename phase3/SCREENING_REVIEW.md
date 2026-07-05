@@ -157,23 +157,23 @@ extractions — and the review dossier stays the veto layer.
 | 2.3 | Saliency-aware nudge via the parallax depth map | `render.py` | ⏸ deferred — lower-third + adaptive scrim resolve the observed failures; revisit only if text still lands on faces |
 | 2.4 | §15.4 caption sizes + inter-event gap | — | ✅ found already shipped in a prior session (title_sub 0.040, name_sub 0.028, GAP 0.15 s in `_write_captions`) |
 
-### P3 — One film, one look (fixes §2.4, §2.5)
+### P3 — One film, one look (fixes §2.4, §2.5) — ✅ SHIPPED 2026-07-05 (3.4 deferred)
 
-| # | Change | Where | Effort |
+| # | Change | Where | Status |
 |---|---|---|---|
-| 3.1 | Default `--grade warm` for the biography genre (knob already exists — this is a default flip + notebook/Streamlit default) | `render_plan.py`, UI | XS |
-| 3.2 | **Tonal normalization in conditioning**: during `condition_assets.py`, pull modern-stock winners toward a target documentary palette (mild desaturation + warm curve + fine grain). Book/Wikimedia photos pass through untouched | `condition_assets.py` | M |
-| 3.3 | Fix the section parser via the Phase 1b **sidecar JSON** (§7.2 option 2): Phase 1b already knows its 5 sections; emit `sections.json` next to the script; parser prefers it, regex stays as fallback | `phase1/core/summarizer.py`, `phase3/parser.py` | S |
-| 3.4 | `grade_map.json` per section (unblocked by 3.3) | `render.py` | S, stretch |
+| 3.1 | Default `--grade warm` | — | ✅ found already in place (render_plan default, Streamlit index 0, notebooks `GRADE="warm"`) |
+| 3.2 | **Tonal normalization in conditioning**: Pexels-sourced winners get mild desaturation (0.82) + warm curve (R×1.045, B×0.925) + fine grain during `condition_assets.py`; authentic sources (photo bank, Wikimedia/Wikipedia, user files) untouched. `--tone {documentary,off}` (default documentary), idempotent via a `tone` marker in `conditioning` | `condition_assets.py`, `phase3.condition_review_dir(tone=…)` | ✅ unit-tested (R 60→75, B 180→154 on a cold-blue frame) |
+| 3.3 | **Section parser**: `sections.json` sidecar (explicit override) → legacy template regexes → NEW short-isolated-line heuristic (< 80 chars between blanks, after the title). The production script now parses **opening + point_1..3 + closing** instead of opening/closing | `phase3/parser.py`, `parse_sections(script_path=…)` through phase3_run + orchestrators | ✅ verified on the real script + sidecar override test. Phase 1b LLM-emitted boundaries deferred (its script format already satisfies the heuristic) |
+| 3.4 | `grade_map.json` per section | `render.py` | ⏸ deferred — unblocked by 3.3 now; needs per-clip grading design that respects the stream-copy concat invariant |
 
-### P4 — Hygiene
+### P4 — Hygiene — ✅ SHIPPED 2026-07-05
 
-| # | Change | Where |
-|---|---|---|
-| 4.1 | Correct provenance labels: `source="review_dossier"` / `"pinned_portrait"` / `"portrait_pool"` instead of `user_upload` | `sources/__init__.py:184–211`, `sources/decisions.py` |
-| 4.2 | Split render.log (INFO stream) from the tty progress bar | `render_plan.py` |
-| 4.3 | Title card: raise title block, add author/subtitle line + gold accent rule (Family B) | `typography_b.py` |
-| 4.4 | Word-by-word reveal on `pull_quote`/`name_reveal` (§7.9) — biggest perceived-production-value polish once P0–P2 land | `render.py` |
+| # | Change | Where | Status |
+|---|---|---|---|
+| 4.1 | Provenance labels: dossier hits log `review_dossier`, pin hits `pinned_portrait` (were both `user_upload`) | `sources/__init__.py`, `sources/base.py` | ✅ |
+| 4.2 | Progress bar draws only on a TTY; redirected logs (the notebooks' `> render.log 2>&1`) get clean INFO lines only | `render_plan.py` | ✅ |
+| 4.3 | Title card (Family B): gold accent rule now always draws (anchors the title against dead space) and centres on the *text region* (was frame-centred — misaligned with `--book-cover-align right`); block raised 0.55→0.52; new `--title-subtitle` / `TITLE_SUBTITLE` for an author/date sub-line | `typography_b.py`, `render.py` (`RenderConfig.title_subtitle`), CLI + notebooks | ✅ visually verified against the production cover |
+| 4.4 | **Word-by-word reveal** (§7.9, opt-in `--word-reveal` / `WORD_REVEAL` / Streamlit checkbox): over-image pull quotes and name reveals extend word-group by word-group over min(1.6 s, 45% of the shot). Text is rendered complete every step and masked with a feathered per-line alpha ramp — pixel-identical stability (verified strictly monotone, lost=0). Cumulative PNGs stacked with timed FFmpeg overlays; encoder profile unchanged so concat-by-copy holds | `typography_common.py` (`reveal_upto`), `typography.py` (`render_overlay_steps`), `render.py` (`_overlay_steps_on_clip`) | ✅ tested end-to-end incl. a rendered clip |
 
 ### Sequencing rationale
 

@@ -376,9 +376,17 @@ API keys: `--anthropic-key` / `--pexels-key` flags, `ANTHROPIC_API_KEY` /
   (`--overlay-anchor`), adaptive text scrim (`--text-scrim auto` is the
   new default).  Deferred: P1.3 (overlay backdrop rotation), P2.3
   (saliency nudge) — revisit after the next screening.
+- ~~**P3 look**~~ / ~~**P4 hygiene**~~ — **shipped 2026-07-05**
+  (PHASE3.md §0 P3/P4 batch): documentary tone on Pexels winners in
+  conditioning (`--tone off` to disable), section parser fixed
+  (sidecar → regex → short-line heuristic; production script now
+  opening + 3 points + closing), honest provenance labels, TTY-only
+  progress bar, Family B title-card polish (+`--title-subtitle`),
+  **word-by-word reveal** on over-image quotes (opt-in
+  `--word-reveal` — screen before defaulting).
 - **Color grade per-section variation** (the `--grade` knob exists;
-  section-level `grade_map.json` is the stretch goal; blocked on the
-  §7.2 section parser fix).
+  `grade_map.json` per section is now unblocked by the §7.2 parser fix;
+  design must respect the stream-copy concat invariant).
 - **ElevenLabs TTS** (Phase 2) — cleaner audio also helps alignment.
 - **Better placeholders**: replace the Latin-query "TBD" card for un-sourced
   shots with a styled Arabic typography card (PHASE3.md §7.7).

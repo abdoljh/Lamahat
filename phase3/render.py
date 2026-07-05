@@ -47,6 +47,7 @@ from .typography import (
     _apply_grain, _draw_text_rtl, _font, _measure,
     render as render_typography,
     render_overlay as render_typography_overlay,
+    render_overlay_steps as render_typography_overlay_steps,
 )
 from . import motion_parallax as mp
 
@@ -156,6 +157,7 @@ def _typography_spec(shot, *, width: int, height: int,
                      book_cover_align: str = "center",
                      title_scale: float = 1.0,
                      title_color: "tuple[int, int, int] | None" = None,
+                     title_subtitle: str = "",
                      scrim: "str | None" = None) -> "TypographySpec":
     """Build the TypographySpec for a typography-family shot.
 
@@ -176,6 +178,7 @@ def _typography_spec(shot, *, width: int, height: int,
     return TypographySpec(
         template=template,
         text=shot.typography_text,
+        subtitle=(title_subtitle if template == "title_card" else ""),
         width=width, height=height,
         family=typography_family,
         cover_image=cover,
@@ -367,6 +370,7 @@ def _build_shot_asset(shot: Shot, shot_index: int,
                      parallax_backend: str = "depthanything",
                      title_scale: float = 1.0,
                      title_color: "tuple[int, int, int] | None" = None,
+                     title_subtitle: str = "",
                      scrim: "str | None" = None) -> tuple[Path, bool]:
     """
     Render or fetch the asset for a single shot.
@@ -399,6 +403,7 @@ def _build_shot_asset(shot: Shot, shot_index: int,
             book_cover_align=book_cover_align,
             title_scale=title_scale,
             title_color=title_color,
+            title_subtitle=title_subtitle,
             scrim=scrim,
         )
         return render_typography(spec, out_path), False
@@ -840,6 +845,45 @@ def _overlay_png_on_clip(bg_clip: Path, overlay_png: Path, out_path: Path, *,
     return out_path
 
 
+def _overlay_steps_on_clip(bg_clip: Path, steps: list[Path], out_path: Path, *,
+                           fps: int, duration: float) -> Path:
+    """Word-by-word reveal (§7.9): stack CUMULATIVE overlay PNGs with timed
+    FFmpeg enables.  Step k appears at its time and stays (each later step
+    fully covers the earlier ones, so the topmost active overlay is the most
+    complete card).  Same encoder profile as every other clip — concat-by-copy
+    stays valid.
+
+    The reveal completes within min(1.6 s, 45% of the shot) so even a 3.5 s
+    quote is fully readable for most of its hold.
+    """
+    if len(steps) == 1:
+        return _overlay_png_on_clip(bg_clip, steps[0], out_path, fps=fps)
+
+    reveal_span = min(1.6, duration * 0.45)
+    interval = reveal_span / (len(steps) - 1)
+
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(bg_clip)]
+    for p in steps:
+        cmd += ["-i", str(p)]
+    parts = []
+    prev = "[0:v]"
+    for k in range(len(steps)):
+        t_k = k * interval
+        out_lbl = f"[v{k+1}]"
+        enable = f":enable='gte(t,{t_k:.3f})'" if k else ""
+        parts.append(f"{prev}[{k+1}:v]overlay=0:0:format=auto{enable}{out_lbl}")
+        prev = out_lbl
+    filter_graph = ";".join(parts) + f";{prev}format=yuv420p[vout]"
+    cmd += [
+        "-filter_complex", filter_graph, "-map", "[vout]",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
+        "-pix_fmt", "yuv420p", "-r", str(fps),
+        str(out_path),
+    ]
+    subprocess.run(cmd, check=True)
+    return out_path
+
+
 # ── Act-break "breath" (dip through black) ──────────────────────────── #
 
 # Pipeline-standard per-clip encoder profile.  Kept identical to the one
@@ -1136,6 +1180,10 @@ class RenderConfig:
     # default (Family A: aged gold).  --title-size / --title-color.
     title_scale: float = 1.0
     title_color: tuple[int, int, int] | None = None
+    # Optional sub-line under the main title (author / date range / tagline,
+    # e.g. "١٨٨٥ – ١٩٣٦").  Empty → title only; the accent rule still draws
+    # so the block reads anchored.  --title-subtitle.
+    title_subtitle: str = ""
     # Over-image typography scrim plate: "auto" | "off" | "soft" | "band".
     # None → the typography_common default ("auto": sample the backdrop under
     # the text block, escalate off→soft→band only for bright/busy frames).
@@ -1144,6 +1192,10 @@ class RenderConfig:
     # Over-image text vertical anchor: "auto" (lower third for quotes/names/
     # dates, centre for section marks) | "center" | "lower".  --overlay-anchor.
     overlay_anchor: str = "auto"
+    # Word-by-word reveal on over-image pull quotes / name reveals (§7.9).
+    # Opt-in until screened: the quote extends word-group by word-group over
+    # the first ~1.6 s instead of appearing whole.  --word-reveal.
+    word_reveal: bool = False
     # Narration captions (only used when add_captions is True, i.e. NOT
     # --no-captions): size multiplier on the 5%-of-height default, an ASS
     # colour string (&HAABBGGRR) override, and vertical position as a fraction
@@ -1283,8 +1335,19 @@ def render_video(shots: list[Shot], out_path: Path, *,
                         # a plate for bright/busy frames).
                         spec.overlay_anchor = config.overlay_anchor
                         spec.backdrop_path = last_real_asset
-                        overlay_png = assets_dir / f"shot_{i:03d}_ovl.png"
-                        render_typography_overlay(spec, overlay_png)
+                        # Word-by-word reveal (opt-in): quotes and name
+                        # reveals build up word-group by word-group; other
+                        # templates (and reveal off) stay single-card.
+                        if (config.word_reveal
+                                and shot.visual == "typography"
+                                and spec.template in ("pull_quote",
+                                                      "name_reveal")):
+                            overlay_steps = render_typography_overlay_steps(
+                                spec, assets_dir, f"shot_{i:03d}_ovl")
+                        else:
+                            overlay_png = assets_dir / f"shot_{i:03d}_ovl.png"
+                            render_typography_overlay(spec, overlay_png)
+                            overlay_steps = [overlay_png]
                         bg_clip = clips_dir / f"shot_{i:03d}_bg.mp4"
                         # Continue the camera from the prior real shot's end
                         # framing (no shrink-pop at the cut).  When parallax is
@@ -1310,8 +1373,9 @@ def render_video(shots: list[Shot], out_path: Path, *,
                         else:
                             _bg_motion_clip(last_real_asset, bg_clip,
                                             shot.duration, config)
-                        _overlay_png_on_clip(bg_clip, overlay_png, clip_path,
-                                             fps=config.fps)
+                        _overlay_steps_on_clip(bg_clip, overlay_steps,
+                                               clip_path, fps=config.fps,
+                                               duration=shot.duration)
                         rendered = True
                     except Exception as exc:
                         log.warning("Shot %d typography-over-image failed (%s) "
@@ -1331,6 +1395,7 @@ def render_video(shots: list[Shot], out_path: Path, *,
                         parallax_backend=config.parallax_backend,
                         title_scale=config.title_scale,
                         title_color=config.title_color,
+                        title_subtitle=config.title_subtitle,
                         scrim=config.text_scrim,
                     )
                     if is_real_image:

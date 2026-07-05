@@ -176,6 +176,42 @@ def resample(img: Image.Image, plan: Plan, sr: str) -> Image.Image:
     return _lanczos(img, plan.target)
 
 
+# ── documentary tone normalization (P3.2, SCREENING_REVIEW.md §2.4) ───────── #
+
+# Sources whose winners get pulled toward the documentary palette.  Modern
+# stock is the only offender — authentic material (photo bank, Wikimedia,
+# Wikipedia, book extracts, user files) passes through untouched.
+_TONE_SOURCES = {"pexels"}
+
+# Tone recipe: mild desaturation + a warm curve (lift reds, sink blues)
+# + fine luminance grain.  Strong enough that a teal-orange Pexels frame
+# stops jumping out of a sepia film; weak enough not to read as a filter.
+_TONE_SATURATION = 0.82
+_TONE_R_GAIN, _TONE_R_LIFT = 1.045, 4
+_TONE_B_GAIN, _TONE_B_LIFT = 0.925, 0
+_TONE_GRAIN = 5.0
+
+
+def apply_documentary_tone(img: Image.Image) -> Image.Image:
+    """Pull a modern stock photo toward the film's documentary palette."""
+    from PIL import ImageEnhance
+    import numpy as np
+
+    img = ImageEnhance.Color(img.convert("RGB")).enhance(_TONE_SATURATION)
+    arr = np.asarray(img).astype(np.float32)
+    arr[..., 0] = arr[..., 0] * _TONE_R_GAIN + _TONE_R_LIFT
+    arr[..., 2] = arr[..., 2] * _TONE_B_GAIN + _TONE_B_LIFT
+    rng = np.random.default_rng(0xF11A)   # deterministic grain per pixel grid
+    arr += rng.normal(0.0, _TONE_GRAIN, arr.shape[:2])[..., None]
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+
+
+def _chosen_source(shot: dict) -> str:
+    """The winning candidate's source for a dossier shot entry."""
+    chosen = shot.get("chosen") or ""
+    return chosen.split(":", 1)[0] if ":" in chosen else chosen
+
+
 # ── per-asset conditioning ────────────────────────────────────────────────── #
 
 def is_user_added(name: str) -> bool:
@@ -211,7 +247,7 @@ def condition_file(src: Path, *, mismatch: float, target_cover: int,
 
 def run(review_dir: Path, *, mismatch: float, target_cover: int,
         contain_floor: int, max_cap: int, min_usable: int, sr: str,
-        quality: int, dry_run: bool,
+        quality: int, dry_run: bool, tone: str = "documentary",
         on_progress: Callable[[str, float], None] | None = None) -> dict:
     decisions_path = review_dir / "decisions.json"
     if not decisions_path.exists():
@@ -223,7 +259,7 @@ def run(review_dir: Path, *, mismatch: float, target_cover: int,
 
     stats = {"total": 0, "asis": 0, "upscale": 0, "downscale": 0, "sr": 0,
              "low": 0, "cover": 0, "contain": 0, "flipped_to_cover": 0,
-             "skipped_no_file": 0}
+             "skipped_no_file": 0, "toned": 0}
 
     _n_shots = len(shots) or 1
     for _i, (key, shot) in enumerate(shots.items()):
@@ -268,6 +304,32 @@ def run(review_dir: Path, *, mismatch: float, target_cover: int,
         if plan.res_grade == "low":
             stats["low"] += 1
 
+        # Documentary tone normalization (P3.2): pull modern-stock winners
+        # toward the film's palette so a teal-orange Pexels frame stops
+        # jumping out of a sepia documentary.  Authentic sources pass
+        # through untouched.  Idempotent — a shot toned on a previous run
+        # (marker in decisions.json) is never re-toned.
+        prev_tone = (shot.get("conditioning") or {}).get("tone", "")
+        applied_tone = prev_tone
+        if (not dry_run and tone == "documentary" and not prev_tone
+                and _chosen_source(shot) in _TONE_SOURCES):
+            try:
+                tone_src = review_dir / cond_rel
+                with Image.open(tone_src) as im:
+                    toned = apply_documentary_tone(im)
+                if tone_src.name.endswith(".cond.jpg"):
+                    out = tone_src            # derived file — safe to rewrite
+                else:
+                    out = tone_src.with_name(tone_src.stem + ".cond.jpg")
+                toned.save(out, "JPEG", quality=quality, subsampling=0)
+                cond_rel = str(out.relative_to(review_dir))
+                applied_tone = "documentary"
+                stats["toned"] += 1
+                log.info("Shot %s toned (documentary palette, source=%s)",
+                         key, _chosen_source(shot))
+            except Exception as exc:  # noqa: BLE001 — tone is best-effort
+                log.warning("Shot %s: tone failed (%s) — left as-is", key, exc)
+
         # Record metadata + repoint chosen_file (original preserved).
         shot.setdefault("chosen_file_original", rel)
         shot["chosen_file"] = cond_rel
@@ -279,6 +341,7 @@ def run(review_dir: Path, *, mismatch: float, target_cover: int,
             "framing": plan.framing,
             "res_grade": plan.res_grade,
             "user_added": is_user_added(src.name),
+            "tone": applied_tone,
         }
         log.info("Shot %s %-7s %s %sx%s -> %sx%s [%s]", key, plan.aspect_class,
                  plan.action, *plan.native, *plan.target, plan.res_grade)
@@ -314,6 +377,14 @@ def main(argv=None):
                          "realesrgan falls back to Lanczos if unavailable).")
     ap.add_argument("--quality", type=int, default=95,
                     help="JPEG quality for conditioned copies (default 95).")
+    ap.add_argument("--tone", choices=["documentary", "off"],
+                    default="documentary",
+                    help="Tonal normalization of modern-stock (Pexels) "
+                         "winners: mild desaturation + warm curve + fine "
+                         "grain so they sit inside the documentary palette. "
+                         "Authentic sources (photo bank, Wikimedia/Wikipedia, "
+                         "user files) are never touched. Default documentary; "
+                         "'off' disables.")
     ap.add_argument("--dry-run", action="store_true",
                     help="Report the plan without writing anything.")
     ap.add_argument("--verbose", action="store_true")
@@ -324,11 +395,12 @@ def main(argv=None):
     stats = run(args.review_dir, mismatch=args.mismatch,
                 target_cover=args.target_cover, contain_floor=args.contain_floor,
                 max_cap=args.max_cap, min_usable=args.min_usable, sr=args.sr,
-                quality=args.quality, dry_run=args.dry_run)
+                quality=args.quality, dry_run=args.dry_run, tone=args.tone)
     print("\nConditioning summary"
           f"{' (dry-run)' if args.dry_run else ''}:")
     for k in ("total", "cover", "contain", "flipped_to_cover",
-              "upscale", "sr", "downscale", "asis", "low", "skipped_no_file"):
+              "upscale", "sr", "downscale", "asis", "low", "toned",
+              "skipped_no_file"):
         print(f"  {k:<18}: {stats.get(k, 0)}")
     if stats.get("low"):
         print(f"  ⚠ {stats['low']} asset(s) flagged res_grade=low — consider swapping.")

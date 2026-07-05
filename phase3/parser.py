@@ -3,12 +3,33 @@ Phase 3 — Script section parser.
 
 Splits an Arabic video script into its structural sections and
 estimates per-section video durations proportional to character count.
+
+Boundary detection, highest priority first (PHASE3.md §7.2):
+
+1. **Sidecar** — a `sections.json` next to the script file (pass
+   `script_path` to parse_sections).  Hand-written or emitted by a
+   future Phase 1b; the explicit override when a script's structure
+   defies detection.
+2. **Legacy regexes** — the rigid v1 template headers (النقطة الأولى…,
+   الخاتمة, تقديم الكتاب).
+3. **Short-isolated-line heuristic** — the current Phase 1b summariser
+   emits descriptive headers ("من الموصل إلى الاستانة — رحلة التحديث…")
+   instead of the template ones; those are short lines (< 80 chars)
+   sitting alone between blank lines.  Any such line after the title
+   becomes a `point_N` boundary.  Without this, a 5-section script
+   collapsed to opening/closing (66/22 shots on the 88-shot production
+   plan) and per-section grading had nothing to key on.
 """
 
 from __future__ import annotations
 
+import json
+import logging
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 
 # ── Section header patterns (Arabic) ────────────────────────────────────── #
@@ -40,27 +61,98 @@ class ScriptSection:
         self.char_count = len(self.text.strip())
 
 
-def parse_sections(script_text: str) -> list[ScriptSection]:
+# Short-isolated-line heuristic bounds
+_HEADER_MAX_CHARS = 80
+
+
+def _load_sidecar(script_path: Path | None) -> list[tuple[int, str]] | None:
+    """Load boundaries from `sections.json` next to the script, if present.
+
+    Format: {"sections": [{"section_id": "point_1", "start_line": 8}, …]}
+    with 0-indexed start lines; each section runs to the next boundary.
+    The opening (before the first boundary) is implicit as usual.
+    """
+    if script_path is None:
+        return None
+    sidecar = Path(script_path).with_name("sections.json")
+    if not sidecar.exists():
+        return None
+    try:
+        data = json.loads(sidecar.read_text(encoding="utf-8"))
+        entries = data.get("sections") or []
+        out = sorted(
+            (int(e["start_line"]), str(e["section_id"])) for e in entries
+        )
+        log.info("Section sidecar %s: %d boundaries", sidecar, len(out))
+        return out
+    except Exception as exc:  # noqa: BLE001 — bad sidecar must not kill a run
+        log.warning("Unreadable sections sidecar %s (%s) — falling back to "
+                    "detection", sidecar, exc)
+        return None
+
+
+def _heuristic_boundaries(lines: list[str]) -> list[int]:
+    """Line indices of short isolated lines (a header candidate: < 80
+    chars, blank line before and after, after the title line, not the
+    trailing **metadata** block)."""
+    out: list[int] = []
+    first_content = next((i for i, l in enumerate(lines) if l.strip()), 0)
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if not s or i <= first_content:
+            continue
+        if len(s) >= _HEADER_MAX_CHARS or s.startswith("**"):
+            continue
+        prev_blank = not lines[i - 1].strip()
+        next_blank = i + 1 >= len(lines) or not lines[i + 1].strip()
+        if prev_blank and next_blank:
+            out.append(i)
+    return out
+
+
+def parse_sections(script_text: str,
+                   script_path: Path | None = None) -> list[ScriptSection]:
     """
     Split a Phase-1 Arabic video script into structural sections.
 
     The opening block (everything before the first recognised header)
-    is always returned as section_id='opening'.
+    is always returned as section_id='opening'.  `script_path` (optional)
+    enables the `sections.json` sidecar override.
 
     Returns sections in document order.
     """
     lines = script_text.splitlines()
 
-    # Find line indices where a recognised header begins
-    boundaries: list[tuple[int, str]] = []          # (line_index, section_id)
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        for pattern, sid in _COMPILED:
-            if pattern.match(stripped):
-                boundaries.append((i, sid))
-                break
+    # 1. Sidecar wins outright.
+    sidecar = _load_sidecar(script_path)
+    if sidecar is not None:
+        boundaries: list[tuple[int, str]] = [
+            (i, sid) for i, sid in sidecar if 0 <= i < len(lines)
+        ]
+    else:
+        # 2. Legacy template regexes.
+        by_line: dict[int, str] = {}
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            for pattern, sid in _COMPILED:
+                if pattern.match(stripped):
+                    by_line[i] = sid
+                    break
+        # 3. Short-isolated-line heuristic fills the gaps the rigid
+        # template misses; regex identities win on collisions.
+        point_n = 1
+        for i in _heuristic_boundaries(lines):
+            if i in by_line:
+                continue
+            by_line[i] = f"point_{point_n}"
+            point_n += 1
+        boundaries = sorted(by_line.items())
+        if len(boundaries) > 1:
+            log.info("Section detection: %d boundaries (%s)",
+                     len(boundaries),
+                     ", ".join(sid for _, sid in boundaries))
 
     # Sentinel at end
     boundaries.append((len(lines), "_end"))
