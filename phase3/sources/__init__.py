@@ -72,6 +72,15 @@ class FetcherConfig:
     # user_dir and book extracts are used; uncovered shots get a placeholder.
     offline: bool = False
 
+    # Adjacent near-duplicate avoidance (P1.1).  When two consecutive image
+    # shots would resolve to the same (or a perceptually identical) picture,
+    # the later shot swaps to its next-ranked candidate so the perceived cut
+    # actually happens.  Applies ONLY to automatic picks (dossier chosen_file
+    # from the waterfall, live fetch) — never to explicit user choices
+    # (override, user-marked, pool, pin, photo-bank assignment).
+    dedupe_adjacent: bool = True
+    dedupe_threshold: int = 8      # Hamming bits on a 64-bit dHash
+
     @property
     def vision_enabled(self) -> bool:
         if self.enable_vision is False:
@@ -105,6 +114,10 @@ class Fetcher:
             VisionScorer(self.config.anthropic_api_key)
             if self.config.vision_enabled else None
         )
+        # dHash of the previous image shot's resolved asset (P1.1).
+        # fetch_for_shot is called in shot order by both the renderer and
+        # prebuild, so "previous call" == "previous image shot on screen".
+        self._prev_asset_hash: int | None = None
         # Optional pre-render dossier — loaded lazily so missing/invalid
         # files don't crash the renderer.
         self.decisions = None
@@ -161,6 +174,41 @@ class Fetcher:
         out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         log.info("Manifest written → %s", out_path)
 
+    # ── Adjacent near-duplicate avoidance (P1.1) ─────────────────── #
+
+    def _remember_asset(self, path: Path | None) -> None:
+        """Record the image that just went on screen so the NEXT image
+        shot can avoid duplicating it.  None (no image / placeholder)
+        clears the memory — a placeholder between two identical photos
+        already breaks the visual repetition."""
+        from .dedupe import dhash
+        self._prev_asset_hash = dhash(path) if path is not None else None
+
+    def _dedupe_pick(self, path: Path, alternates: list[Path],
+                     shot_index: int) -> Path:
+        """Return `path`, or the first ranked alternate that is not a
+        near-duplicate of the previous shot's image.  Keeps the duplicate
+        (with a log line) when no alternate qualifies — honest degradation,
+        a repeat beats a placeholder."""
+        from .dedupe import dhash, near_duplicate
+        if self._prev_asset_hash is None:
+            return path
+        thr = self.config.dedupe_threshold
+        if not near_duplicate(dhash(path), self._prev_asset_hash, thr):
+            return path
+        for alt in alternates:
+            if not near_duplicate(dhash(alt), self._prev_asset_hash, thr):
+                log.info(
+                    "Shot %d: %s duplicates the previous shot's image — "
+                    "swapped to next-ranked candidate %s",
+                    shot_index, path.name, alt.name)
+                return alt
+        log.info(
+            "Shot %d: %s duplicates the previous shot's image and no "
+            "alternate candidate exists — keeping the duplicate",
+            shot_index, path.name)
+        return path
+
     # ── Main entry point ───────────────────────────────────────── #
 
     def fetch_for_shot(self, query: str, shot_index: int,
@@ -179,20 +227,31 @@ class Fetcher:
         # dropped an override) for this shot, use it and skip every
         # source query.
         if self.decisions is not None:
-            resolved = self.decisions.resolve(
+            resolved = self.decisions.resolve_detailed(
                 shot_index=shot_index,
                 review_dir=self.config.review_dir,
             )
-            if resolved is not None:
+            if resolved.path is not None:
+                path = resolved.path
+                # Adjacent-duplicate avoidance — only for the waterfall's
+                # automatic pick.  Explicit user choices (override, user-
+                # marked, pool, pin) and Sonnet photo-bank assignments are
+                # deliberate repetition-or-not decisions; respect them.
+                if (self.config.dedupe_adjacent
+                        and resolved.kind == "chosen_file"
+                        and resolved.chosen_source != "photo_bank"):
+                    path = self._dedupe_pick(path, resolved.alternates,
+                                             shot_index)
                 cand = ImageCandidate(
-                    url=f"file://{resolved}",
-                    title=f"review-dossier:{resolved.name}",
+                    url=f"file://{path}",
+                    title=f"review-dossier:{path.name}",
                     source="user_upload",
                     license_short="user-supplied",
                 )
-                cand.local_path = resolved
+                cand.local_path = path
+                self._remember_asset(path)
                 log.info("Shot %d: review-dossier hit %s",
-                         shot_index, resolved.name)
+                         shot_index, path.name)
                 return FetchResult(query=query, candidates=[cand], best=cand)
 
         # 0.5 Pinned character portrait — set directly on FetcherConfig
@@ -212,12 +271,14 @@ class Fetcher:
                 license_short="user-supplied",
             )
             cand.local_path = p
+            self._remember_asset(p)
             log.info("Shot %d: pinned character portrait %s", shot_index, p.name)
             return FetchResult(query=query, candidates=[cand], best=cand)
 
         # 1. User upload — highest priority among non-dossier paths
         user_cand = self.user_source.lookup_for_shot(shot_index, query)
         if user_cand:
+            self._remember_asset(user_cand.local_path)
             log.info("Shot %d: user-supplied image %s",
                      shot_index, user_cand.title)
             return FetchResult(query=query, candidates=[user_cand], best=user_cand)
@@ -233,6 +294,7 @@ class Fetcher:
             kept = [c for c in book_cands if passes_threshold(c, visual_type)]
             if kept:
                 best = rank_candidates(kept)[0]
+                self._remember_asset(best.local_path)
                 log.info("Shot %d: book-extracted photo (score %d/9)",
                          shot_index, best.total_score)
                 return FetchResult(query=query, candidates=book_cands, best=best)
@@ -249,11 +311,33 @@ class Fetcher:
                 )
                 self._book_warned = True
 
-        # 3. Cached web result
+        # 3. Cached web result.  Same query on adjacent shots returns the
+        # same cached winner — exactly the repetition P1.1 exists to break,
+        # so the cached best goes through the dedupe walk too.
         if self.cache:
             cached = self.cache.get(query)
             if cached and cached.has_image:
                 log.info("Shot %d: cache hit", shot_index)
+                if self.config.dedupe_adjacent:
+                    ranked = rank_candidates(
+                        [c for c in cached.candidates
+                         if c.local_path and Path(c.local_path).exists()])
+                    if ranked:
+                        alt_paths = [Path(c.local_path) for c in ranked
+                                     if c.url != cached.best.url]
+                        picked = self._dedupe_pick(
+                            Path(cached.best.local_path), alt_paths,
+                            shot_index)
+                        if picked != Path(cached.best.local_path):
+                            new_best = next(
+                                c for c in ranked
+                                if Path(c.local_path) == picked)
+                            cached = FetchResult(
+                                query=cached.query,
+                                candidates=cached.candidates,
+                                best=new_best)
+                self._remember_asset(
+                    Path(cached.best.local_path) if cached.best else None)
                 return cached
 
         # 4. Live web fetch
@@ -283,6 +367,7 @@ class Fetcher:
         if not all_candidates:
             log.warning("Shot %d: no candidates from any web source for %r",
                         shot_index, query)
+            self._remember_asset(None)   # placeholder breaks visual adjacency
             return FetchResult(query=query, candidates=[], best=None)
 
         # Download each candidate so we can vision-score it.
@@ -319,6 +404,7 @@ class Fetcher:
         if not downloaded:
             log.warning("Shot %d: all downloads failed for %r",
                         shot_index, query)
+            self._remember_asset(None)
             return FetchResult(query=query, candidates=all_candidates, best=None)
 
         # Vision-score (also guarded — score() is fail-open internally
@@ -344,6 +430,7 @@ class Fetcher:
             if not kept:
                 log.warning("Shot %d: all %d candidates failed threshold",
                             shot_index, len(downloaded))
+                self._remember_asset(None)
                 return FetchResult(query=query, candidates=downloaded, best=None)
             ranked = rank_candidates(kept)
         else:
@@ -351,6 +438,13 @@ class Fetcher:
             ranked = downloaded
 
         best = ranked[0]
+        if self.config.dedupe_adjacent and len(ranked) > 1:
+            alt_paths = [Path(c.local_path) for c in ranked[1:] if c.local_path]
+            picked = self._dedupe_pick(Path(best.local_path), alt_paths,
+                                       shot_index)
+            if picked != Path(best.local_path):
+                best = next(c for c in ranked if Path(c.local_path) == picked)
+        self._remember_asset(Path(best.local_path) if best.local_path else None)
         log.info("Shot %d: best=%s (score %s)",
                  shot_index, best.title[:50],
                  best.total_score if best.is_scored else "n/a")

@@ -345,9 +345,21 @@ class TypographySpec:
     title_scale: float = 1.0
     # Background scrim behind typography-over-image text.  None → fall back to
     # env LAMAHAT_OVERLAY_SCRIM, then DEFAULT_OVERLAY_SCRIM.  One of
-    # "off" / "soft" / "band" (see OVERLAY_SCRIM_PRESETS).  Only consulted by
-    # the over-image path (render_text_overlay); static cards are unaffected.
+    # "auto" / "off" / "soft" / "band" ("auto" samples backdrop_path under the
+    # text block and escalates only for bright/busy frames; see
+    # OVERLAY_SCRIM_PRESETS).  Only consulted by the over-image path
+    # (render_text_overlay); static cards are unaffected.
     scrim: str | None = None
+    # Vertical anchor for over-image text: None → env LAMAHAT_OVERLAY_ANCHOR →
+    # "auto".  "auto" = lower third for pull_quote/typography/name_reveal/
+    # date_stamp (documentary convention — keeps text off faces at frame
+    # centre), centre for section_mark/chapter_heading; "center"/"lower"
+    # force one behaviour.  Only the over-image path consults this.
+    overlay_anchor: str | None = None
+    # The image the overlay will sit on (the previous real shot's asset).
+    # Consulted only by scrim="auto" to measure luminance under the text
+    # block; None → "auto" degrades to "off".
+    backdrop_path: Path | None = None
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -757,18 +769,87 @@ OVERLAY_SCRIM_PRESETS: dict[str, tuple[int, int]] = {
     "soft": (90,  18),
     "band": (205, 40),
 }
-DEFAULT_OVERLAY_SCRIM = "off"
+# "auto" (default) is resolved per shot by _auto_scrim_for_backdrop: the
+# backdrop region under the text block is sampled and the plate escalates
+# off → soft → band only when the frame is genuinely hostile (bright
+# watercolor sky, busy midtones).  Dark footage keeps the plate-free look.
+DEFAULT_OVERLAY_SCRIM = "auto"
+
+# Luminance / busyness gates for "auto" (0-255 luma scale, empirical from
+# the al-Askari screening frames: WWII-soldier sunset ≈ 60 → off; colorized
+# group portrait midsection ≈ 130 busy → soft; cream watercolor sky ≈ 220
+# → band).
+_AUTO_SCRIM_BAND_LUMA = 185
+_AUTO_SCRIM_SOFT_LUMA = 140
+_AUTO_SCRIM_SOFT_STD  = 60
 
 
 def _resolve_scrim(spec: "TypographySpec") -> str:
-    """Pick the scrim preset: explicit spec field → env var → module default."""
+    """Pick the scrim preset name: explicit spec field → env var → module
+    default.  May return "auto" — the over-image renderer resolves that to
+    a concrete preset once the text-block geometry is known."""
     val = getattr(spec, "scrim", None) or os.environ.get("LAMAHAT_OVERLAY_SCRIM")
     val = (val or DEFAULT_OVERLAY_SCRIM).strip().lower()
-    if val not in OVERLAY_SCRIM_PRESETS:
+    if val != "auto" and val not in OVERLAY_SCRIM_PRESETS:
         log.warning("Unknown overlay scrim %r; using %r.",
                     val, DEFAULT_OVERLAY_SCRIM)
         val = DEFAULT_OVERLAY_SCRIM
     return val
+
+
+def _auto_scrim_for_backdrop(backdrop_path: Path | None,
+                             y0_frac: float, y1_frac: float) -> str:
+    """Concrete preset for scrim="auto": sample the backdrop band the text
+    will occupy (mean luma + spread).  No backdrop / unreadable → "off"
+    (matches the previous default — shadow+stroke only)."""
+    if backdrop_path is None:
+        return "off"
+    try:
+        with Image.open(backdrop_path) as img:
+            g = img.convert("L")
+            y0 = max(0, int(g.height * y0_frac))
+            y1 = min(g.height, max(y0 + 1, int(g.height * y1_frac)))
+            band = g.crop((0, y0, g.width, y1)).resize((64, 16))
+            px = list(band.getdata())
+    except Exception as exc:  # noqa: BLE001 — sampling is best-effort
+        log.debug("auto-scrim: unreadable backdrop %s (%s) — off",
+                  backdrop_path, exc)
+        return "off"
+    n = len(px)
+    mean = sum(px) / n
+    var = sum((p - mean) ** 2 for p in px) / n
+    std = var ** 0.5
+    if mean > _AUTO_SCRIM_BAND_LUMA:
+        return "band"
+    if mean > _AUTO_SCRIM_SOFT_LUMA or std > _AUTO_SCRIM_SOFT_STD:
+        return "soft"
+    return "off"
+
+
+# ── Over-image text anchor (P2.1) ─────────────────────────────────────── #
+
+# Vertical centre of the text block as a fraction of frame height.
+OVERLAY_ANCHOR_FRACS = {"center": 0.50, "lower": 0.63}
+DEFAULT_OVERLAY_ANCHOR = "auto"
+
+# "auto" per template: quotes/names/dates sit lower-third (the documentary
+# convention — and it keeps text off the faces/hands that live at frame
+# centre); section marks and chapter headings are structural punctuation
+# and stay centred.
+_LOWER_THIRD_TEMPLATES = {"pull_quote", "name_reveal", "date_stamp"}
+
+
+def _resolve_overlay_anchor(spec: "TypographySpec", template: str) -> float:
+    """Return the text block's vertical-centre fraction for this overlay."""
+    val = (getattr(spec, "overlay_anchor", None)
+           or os.environ.get("LAMAHAT_OVERLAY_ANCHOR")
+           or DEFAULT_OVERLAY_ANCHOR).strip().lower()
+    if val == "auto":
+        val = "lower" if template in _LOWER_THIRD_TEMPLATES else "center"
+    if val not in OVERLAY_ANCHOR_FRACS:
+        log.warning("Unknown overlay anchor %r; using center.", val)
+        val = "center"
+    return OVERLAY_ANCHOR_FRACS[val]
 
 
 def _draw_overlay_text_block(
@@ -870,13 +951,25 @@ def render_text_overlay(spec: "TypographySpec") -> Image.Image:
     sub_h = _measure(draw, sub_text, sub_font)[1] if spec.subtitle else 0
 
     total_h = block_h + (rule_gap + rule_thick + sub_gap + sub_h if spec.subtitle else 0)
-    block_top = int(H * 0.50) - total_h // 2
+    # Vertical anchor (P2.1): lower third for quotes/names/dates, centre for
+    # section marks — then clamp so tall blocks never crowd the frame edges.
+    anchor_frac = _resolve_overlay_anchor(spec, t)
+    block_top = int(H * anchor_frac) - total_h // 2
+    block_top = min(block_top, int(H * 0.93) - total_h)   # bottom margin 7%
+    block_top = max(block_top, int(H * 0.06))             # top margin 6%
     center_y = block_top + total_h // 2
 
-    # Background scrim.  Default "off" → genuinely transparent; the text's own
-    # shadow+stroke carries legibility.  "soft"/"band" re-introduce a centred
-    # charcoal plate for hostile frames (resolved from spec/env, see above).
+    # Background scrim.  "auto" (default) samples the backdrop band the text
+    # occupies and escalates off → soft → band only for bright/busy frames;
+    # dark footage keeps the plate-free shadow+stroke look.  Explicit
+    # off/soft/band (spec/env) skip the sampling entirely.
     scrim_mode = _resolve_scrim(spec)
+    if scrim_mode == "auto":
+        pad = int(main_size * 0.6)   # text shadow/stroke bleed past the bbox
+        scrim_mode = _auto_scrim_for_backdrop(
+            getattr(spec, "backdrop_path", None),
+            (block_top - pad) / H, (block_top + total_h + pad) / H)
+        log.debug("overlay scrim auto → %s", scrim_mode)
     band_peak, veil_alpha = OVERLAY_SCRIM_PRESETS[scrim_mode]
 
     if veil_alpha:

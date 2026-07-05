@@ -54,9 +54,148 @@ def probe_audio_duration(audio_path: Path) -> float | None:
         return None
 
 
+_OVERLAY_VISUALS = {"typography", "section_mark", "chapter_heading"}
+_HOLD_FLAG_SEC = 10.0
+
+
+def _effective_holds(plan: list[dict], review_dir: Path | None,
+                     overlay_on: bool) -> None:
+    """
+    Report EFFECTIVE visual holds — what the eye sees, not what the plan
+    says (P1.2, SCREENING_REVIEW.md §2.2).  Two mechanisms make the
+    perceived cut rate slower than the plan's:
+
+      1. typography-over-image shots reuse the previous shot's footage,
+         so an image shot + its overlay cards read as ONE hold;
+      2. adjacent image shots can resolve to the same (or a perceptually
+         identical) picture — detected via dHash when --review-dir is
+         given, approximated by identical (visual, query) otherwise.
+
+    Spans longer than 10 s of continuous footage are flagged.  Note:
+    render-time dedupe (on by default) will swap automatic picks that
+    duplicate their neighbour — this audit shows the dossier as-is, so
+    a [duplicate] flag here means "dedupe will act or --no-dedupe will
+    show a repeat".
+    """
+    decisions = None
+    dhash = near_dup = None
+    if review_dir is not None:
+        try:
+            import sys as _sys
+            root = str(Path(__file__).resolve().parent)
+            if root not in _sys.path:
+                _sys.path.insert(0, root)
+            from phase3.sources.decisions import Decisions
+            from phase3.sources.dedupe import dhash as _dh
+            from phase3.sources.dedupe import near_duplicate as _nd
+            decisions = Decisions.load(review_dir)
+            dhash, near_dup = _dh, _nd
+        except Exception as exc:  # noqa: BLE001 — audit must not crash
+            print(f"⚠  --review-dir given but dossier unusable ({exc}) — "
+                  f"falling back to query-equality duplicate detection")
+            decisions = None
+
+    runs: list[dict] = []
+    cur: dict | None = None
+
+    def _new_run(i: int, s: dict, img_hash, img_key) -> dict:
+        return {"first": i, "last": i, "start": s["start"], "end": s["end"],
+                "n_img": 0, "n_ovl": 0, "dup": False,
+                "img_hash": img_hash, "img_key": img_key}
+
+    for i, s in enumerate(plan, 1):
+        v = s["visual"]
+        if v in _OVERLAY_VISUALS or v == "title_card":
+            is_overlay = (v in _OVERLAY_VISUALS and overlay_on
+                          and cur is not None and cur["img_key"] is not None)
+            if is_overlay:
+                cur["last"], cur["end"] = i, s["end"]
+                cur["n_ovl"] += 1
+                continue
+            # Static card / title card — its own (non-footage) segment.
+            if cur:
+                runs.append(cur)
+            cur = _new_run(i, s, None, None)
+            runs.append(cur)
+            cur = None
+            continue
+
+        # Image shot — identity via resolved dHash or (visual, query).
+        img_hash = None
+        img_key: object = (v, (s.get("search_query") or "").strip())
+        if decisions is not None:
+            try:
+                p = decisions.resolve(i, review_dir)
+            except Exception:  # noqa: BLE001
+                p = None
+            if p is not None:
+                img_hash = dhash(p)
+                img_key = str(p)
+            else:
+                img_key = ("placeholder", i)
+
+        same = False
+        if cur is not None and cur["img_key"] is not None:
+            if img_hash is not None and cur["img_hash"] is not None:
+                same = near_dup(img_hash, cur["img_hash"])
+            else:
+                same = (img_key == cur["img_key"])
+        if same:
+            cur["last"], cur["end"] = i, s["end"]
+            cur["n_img"] += 1
+            cur["dup"] = True
+        else:
+            if cur:
+                runs.append(cur)
+            cur = _new_run(i, s, img_hash, img_key)
+            cur["n_img"] = 1
+    if cur:
+        runs.append(cur)
+
+    n_shots = len(plan)
+    plan_avg = sum(s["end"] - s["start"] for s in plan) / max(1, n_shots)
+    eff_avg = sum(r["end"] - r["start"] for r in runs) / max(1, len(runs))
+    mode = ("dossier-resolved dHash" if decisions is not None
+            else "query-equality approximation")
+    print(f"Effective visual holds "
+          f"(overlay {'merged' if overlay_on else 'NOT merged'}; "
+          f"duplicates via {mode}):")
+    print(f"   Effective segments: {len(runs)} (plan shots: {n_shots})")
+    print(f"   Effective avg hold: {eff_avg:.2f}s vs plan avg {plan_avg:.2f}s")
+
+    long_runs = sorted((r for r in runs
+                        if r["end"] - r["start"] > _HOLD_FLAG_SEC),
+                       key=lambda r: r["start"])
+    if long_runs:
+        print(f"   ⚠ {len(long_runs)} continuous-footage span(s) "
+              f"exceed {_HOLD_FLAG_SEC:.0f}s:")
+        for r in long_runs:
+            dur = r["end"] - r["start"]
+            parts = []
+            if r["n_img"]:
+                parts.append(f"image ×{r['n_img']}")
+            if r["n_ovl"]:
+                parts.append(f"overlay ×{r['n_ovl']}")
+            flag = "  [adjacent duplicate images]" if r["dup"] else ""
+            span = (f"shot {r['first']}" if r["first"] == r["last"]
+                    else f"shots {r['first']}–{r['last']}")
+            print(f"      {dur:5.1f}s  {span:<14} ({', '.join(parts)}){flag}")
+        if any(r["dup"] for r in long_runs):
+            print("      (duplicate spans: render-time dedupe swaps the "
+                  "automatic pick unless --no-dedupe;")
+            print("       hand-picked/pool/photo-bank choices are respected "
+                  "as-is)")
+    else:
+        print(f"   ✓ No continuous-footage span exceeds "
+              f"{_HOLD_FLAG_SEC:.0f}s")
+    print()
+
+
 def audit(plan: list[dict],
           script_text: str | None,
-          audio_duration: float | None) -> None:
+          audio_duration: float | None,
+          review_dir: Path | None = None,
+          overlay_on: bool = True) -> None:
     n = len(plan)
     if n == 0:
         print("Plan is empty.")
@@ -104,6 +243,9 @@ def audit(plan: list[dict],
     if not gaps and not overlaps:
         print("✓  No gaps or overlaps")
     print()
+
+    # ── Effective visual holds (perceived pacing) ───────────────────── #
+    _effective_holds(plan, review_dir, overlay_on)
 
     # ── Visual / motion histograms ──────────────────────────────────── #
     visuals = Counter(s["visual"] for s in plan)
@@ -239,6 +381,17 @@ def main() -> int:
     ap.add_argument("plan_path", help="Path to shot_plan.json")
     ap.add_argument("--script", help="Optional: original script .txt for verbatim audit")
     ap.add_argument("--audio", help="Optional: audio file for duration check")
+    ap.add_argument("--review-dir", type=Path, default=None,
+                    help="Optional: review dossier directory.  Resolves each "
+                         "image shot exactly as the renderer would and "
+                         "detects adjacent near-duplicate images by "
+                         "perceptual hash (otherwise duplicates are "
+                         "approximated by identical visual+query).")
+    ap.add_argument("--assume-overlay", choices=("on", "off"), default="on",
+                    help="Whether the effective-holds report merges "
+                         "typography shots into the footage they overlay "
+                         "(matches --typography-over-image at render; "
+                         "default on — the notebooks' default).")
     args = ap.parse_args()
 
     plan = json.loads(Path(args.plan_path).read_text(encoding="utf-8"))
@@ -251,7 +404,9 @@ def main() -> int:
     if args.audio:
         audio_dur = probe_audio_duration(Path(args.audio))
 
-    audit(plan, script_text, audio_dur)
+    audit(plan, script_text, audio_dur,
+          review_dir=args.review_dir,
+          overlay_on=(args.assume_overlay == "on"))
     return 0
 
 

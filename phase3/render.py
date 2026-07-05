@@ -1136,10 +1136,14 @@ class RenderConfig:
     # default (Family A: aged gold).  --title-size / --title-color.
     title_scale: float = 1.0
     title_color: tuple[int, int, int] | None = None
-    # Over-image typography scrim plate: "off" | "soft" | "band".  None → the
-    # typography_common default ("off").  Only affects the
-    # --typography-over-image path.  --text-scrim.
+    # Over-image typography scrim plate: "auto" | "off" | "soft" | "band".
+    # None → the typography_common default ("auto": sample the backdrop under
+    # the text block, escalate off→soft→band only for bright/busy frames).
+    # Only affects the --typography-over-image path.  --text-scrim.
     text_scrim: str | None = None
+    # Over-image text vertical anchor: "auto" (lower third for quotes/names/
+    # dates, centre for section marks) | "center" | "lower".  --overlay-anchor.
+    overlay_anchor: str = "auto"
     # Narration captions (only used when add_captions is True, i.e. NOT
     # --no-captions): size multiplier on the 5%-of-height default, an ASS
     # colour string (&HAABBGGRR) override, and vertical position as a fraction
@@ -1274,6 +1278,11 @@ def render_video(shots: list[Shot], out_path: Path, *,
                             title_scale=config.title_scale,
                             title_color=config.title_color,
                             scrim=config.text_scrim)
+                        # Over-image extras: anchor policy + the backdrop the
+                        # text will sit on (consulted by scrim="auto" to pick
+                        # a plate for bright/busy frames).
+                        spec.overlay_anchor = config.overlay_anchor
+                        spec.backdrop_path = last_real_asset
                         overlay_png = assets_dir / f"shot_{i:03d}_ovl.png"
                         render_typography_overlay(spec, overlay_png)
                         bg_clip = clips_dir / f"shot_{i:03d}_bg.mp4"
