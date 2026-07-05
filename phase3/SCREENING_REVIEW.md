@@ -195,7 +195,66 @@ working, and is testable in isolation (per the §0 working principle).
 
 ---
 
-## 5. Ledger updates suggested for PHASE3.md
+## 5. Second screening — `final_cut (sample).mp4` (2026-07-05)
+
+3-minute 720p sample rendered with the full P0–P4 stack. Frame-by-frame
+review (60 samples at 3 s intervals).
+
+### What the batches visibly delivered
+
+- **The imagery is now period-true where it matters.** The colorized
+  Ottoman officer at the tent, Harbiye Mektebi, the handwritten memoir
+  close-ups (real Arabic handwriting — the 1815 Italian ledger is gone),
+  the officer group portraits, the 1908 CUP proclamation photo, the
+  Abdulhamid II portrait, the Young-Turk-era lithograph: the photo bank
+  and free-source waterfall carry most of the film.
+- **The word-by-word reveal works in production** — visible mid-build on
+  the tent portrait and the memoir book; no jitter, correct RTL order.
+- **Lower-third + adaptive scrim behave**: quote text sits off the
+  subjects; the `الاستانة — ١٩٠١` date stamp gets a dark plate over the
+  bright map and stays legible.
+- **The custom illustrated map with the Mosul→Istanbul route arrows is
+  the single best new moment in the film** — exactly the kind of asset
+  the photo-bank pipeline was built to carry.
+- **One unified warm/sepia look**; the title card's gold rule + centred
+  block reads designed.
+
+### What still breaks the spell (ranked)
+
+1. **Four era/subject misses in the back half**, where the bank had no
+   assignment and the waterfall found confident-but-wrong candidates:
+   modern **Swedish royal guards** (~t 80–90 s), a modern **Russian
+   officer with red-beret cadets** (~t 85–90 s), a **Meiji-era Japanese
+   group photo** on the education beat (~t 150 s), and a **17th-century
+   Baroque portrait** on the CUP-organizing beat (~t 160 s).  Notably
+   the bank *contains* Young Turks photos — the assignment either left
+   those shots empty or `--photo-bank-max-uses 1` spent the photo
+   elsewhere.  The Baroque portrait shows an era-rubric blind spot:
+   "old but the WRONG old" can pass a lenient judge.
+2. **Long effective holds around typography-over-image runs persist**
+   (the cavalry footage ≈15 s, the open memoir ≈12 s with their overlay
+   cards) — this is exactly deferred item **P1.3** (rotate the overlay
+   backdrop when a run exceeds ~10 s), now justified by evidence.
+3. **Render-time fetches never pass the shot's visual type** —
+   `_build_shot_asset` and prebuild call `fetch_for_shot(query, idx)`
+   without `visual_type`, so the stricter portrait threshold
+   (`MIN_KEEP_SUBJECT_PORTRAIT`) never actually applies.  Small bug,
+   real consequence for misses like #1.
+4. Minor: a star/flare blemish burned into the cavalry source asset
+   (curation note); the B&W Shevket portrait letterboxes over black
+   instead of the blurred fill.
+
+### Recommended next batch (P5)
+
+| # | Action | Kind |
+|---|---|---|
+| 5.1 | Curate the four miss shots via the dossier (swap to bank photos / drop `my_*` files); consider `--photo-bank-max-uses 2` and adding 3–4 more bank photos for the education / CUP beats | curation, no code |
+| 5.2 | Era rubric: "wrong century in EITHER direction scores 0 — a 17th-century painting is as anachronistic for 1908 as a modern photo"; pass `visual_type` through render/prebuild fetches so the portrait floor applies | code, S |
+| 5.3 | **P1.3**: rotate the typography-over-image backdrop to the shot's next-ranked candidate when a continuous run exceeds ~10 s | code, M |
+| 5.4 | P3.4 per-section `grade_map.json` (parser fix unblocked it) | code, M |
+| 5.5 | ElevenLabs TTS (Phase 2) — the remaining non-visual quality lever | code, M |
+
+## 6. Ledger updates suggested for PHASE3.md
 
 - §15.5 (asset review loop) → **closed**: this render consumed the dossier
   end-to-end (override chain, pool rotation, conditioned files all observed
