@@ -244,15 +244,15 @@ review (60 samples at 3 s intervals).
    (curation note); the B&W Shevket portrait letterboxes over black
    instead of the blurred fill.
 
-### Recommended next batch (P5)
+### Recommended next batch (P5) — ✅ code items SHIPPED 2026-07-05
 
-| # | Action | Kind |
+| # | Action | Status |
 |---|---|---|
-| 5.1 | Curate the four miss shots via the dossier (swap to bank photos / drop `my_*` files); consider `--photo-bank-max-uses 2` and adding 3–4 more bank photos for the education / CUP beats | curation, no code |
-| 5.2 | Era rubric: "wrong century in EITHER direction scores 0 — a 17th-century painting is as anachronistic for 1908 as a modern photo"; pass `visual_type` through render/prebuild fetches so the portrait floor applies | code, S |
-| 5.3 | **P1.3**: rotate the typography-over-image backdrop to the shot's next-ranked candidate when a continuous run exceeds ~10 s | code, M |
-| 5.4 | P3.4 per-section `grade_map.json` (parser fix unblocked it) | code, M |
-| 5.5 | ElevenLabs TTS (Phase 2) — the remaining non-visual quality lever | code, M |
+| 5.1 | Curate the four miss shots via the dossier; `--photo-bank-max-uses 2` and 3–4 more bank photos for the education / CUP beats | **user curation** — the main notebook now exposes `PHOTO_BANK_MAX_USES` (default 2) and passes it to prebuild |
+| 5.2 | Era rubric hardened ("wrong century in EITHER direction scores 0; wrong region's institutions ≤ 1") + `visual_type` now passed through render **and** prebuild fetches, so the stricter portrait subject floor finally applies | ✅ |
+| 5.3 | **P1.3 shipped**: past `--backdrop-rotate` seconds (default 10, 0 off) of one continuous over-image backdrop, the next overlay card switches to the source shot's next-ranked dossier alternate (near-duplicates skipped, camera restarts wide, per-shot alternate pointer so repeats keep rotating). Fail-open — no dossier/alternates → previous behaviour | ✅ tested (rotation, exhaustion, no-dossier) |
+| 5.4 | **P3.4 shipped**: `--grade-map file.json` ({section_id: grade}); unmapped sections fall back to `--grade`. Applied at the final mux via timeline-enabled stages (`colortemperature`/`eq`/`hue` — deliberately not `curves`, whose timeline support is too new for Colab's system ffmpeg). Clip encoding and stream-copy concat untouched. Notebooks expose `GRADE_MAP` | ✅ verified in a real ffmpeg run (warm window stayed red-dominant, bw window fully desaturated) |
+| 5.5 | **ElevenLabs TTS shipped** (`phase2/tts.py`): sentence-boundary chunking ≤ 4500 chars with `previous_text`/`next_text` prosody bridging, ffmpeg-concat part joining (byte-join fallback), ElevenLabs error details surfaced verbatim. Streamlit Phase 2 tab: backend enabled (no more "(soon)"), key/voice pre-filled from `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` secrets | ✅ tested (chunking lossless, join duration correct, mocked API incl. error path) |
 
 ## 6. Ledger updates suggested for PHASE3.md
 
