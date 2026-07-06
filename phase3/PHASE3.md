@@ -147,6 +147,31 @@ Details and verification numbers in `phase3/SCREENING_REVIEW.md` §4.
 - Deferred consciously: P1.3 (overlay backdrop rotation past 10 s) and
   P2.3 (saliency nudge) — re-evaluate after the next screening pass.
 
+### P5 batch (2026-07-05) — second-screening fixes
+
+After the user's 3-minute sample confirmed the P0–P4 stack on screen
+(SCREENING_REVIEW.md §5), the remaining misses were addressed:
+
+- **`visual_type` bug fixed**: render and prebuild now pass the shot's
+  visual into `fetch_for_shot`, so the stricter portrait subject floor
+  (vision.MIN_KEEP_SUBJECT_PORTRAIT) actually applies.
+- **Era rubric hardened**: wrong century in EITHER direction scores 0
+  (a Baroque painting is as anachronistic for 1908 as a modern photo);
+  wrong region's institutions cap at 1.
+- **P1.3 shipped** — `--backdrop-rotate SEC` (default 10): a long run
+  of over-image text cards rotates its backdrop to the source shot's
+  next-ranked dossier alternate instead of freezing one frame.
+- **P3.4 shipped** — `--grade-map file.json` per-section grading at the
+  final mux via timeline-enabled filters (colortemperature/eq/hue;
+  NOT curves — Colab's ffmpeg may predate its timeline support).
+  Unmapped sections fall back to `--grade`.
+- **ElevenLabs TTS shipped** (Phase 2): chunked synthesis with prosody
+  bridging, ffmpeg part-joining, Streamlit backend enabled with
+  `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` secrets.  Cleaner
+  narration also feeds better WhisperX alignment (§7.5/§7.10 closed).
+- Notebooks: `PHOTO_BANK_MAX_USES` (default 2) on prebuild,
+  `GRADE_MAP` on both render paths.
+
 ### P3/P4 batch (2026-07-05) — one look + hygiene + word reveal
 
 Verification detail in `phase3/SCREENING_REVIEW.md` §4 (P3/P4 tables).

@@ -166,7 +166,8 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
     result = None
     if not (bank_photo and skip_waterfall):
         try:
-            result = fetcher.fetch_for_shot(query=query, shot_index=idx)
+            result = fetcher.fetch_for_shot(query=query, shot_index=idx,
+                                            visual_type=shot.visual)
         except Exception as exc:
             log.warning("Shot %d: fetcher raised %s — emitting empty decision",
                         idx, exc)

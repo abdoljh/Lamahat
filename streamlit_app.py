@@ -336,18 +336,29 @@ with st.sidebar:
     st.markdown("#### 🎙 Phase 2: TTS")
     tts_backend = st.radio(
         "TTS Backend",
-        ["gTTS (free)", "ElevenLabs (soon)"],
+        ["gTTS (free)", "ElevenLabs"],
         index=0,
         help=(
             "**gTTS** — Google TTS, free, no API key. Use for development.\n\n"
-            "**ElevenLabs** — Premium Arabic voices (e.g. Chaouki). Coming soon."
+            "**ElevenLabs** — Premium Arabic voices (e.g. Chaouki). Long "
+            "scripts are chunked at sentence boundaries automatically. "
+            "Cleaner narration also improves WhisperX alignment in Phase 3."
         ),
     )
     el_api_key  = ""
     el_voice_id = ""
-    if tts_backend == "ElevenLabs (soon)":
-        el_api_key  = st.text_input("ElevenLabs API Key", type="password", key="el_key")
-        el_voice_id = st.text_input("Voice ID", placeholder="e.g. Chaouki voice ID", key="el_voice")
+    if tts_backend == "ElevenLabs":
+        el_api_key = st.text_input(
+            "ElevenLabs API Key", type="password", key="el_key",
+            value=_secret("ELEVENLABS_API_KEY"),
+            help="From elevenlabs.io → Profile. Also read from the "
+                 "ELEVENLABS_API_KEY secret on Cloud.")
+        el_voice_id = st.text_input(
+            "Voice ID", key="el_voice",
+            value=_secret("ELEVENLABS_VOICE_ID"),
+            placeholder="e.g. the Chaouki voice ID",
+            help="elevenlabs.io → Voices → your voice → ID. Also read "
+                 "from the ELEVENLABS_VOICE_ID secret.")
 
     st.markdown("---")
     st.markdown("#### 🎬 Phase 3: Visuals")

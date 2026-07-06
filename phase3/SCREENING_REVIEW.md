@@ -195,7 +195,66 @@ working, and is testable in isolation (per the §0 working principle).
 
 ---
 
-## 5. Ledger updates suggested for PHASE3.md
+## 5. Second screening — `final_cut (sample).mp4` (2026-07-05)
+
+3-minute 720p sample rendered with the full P0–P4 stack. Frame-by-frame
+review (60 samples at 3 s intervals).
+
+### What the batches visibly delivered
+
+- **The imagery is now period-true where it matters.** The colorized
+  Ottoman officer at the tent, Harbiye Mektebi, the handwritten memoir
+  close-ups (real Arabic handwriting — the 1815 Italian ledger is gone),
+  the officer group portraits, the 1908 CUP proclamation photo, the
+  Abdulhamid II portrait, the Young-Turk-era lithograph: the photo bank
+  and free-source waterfall carry most of the film.
+- **The word-by-word reveal works in production** — visible mid-build on
+  the tent portrait and the memoir book; no jitter, correct RTL order.
+- **Lower-third + adaptive scrim behave**: quote text sits off the
+  subjects; the `الاستانة — ١٩٠١` date stamp gets a dark plate over the
+  bright map and stays legible.
+- **The custom illustrated map with the Mosul→Istanbul route arrows is
+  the single best new moment in the film** — exactly the kind of asset
+  the photo-bank pipeline was built to carry.
+- **One unified warm/sepia look**; the title card's gold rule + centred
+  block reads designed.
+
+### What still breaks the spell (ranked)
+
+1. **Four era/subject misses in the back half**, where the bank had no
+   assignment and the waterfall found confident-but-wrong candidates:
+   modern **Swedish royal guards** (~t 80–90 s), a modern **Russian
+   officer with red-beret cadets** (~t 85–90 s), a **Meiji-era Japanese
+   group photo** on the education beat (~t 150 s), and a **17th-century
+   Baroque portrait** on the CUP-organizing beat (~t 160 s).  Notably
+   the bank *contains* Young Turks photos — the assignment either left
+   those shots empty or `--photo-bank-max-uses 1` spent the photo
+   elsewhere.  The Baroque portrait shows an era-rubric blind spot:
+   "old but the WRONG old" can pass a lenient judge.
+2. **Long effective holds around typography-over-image runs persist**
+   (the cavalry footage ≈15 s, the open memoir ≈12 s with their overlay
+   cards) — this is exactly deferred item **P1.3** (rotate the overlay
+   backdrop when a run exceeds ~10 s), now justified by evidence.
+3. **Render-time fetches never pass the shot's visual type** —
+   `_build_shot_asset` and prebuild call `fetch_for_shot(query, idx)`
+   without `visual_type`, so the stricter portrait threshold
+   (`MIN_KEEP_SUBJECT_PORTRAIT`) never actually applies.  Small bug,
+   real consequence for misses like #1.
+4. Minor: a star/flare blemish burned into the cavalry source asset
+   (curation note); the B&W Shevket portrait letterboxes over black
+   instead of the blurred fill.
+
+### Recommended next batch (P5) — ✅ code items SHIPPED 2026-07-05
+
+| # | Action | Status |
+|---|---|---|
+| 5.1 | Curate the four miss shots via the dossier; `--photo-bank-max-uses 2` and 3–4 more bank photos for the education / CUP beats | **user curation** — the main notebook now exposes `PHOTO_BANK_MAX_USES` (default 2) and passes it to prebuild |
+| 5.2 | Era rubric hardened ("wrong century in EITHER direction scores 0; wrong region's institutions ≤ 1") + `visual_type` now passed through render **and** prebuild fetches, so the stricter portrait subject floor finally applies | ✅ |
+| 5.3 | **P1.3 shipped**: past `--backdrop-rotate` seconds (default 10, 0 off) of one continuous over-image backdrop, the next overlay card switches to the source shot's next-ranked dossier alternate (near-duplicates skipped, camera restarts wide, per-shot alternate pointer so repeats keep rotating). Fail-open — no dossier/alternates → previous behaviour | ✅ tested (rotation, exhaustion, no-dossier) |
+| 5.4 | **P3.4 shipped**: `--grade-map file.json` ({section_id: grade}); unmapped sections fall back to `--grade`. Applied at the final mux via timeline-enabled stages (`colortemperature`/`eq`/`hue` — deliberately not `curves`, whose timeline support is too new for Colab's system ffmpeg). Clip encoding and stream-copy concat untouched. Notebooks expose `GRADE_MAP` | ✅ verified in a real ffmpeg run (warm window stayed red-dominant, bw window fully desaturated) |
+| 5.5 | **ElevenLabs TTS shipped** (`phase2/tts.py`): sentence-boundary chunking ≤ 4500 chars with `previous_text`/`next_text` prosody bridging, ffmpeg-concat part joining (byte-join fallback), ElevenLabs error details surfaced verbatim. Streamlit Phase 2 tab: backend enabled (no more "(soon)"), key/voice pre-filled from `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` secrets | ✅ tested (chunking lossless, join duration correct, mocked API incl. error path) |
+
+## 6. Ledger updates suggested for PHASE3.md
 
 - §15.5 (asset review loop) → **closed**: this render consumed the dossier
   end-to-end (override chain, pool rotation, conditioned files all observed

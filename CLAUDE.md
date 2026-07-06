@@ -19,7 +19,7 @@ Runtime: **Python 3.12.13** (confirmed from Cloud logs — do NOT assume 3.14).
 |-------|------|------|--------|
 | 1a | PDF Preprocessing & OCR | PDF → strip margins → page images → Kraken OCR → normalised text | ✅ **Complete** |
 | 1b | Chunking & Summarisation | Normalised text → semantic chunks → 625–850-word video script | ✅ **Complete** |
-| 2 | Audio Synthesis (TTS) | Script → Arabic MP3 via gTTS (ElevenLabs next) | ✅ **Working** (gTTS) |
+| 2 | Audio Synthesis (TTS) | Script → Arabic MP3 via gTTS or ElevenLabs | ✅ **Complete** (both backends) |
 | 3 | Visual Generation | Script + audio → shot plan (Sonnet) → final MP4 with visuals, voice, subtitles | 🔧 **In Progress** (shot-based v2) |
 | 4 | Workflow Integration | One-click pipeline: PDF → finished video | ✅ **Complete** (follows Phase 3) |
 
@@ -59,7 +59,7 @@ phase1/
     output_writer.py      # JSON + TXT serialisation
 phase2/
   __init__.py
-  tts.py                  # gTTS backend; ElevenLabs stub (NotImplementedError)
+  tts.py                  # gTTS + ElevenLabs backends (chunked, prosody-bridged)
 phase3/                   # Phase 3 v2 (shot-based). See phase3/PHASE3.md for depth.
   PHASE3.md               # deep architecture reference + session handoff
   __init__.py             # route orchestrators (generate_video_v2 /
@@ -236,11 +236,14 @@ so the error message is passed through cleanly as a warning.
 - **gTTS** (`lang='ar'`): free, no API key, produces Arabic MP3 in seconds.
 - Streamlit UI: choose script source (Phase 1 session or upload `.txt`), plain vs. diacritized variant, generate + download MP3.
 
-### What is needed next
-- **ElevenLabs** integration (Chaouki voice) for broadcast-quality Arabic TTS.
-  - Stub exists in `phase2/tts.py` (`NotImplementedError`).
-  - Needs: `ELEVENLABS_API_KEY` secret + voice ID in UI, then call ElevenLabs REST API.
-  - Priority: implement after Phase 3 visual quality is stable.
+### ElevenLabs — implemented (2026-07-05)
+- `phase2/tts.py:synthesize_elevenlabs`: REST call per ≤4500-char
+  sentence-boundary chunk with `previous_text`/`next_text` prosody
+  bridging; parts joined via ffmpeg concat (byte-join fallback); API
+  errors surfaced verbatim (bad voice ID, quota, tier limits).
+- Streamlit Phase 2 tab: ElevenLabs backend enabled; key + voice ID
+  pre-filled from `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` secrets.
+- Cleaner narration also improves WhisperX alignment in Phase 3.
 
 ---
 
@@ -387,7 +390,9 @@ API keys: `--anthropic-key` / `--pexels-key` flags, `ANTHROPIC_API_KEY` /
 - **Color grade per-section variation** (the `--grade` knob exists;
   `grade_map.json` per section is now unblocked by the §7.2 parser fix;
   design must respect the stream-copy concat invariant).
-- **ElevenLabs TTS** (Phase 2) — cleaner audio also helps alignment.
+- ~~**ElevenLabs TTS**~~ — **shipped 2026-07-05** (P5 batch): chunked
+  synthesis + prosody bridging in `phase2/tts.py`, Streamlit backend
+  enabled with `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` secrets.
 - **Better placeholders**: replace the Latin-query "TBD" card for un-sourced
   shots with a styled Arabic typography card (PHASE3.md §7.7).
 
@@ -433,8 +438,9 @@ Phase 4 is complete once Phase 3 produces broadcast-quality output.
    `phase3_run.py --align-only`) and upload it in the Total-solution *Alignment*
    expander — WhisperX won't fit in Cloud's ~1 GB RAM.
 
-5. **Implement ElevenLabs TTS** (Phase 2): `phase2/tts.py` stub +
-   `ELEVENLABS_API_KEY`; cleaner audio also improves alignment.
+5. **Record the narration with ElevenLabs** (now implemented): set the
+   `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` secrets, regenerate the
+   MP3 in the Phase 2 tab, re-run alignment on Colab.
 
 ---
 

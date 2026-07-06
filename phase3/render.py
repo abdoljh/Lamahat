@@ -96,6 +96,60 @@ GRADE_PRESETS: dict[str, str] = {
     "neutral": "eq=contrast=1.03:saturation=1.0",
     "bw": "hue=s=0,eq=contrast=1.10",
 }
+
+# Per-section grade presets (P3.4 / grade_map).  Same looks as GRADE_PRESETS
+# but built ONLY from filters with long-standing timeline (enable=) support —
+# `curves` gained timeline support late, and Colab's system ffmpeg can
+# predate it.  Each list entry is one filter stage; the section's
+# enable='between(t,…)' window is appended per stage.
+GRADE_PRESETS_TIMELINE: dict[str, list[str]] = {
+    "warm":    ["colortemperature=temperature=5000",
+                "eq=contrast=1.08:saturation=1.05"],
+    "cool":    ["colortemperature=temperature=7600",
+                "eq=contrast=1.05:saturation=0.95"],
+    "neutral": ["eq=contrast=1.03"],
+    "bw":      ["hue=s=0", "eq=contrast=1.10"],
+}
+
+
+def _section_ranges(shots: "list[Shot]") -> list[tuple[str, float, float]]:
+    """Contiguous (section_id, t0, t1) runs in plan order."""
+    ranges: list[tuple[str, float, float]] = []
+    for s in shots:
+        sid = getattr(s, "section_id", "") or ""
+        if ranges and ranges[-1][0] == sid:
+            ranges[-1] = (sid, ranges[-1][1], s.end)
+        else:
+            ranges.append((sid, s.start, s.end))
+    return ranges
+
+
+def _grade_map_vparts(grade_map: dict, shots: "list[Shot]",
+                      default_grade: str | None) -> list[str]:
+    """Timeline-enabled filter stages for per-section grading.
+
+    Sections named in `grade_map` get their mapped preset; every other
+    section falls back to `default_grade` (the global --grade), so the film
+    is never partially ungraded just because the map lists two sections.
+    Applied at the final mux — clip encoding and the stream-copy concat are
+    untouched.
+    """
+    parts: list[str] = []
+    for sid, t0, t1 in _section_ranges(shots):
+        g = grade_map.get(sid, default_grade)
+        if not g:
+            continue
+        chain = GRADE_PRESETS_TIMELINE.get(g)
+        if chain is None:
+            log.warning("grade_map: unknown grade %r for section %r — "
+                        "section left at default. Valid: %s",
+                        g, sid, sorted(GRADE_PRESETS_TIMELINE))
+            continue
+        enable = f":enable='between(t,{t0:.3f},{t1:.3f})'"
+        parts.extend(f"{stage}{enable}" for stage in chain)
+        log.info("Section grade: %-10s → %-7s (%.1f–%.1f s)", sid or "(none)",
+                 g, t0, t1)
+    return parts
 DEFAULT_GRADE = "warm"
 
 # ── Issue 4 Patch B: caption charcoal-bar backplate ─────────────────── #
@@ -408,10 +462,13 @@ def _build_shot_asset(shot: Shot, shot_index: int,
         )
         return render_typography(spec, out_path), False
 
-    # Image visual: try the fetcher first
+    # Image visual: try the fetcher first.  visual_type matters: portrait
+    # shots get a stricter vision subject floor (a wrong face is far more
+    # jarring than off-topic b-roll).
     if fetcher is not None:
         try:
-            result = fetcher.fetch_for_shot(shot.search_query, shot_index)
+            result = fetcher.fetch_for_shot(shot.search_query, shot_index,
+                                            visual_type=shot.visual)
         except Exception as exc:
             log.warning("Fetcher raised on shot %d (%s): %s — using placeholder",
                         shot_index, shot.visual, exc)
@@ -845,6 +902,51 @@ def _overlay_png_on_clip(bg_clip: Path, overlay_png: Path, out_path: Path, *,
     return out_path
 
 
+def _rotate_backdrop(fetcher, src_shot_index: int | None,
+                     alt_ptrs: dict[int, int], current_asset: Path,
+                     assets_dir: Path, i: int) -> Path | None:
+    """P1.3 — pick the source shot's next-ranked dossier alternate as a fresh
+    backdrop for a long typography-over-image run.
+
+    Returns a render-ready PNG or None (no dossier / no alternates left /
+    everything a near-duplicate of what's already on screen).  A None simply
+    keeps the current backdrop — the pre-P1.3 behaviour."""
+    decisions = getattr(fetcher, "decisions", None) if fetcher else None
+    if decisions is None or src_shot_index is None:
+        return None
+    try:
+        resolved = decisions.resolve_detailed(
+            src_shot_index, fetcher.config.review_dir)
+    except Exception as exc:  # noqa: BLE001 — rotation is best-effort
+        log.debug("Backdrop rotation: resolve failed (%s)", exc)
+        return None
+    alts = resolved.alternates
+    if not alts:
+        return None
+
+    from .sources.dedupe import dhash, near_duplicate
+    cur_hash = dhash(current_asset)
+    ptr = alt_ptrs.get(src_shot_index, 0)
+    while ptr < len(alts):
+        cand = alts[ptr]
+        ptr += 1
+        if near_duplicate(dhash(cand), cur_hash):
+            continue
+        try:
+            from PIL import Image
+            out = assets_dir / f"shot_{i:03d}_bgrot.png"
+            with Image.open(cand) as im:
+                im.convert("RGB").save(out, format="PNG", optimize=True)
+            alt_ptrs[src_shot_index] = ptr
+            log.info("Overlay run > rotate: backdrop switched to alternate "
+                     "%s (source shot %d)", cand.name, src_shot_index)
+            return out
+        except Exception as exc:  # noqa: BLE001
+            log.debug("Backdrop rotation: %s unusable (%s)", cand, exc)
+    alt_ptrs[src_shot_index] = ptr
+    return None
+
+
 def _overlay_steps_on_clip(bg_clip: Path, steps: list[Path], out_path: Path, *,
                            fps: int, duration: float) -> Path:
     """Word-by-word reveal (§7.9): stack CUMULATIVE overlay PNGs with timed
@@ -966,6 +1068,7 @@ def _mux_final(background: Path, out_path: Path,
               subtitle_path: Path | None,
               max_duration: float,
               grade: str | None = None,
+              grade_map_vparts: "list[str] | None" = None,
               caption_backplate: str | None = None,
               music_path: Path | None = None,
               music_gain_db: float = -18.0,
@@ -1015,7 +1118,14 @@ def _mux_final(background: Path, out_path: Path,
 
     # ── Video filter chain (label [v]) ──────────────────────────────── #
     vparts: list[str] = []
-    if grade:
+    if grade_map_vparts:
+        # Per-section grading (P3.4) — timeline-enabled stages replace the
+        # single global preset entirely (unmapped sections already fall back
+        # to the global grade inside _grade_map_vparts).
+        vparts.extend(grade_map_vparts)
+        log.info("Per-section grade map applied (%d filter stages)",
+                 len(grade_map_vparts))
+    elif grade:
         preset = GRADE_PRESETS.get(grade)
         if preset:
             vparts.append(preset)
@@ -1167,6 +1277,11 @@ class RenderConfig:
     # remain crisp white regardless of preset.  Selectable via --grade
     # in render_plan.py.
     grade: str | None = DEFAULT_GRADE
+    # Per-section grading (P3.4): {section_id: grade_name} applied at the
+    # final mux via timeline-enabled filters (GRADE_PRESETS_TIMELINE).
+    # Sections not in the map fall back to `grade`.  None → single global
+    # grade (previous behaviour).  --grade-map FILE.json in render_plan.py.
+    grade_map: dict | None = None
     # Caption charcoal-bar backplate (issue 4 patch B).  One of
     # CAPTION_BACKPLATES keys ("off", "subtle", "solid").  Applied as a
     # `drawbox` filter after grade and before ass burn-in, so it sits
@@ -1196,6 +1311,12 @@ class RenderConfig:
     # Opt-in until screened: the quote extends word-group by word-group over
     # the first ~1.6 s instead of appearing whole.  --word-reveal.
     word_reveal: bool = False
+    # P1.3: when a continuous typography-over-image run keeps one backdrop on
+    # screen longer than this many seconds, the NEXT overlay card switches to
+    # the source shot's next-ranked dossier alternate (near-duplicates
+    # skipped), so a long quote run reads as an edited sequence instead of a
+    # frozen frame.  0 disables.  --backdrop-rotate.
+    overlay_backdrop_rotate_sec: float = 10.0
     # Narration captions (only used when add_captions is True, i.e. NOT
     # --no-captions): size multiplier on the 5%-of-height default, an ASS
     # colour string (&HAABBGGRR) override, and vertical position as a fraction
@@ -1309,6 +1430,12 @@ def render_video(shots: list[Shot], out_path: Path, *,
         _ovl_cam_cursor: tuple[float, float, float] | None = None
         _ovl_cam_base: float | None = None
         _last_real_visual: str | None = None
+        # P1.3 backdrop-rotation state: when did the current continuous
+        # footage run start, which shot supplied the backdrop, and how many
+        # of its alternates have been consumed already.
+        _footage_run_start: float | None = None
+        _backdrop_src_index: int | None = None
+        _backdrop_alt_ptr: dict[int, int] = {}
         for i, shot in enumerate(shots):
             asset_path = assets_dir / f"shot_{i:03d}.png"
             clip_path  = clips_dir  / f"shot_{i:03d}.mp4"
@@ -1323,6 +1450,22 @@ def render_video(shots: list[Shot], out_path: Path, *,
                 if (config.typography_over_image
                         and shot.visual in _OVERLAY_VISUALS
                         and last_real_asset is not None):
+                    # P1.3: a long run of overlays on one backdrop reads as a
+                    # frozen frame — past the threshold, switch to the source
+                    # shot's next-ranked alternate and restart the camera.
+                    if (config.overlay_backdrop_rotate_sec > 0
+                            and _footage_run_start is not None
+                            and (shot.end - _footage_run_start
+                                 > config.overlay_backdrop_rotate_sec)):
+                        rotated = _rotate_backdrop(
+                            config.fetcher, _backdrop_src_index,
+                            _backdrop_alt_ptr, last_real_asset,
+                            assets_dir, i)
+                        if rotated is not None:
+                            last_real_asset = rotated
+                            _ovl_cam_cursor = None
+                            _ovl_cam_base = None
+                            _footage_run_start = shot.start
                     try:
                         spec = _typography_spec(
                             shot, width=config.width, height=config.height,
@@ -1406,6 +1549,8 @@ def render_video(shots: list[Shot], out_path: Path, *,
                         # (Computed from the per-visual parallax path; harmless
                         # when parallax is off — it just won't be consumed.)
                         _last_real_visual = shot.visual
+                        _footage_run_start = shot.start
+                        _backdrop_src_index = i + 1   # dossier is 1-indexed
                         if config.parallax:
                             end_cam = mp.shot_end_camera(shot.visual)
                             _ovl_cam_cursor = end_cam
@@ -1501,6 +1646,9 @@ def render_video(shots: list[Shot], out_path: Path, *,
                   subtitle_path=ass_path,
                   max_duration=audio_duration_sec,
                   grade=config.grade,
+                  grade_map_vparts=(
+                      _grade_map_vparts(config.grade_map, shots, config.grade)
+                      if config.grade_map else None),
                   caption_backplate=config.caption_backplate,
                   music_path=config.music_path,
                   music_gain_db=config.music_gain_db,

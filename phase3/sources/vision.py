@@ -87,8 +87,14 @@ Score the image on three dimensions, 0-3 each:
    Judge the CONTENT, not the color treatment — a modern photo graded sepia
    is still modern.  Look at uniforms, weapons, vehicles, clothing,
    architecture, printing/handwriting style.
-   0 = clearly anachronistic (wrong century, modern staging/reenactors,
-       obviously AI-generated or contemporary stock)
+   IMPORTANT: wrong century in EITHER direction scores 0.  A 17th-century
+   Baroque painting is exactly as anachronistic for a 1900s subject as a
+   modern photograph; "old-looking" is not "the right period".  Likewise a
+   ceremonial guard in archaic-style dress photographed today is modern
+   content (score 0), and material from the wrong REGION's army/institutions
+   (e.g. a European royal guard for an Ottoman academy) scores at most 1.
+   0 = clearly anachronistic (wrong century — older OR newer, modern
+       staging/reenactors, obviously AI-generated or contemporary stock)
    1 = doubtful (period ambiguous but details feel wrong)
    2 = plausible for the implied period
    3 = clearly authentic period material

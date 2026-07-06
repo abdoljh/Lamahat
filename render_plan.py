@@ -60,6 +60,7 @@ Logging
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import sys
@@ -194,6 +195,14 @@ def main() -> int:
                          "B = Netflix-doc cinematic dark gradient, "
                          "C = Manuscript sepia + ornament.")
 
+    ap.add_argument("--grade-map", type=Path, default=None, metavar="JSON",
+                    help="Per-section grading: a JSON file mapping section_id "
+                         "to a grade name, e.g. "
+                         '{"opening":"neutral","point_2":"cool","closing":"warm"}. '
+                         "Sections not listed fall back to --grade. Applied "
+                         "at the final mux with timeline filters — clip "
+                         "encoding is untouched. Section ids come from the "
+                         "plan (audit_plan.py shows them).")
     ap.add_argument("--grade",
                     choices=("warm", "cool", "neutral", "bw"),
                     default="warm",
@@ -235,6 +244,13 @@ def main() -> int:
                          "is bright or busy; off = always transparent; soft = "
                          "light readability veil; band = strong dark band. No "
                          "effect without --typography-over-image.")
+    ap.add_argument("--backdrop-rotate", type=float, default=10.0,
+                    metavar="SEC",
+                    help="When a run of over-image text cards keeps one "
+                         "backdrop on screen longer than SEC seconds, switch "
+                         "to the source shot's next-ranked dossier candidate "
+                         "(default 10; 0 disables). Needs --review-dir for "
+                         "alternates to exist.")
     ap.add_argument("--word-reveal", action="store_true",
                     help="Word-by-word reveal on over-image pull quotes and "
                          "name reveals: the text extends word-group by "
@@ -521,6 +537,8 @@ def main() -> int:
         book_cover_align=cover_align,
         typography_family=args.typography_family,
         grade=args.grade,
+        grade_map=(json.loads(Path(args.grade_map).read_text(encoding="utf-8"))
+                   if args.grade_map else None),
         caption_backplate=args.caption_backplate,
         parallax=args.parallax,
         parallax_backend=args.parallax_backend,
@@ -536,6 +554,7 @@ def main() -> int:
         overlay_anchor=args.overlay_anchor,
         title_subtitle=args.title_subtitle,
         word_reveal=args.word_reveal,
+        overlay_backdrop_rotate_sec=args.backdrop_rotate,
         caption_size=args.caption_size,
         caption_color=_hex_ass(args.caption_color),
         caption_pos=args.caption_pos,
