@@ -287,10 +287,15 @@ upload)* · *upload `.zip`* · *fetch `.zip` from URL* (server-side — the fix 
 Cloud upload `ClientDisconnect`s). The sidebar exposes the full render-look set —
 grade, typography family, book cover (+fit/align), character pool/pin, music
 (+level −12 dB/duck), captions (+backplate/size/pos), title size **+ optional
-colour**, text scrim, **typography-over-image (default on)**, fades, **2.5D
-parallax (+backend/warp)** — plus per-run: resolution, **sharpen** (conditioning,
+colour**, text scrim (**auto** default: plate only on bright/busy frames),
+**text position** (auto: quotes lower-third), **word-by-word reveal**
+(opt-in), **typography-over-image (default on)**, fades, **2.5D parallax
+(+backend/warp)** — plus per-run: resolution, **sharpen** (conditioning,
 opt-in), **saved dossier candidates** (chosen/top-3/all), and **alignment**
-(backend + `word_timings.json` upload). The render log is downloadable.
+(backend + `word_timings.json` upload). CLI-only extras on `render_plan.py`:
+`--title-subtitle`, `--backdrop-rotate` (rotate a long over-image run's
+backdrop, default 10 s), `--grade-map` (per-section grading), `--no-dedupe`,
+`--tone off` (conditioning). The render log is downloadable.
 
 ### Entry points
 
@@ -417,30 +422,34 @@ Phase 4 is complete once Phase 3 produces broadcast-quality output.
 
 ## Immediate Next Steps (start here next session)
 
-1. **End-to-end validation of Phase 1a on Streamlit Cloud**:
-   - Run with Al-Askari Memoirs; confirm Kraken OCR completes without crash
-   - Verify footer PDF and page images ZIP download correctly
-   - Branch `claude/upgrade-phase1a-ocr-3usw0` must be deployed
+> Full session handover: **phase3/PHASE3.md §0 "Session handover"** and
+> the screening ledger **phase3/SCREENING_REVIEW.md**.  Both routes
+> (Total solution + Rendering only) and the P0–P5 batches are verified;
+> what remains is curation, the first ElevenLabs render, and screening
+> decisions.
 
-2. **Exercise the Streamlit Phase 3 routes** (see phase3/PHASE3.md §0):
-   - Total solution → downloads a slimmed review `.zip`; keep it in-session
-   - Rendering only → reuse the in-session dossier (no upload), or the URL fetch
-   - Review the MP4 for image relevance, portrait framing, caption timing, grade
+1. **Merge `claude/phase3-review-plan-8sbeue` to `main`** (all five
+   P-batches live there), then point the notebooks' `BRANCH` back to
+   `"main"`.
 
-3. **Exercise the P0 sourcing batch** (phase3/PHASE3.md §0, shipped
-   2026-07-03): populate `resources/photo_bank/` with the curated photos,
-   run prebuild on Colab, confirm the `photo_bank: N/59 image shots
-   assigned` log line, verify the Wikipedia lead-image source returns
-   candidates (⚠ not yet live-verified), and check the `⚠ ERA MISMATCH`
-   flags in the dossier before rendering.
+2. **Curation pass** (SCREENING_REVIEW.md §5.1): add 3–4 bank photos
+   for the education / CUP beats, fix the four era-miss shots via the
+   dossier, keep `PHOTO_BANK_MAX_USES = 2`.
 
-4. **Real alignment on Cloud**: compute `word_timings.json` off-Cloud (Colab /
-   `phase3_run.py --align-only`) and upload it in the Total-solution *Alignment*
-   expander — WhisperX won't fit in Cloud's ~1 GB RAM.
+3. **First ElevenLabs render**: set `ELEVENLABS_API_KEY` /
+   `ELEVENLABS_VOICE_ID` secrets, regenerate the MP3 in the Phase 2
+   tab, re-run WhisperX alignment on Colab, re-plan + render.
 
-5. **Record the narration with ElevenLabs** (now implemented): set the
-   `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` secrets, regenerate the
-   MP3 in the Phase 2 tab, re-run alignment on Colab.
+4. **Screening decisions** on the new cut: make `--word-reveal` a
+   default?  `--backdrop-rotate 10` cadence right?  Try a
+   `grade_map.json` three-act arc (`{"opening":"neutral",
+   "point_3":"cool","closing":"warm"}`)?  Verify the `Wikipedia: N
+   lead-image candidates` log line (source still ⚠ not live-verified).
+
+5. **Real alignment on Cloud** (unchanged constraint): compute
+   `word_timings.json` off-Cloud (Colab / `phase3_run.py --align-only`)
+   and upload it in the Total-solution *Alignment* expander — WhisperX
+   won't fit in Cloud's ~1 GB RAM.
 
 ---
 
@@ -473,7 +482,7 @@ Phase 4 is complete once Phase 3 produces broadcast-quality output.
 | Image relevance vision scoring | `claude-haiku-4-5-20251001` vision | ~$0.05 (per ~100 candidates) |
 | **Total (current, gTTS)** | | **~$0.25** |
 | TTS (gTTS) | Free | $0 |
-| TTS (ElevenLabs target) | Chaouki voice | ~$0.10–0.30 |
+| TTS (ElevenLabs, implemented) | Chaouki voice | ~$0.10–0.30 |
 
 **Rule**: Haiku for every bulk, scoring, or classification task. Sonnet/Opus only for creative output (the final script).
 
@@ -499,12 +508,14 @@ Phase 4 is complete once Phase 3 produces broadcast-quality output.
 - All file paths in session state are absolute paths
 
 ### Git workflow
-- Active development branch: `claude/phase3-revision-update-kka9ee`
+- Active development branch: `claude/phase3-review-plan-8sbeue`
+  (holds the P0–P5 batches; merge to `main`, then branch fresh per task)
 - Commit message format: `Phase N: <what changed>`
-- Push to `origin claude/phase3-revision-update-kka9ee` after each logical unit of work
+- Push to the active branch after each logical unit of work
 
 ### Secrets / environment
 - `ANTHROPIC_API_KEY` — required for Phases 1b and 3
 - `PEXELS_API_KEY` — optional
-- `ELEVENLABS_API_KEY` — stub ready in `phase2/tts.py`
+- `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` — ElevenLabs TTS
+  (implemented in `phase2/tts.py`; pre-filled into the Phase 2 tab)
 - On Cloud: `st.secrets["KEY_NAME"]`; locally: `.env` file (never commit)

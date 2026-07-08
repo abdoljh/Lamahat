@@ -14,6 +14,38 @@ Phase 3 v2 is integrated into the app. The rest of this document is the
 original design handoff; where it conflicts with this section, **this section
 wins**. Nothing below has been deleted so the design rationale stays on record.
 
+### Session handover (2026-07-05) — start a new session here
+
+The screening-review cycle (`phase3/SCREENING_REVIEW.md`) drove five
+shipped batches this session, all on branch
+**`claude/phase3-review-plan-8sbeue`** (merge to `main` when its PR
+lands; the Colab notebooks pin `BRANCH` in their bootstrap cell):
+
+| Batch | One-liner |
+|---|---|
+| **P0** sourcing | Path (C) photo bank (`resources/photo_bank/` → one Sonnet call → dossier), Wikipedia lead-image source, era-fit vision axis, Pexels style-token stripping |
+| **Colab** | Single-repo workflow: notebooks git-clone THIS repo at a pinned branch; `requirements-colab.txt`; cwd-first resources discovery |
+| **P1/P2** pacing + text | dHash adjacent-duplicate swap, effective-holds audit (`audit_plan.py --review-dir`), lower-third overlay anchor, adaptive text scrim |
+| **P3/P4** look + polish | Documentary tone on Pexels winners, section parser fixed (5 sections, sidecar override), honest provenance logs, title-card polish (+`--title-subtitle`), word-by-word reveal (opt-in `--word-reveal`) |
+| **P5** screening fixes | `visual_type` passthrough bug fixed, era rubric hardened (wrong century EITHER direction = 0), `--backdrop-rotate` (P1.3), `--grade-map` per-section grading (P3.4), **ElevenLabs TTS** (Phase 2 complete) |
+
+**Verified on screen** (second screening, SCREENING_REVIEW.md §5): the
+3-minute sample carries photo-bank imagery, working word reveal,
+lower-third quotes, adaptive scrim, one warm look.
+
+**Open / waiting on the next screening:**
+- User curation: bank photos for the education + CUP beats; the four
+  era-miss shots (SCREENING_REVIEW.md §5.1); `PHOTO_BANK_MAX_USES=2`.
+- First ElevenLabs narration render (set `ELEVENLABS_API_KEY` /
+  `ELEVENLABS_VOICE_ID`), then re-run WhisperX alignment on Colab.
+- Screening decisions: make `--word-reveal` default? Is
+  `--backdrop-rotate 10` right? A `grade_map` three-act arc?
+- Deferred with rationale: P2.3 saliency nudge; Phase 1b LLM-emitted
+  section sidecar; Wikipedia source still ⚠ not live-verified (sandbox
+  blocked the API both sessions — check the `Wikipedia: N lead-image
+  candidates` log line on the next Colab prebuild).
+- Legacy-code cleanup (§16 list) remains optional.
+
 ### Two routes (mirrors the two notebooks in `resources/`)
 
 - **Total solution** → `phase3.build_total_solution()`: align (or a supplied
@@ -326,16 +358,14 @@ a 4-source image waterfall ranked by Haiku vision scoring.
 | Color grading | Knob with cinematic-warm as default; per-section variation later |
 | Section transitions | The `section_mark` typography shot *is* the transition; hard cuts everywhere else, no crossfades |
 
-### Active issues checklist (this session)
+### Active issues checklist (historical — all five now closed)
 
-A live ledger of the five issues identified after the latest end-to-end
-run.  Issues 1–4 are still open; issue 5's mechanism shipped but the
-user-facing workflow hasn't yet been exercised end-to-end, so it stays
-*under consideration*.
+The ledger of the five issues identified after the first end-to-end
+run.  All closed as of 2026-07-05.
 
 | # | Issue | Status | Tracking |
 |---|---|---|---|
-| 1 | **Color philosophy** — knob with cinematic-warm default, tunable per section | ☐ open | §15.1 |
+| 1 | **Color philosophy** — knob with cinematic-warm default, tunable per section | ✓ **closed** (`--grade {warm,cool,neutral,bw}` shipped with warm default; per-section `--grade-map` shipped in the P5 batch via timeline-enabled mux filters) | §15.1 |
 | 2 | **Typography aesthetic** — Family A too faint; offer Families B & C as selectable variants for testing | ✓ **closed** (Families B and C shipped; `--typography-family {A,B,C}` flag wires through `RenderConfig`; Family C uses AmiriQuranColored for headlines with red i-dots) | §15.2 |
 | 3 | **Section transitions** — current rhythm too slow, doesn't hook the audience | ✓ **closed** (planner re-targeted 4.0–5.0 s; section_mark visual cap 7→5 s; 0.3 s zoom-in motion accent on section_marks; final state 61 shots avg 6.41 s — user accepted, declined further tightening) | §15.3 |
 | 4 | **Captions** — title-card subtitle too small; main captions OK; under-line text small; subtitles appear merged | ✓ **closed** (patch v3.4); see CLAUDE.md | §15.4 |
@@ -1199,13 +1229,18 @@ python render_plan.py --plan output/re_generated_plan.json \
 
 ## 15. Issue tracking (this session's review-the-rough-cut feedback)
 
-### 15.1 Color philosophy — **open**
+### 15.1 Color philosophy — **closed** (2026-07-05)
 
 **Goal**: knob with cinematic-warm as default; per-section variation
 later.
 
-**State**: not yet implemented.  Current renderer applies no grading;
-all grading is currently baked into the source imagery and the
+**Outcome**: `--grade {warm,cool,neutral,bw}` shipped (warm default,
+GRADE_PRESETS in render.py, applied at the final mux) and per-section
+variation shipped in the P5 batch as `--grade-map file.json`
+(GRADE_PRESETS_TIMELINE; unmapped sections fall back to `--grade`).
+
+**Original notes** (kept for context): the renderer used to apply no
+grading; all grading was baked into the source imagery and the
 typography backgrounds.
 
 **Notes for next session**: the right shape is probably a
@@ -1313,7 +1348,10 @@ back-to-back with no inter-event gap — add 0.15 s pre-roll/post-roll
 silence inside `_write_captions` so the eye sees one event end before
 the next begins.
 
-### 15.5 Online/offline asset review — **under consideration**
+### 15.5 Online/offline asset review — **closed** (2026-07-03: the
+88-shot production render consumed the dossier end-to-end — override
+chain, pool rotation and conditioned files all observed in
+`output/ph3/render.log`)
 
 **Status**: mechanism shipped in code and merged to `main`.  Dossier
 exists at `_Phase3/review/decisions.json` and has been built end-to-end
