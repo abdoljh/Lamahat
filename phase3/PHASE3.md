@@ -239,6 +239,43 @@ re-runs near-free with a Drive cache; dossier ~3–5× smaller with no
 sub-threshold or duplicate files; zero modern-stock imagery on shots
 the plan marks as historical.
 
+**Verified on the first P6 run (2026-07-12, output/ph3)**: Pexels
+winners 26 → **0** (bank 25 · wikipedia 17 · wikimedia 13 · pool 11);
+era gate rejecting modern Baghdad photos with logged reasons; one
+Arabic gap card rendered where nothing era-true survived.
+
+### P6.4 batch (2026-07-12) — framing: see the whole image
+
+Implements §2 of `phase3/REVIEW_2026-07-12.md`.  The old pipeline
+stacked three crops on a 3:2 source — blind 16:9 centre-crop (−15.6 %
+height) × fixed 1.18 parallax buffer (−15.3 % each axis) × dolly zoom —
+so only ~60 % of the pixels ever reached the screen.
+
+- **Motion-proportional buffer (R1)**: `motion_parallax._buffer_size()`
+  replaces the fixed 1.18× buffer.  Margin = the shot's actual maximum
+  lateral disparity (`amp_px × max(1, intensity)`) + 16 px pad, buffer
+  locked to the output aspect.  Portraits (amp 36) now render on a
+  ≈1.05× buffer → ~95 % of the buffer visible instead of 85 %.  Zoom
+  needs no margin (s ≥ 1 samples inward).
+- **Conditioning-time 16:9 smart crop (R2)**: cover-class assets are
+  cropped to EXACT 16:9 in `condition_assets.py` — gradient-energy
+  placement with a slight top bias (heads survive), recorded as
+  `crop_box` in decisions.json and **visible in the dossier's
+  .cond.jpg**.  The renderer's cover-fill then has nothing left to
+  crop.  `--crop-cover {smart,center,off}` (default smart; off =
+  legacy aspect-preserving behaviour).  Contain-class (portraits) still
+  never cropped.
+- **The full-screen standard (R3)**: `--target-cover 2560` now means a
+  **2560×1440 (16:9)** canvas — not a 3:2 long edge.  2560×1706 was the
+  wrong target because of its aspect: every 3:2 source donated 15.6 %
+  of its height to a blind crop.
+- Photo-bank files (`bank_*`) are now classed user-added in
+  conditioning: SR upscale path, never downscaled.
+
+Net for a conditioned 16:9 source on a portrait-amp parallax shot:
+~95 % of the deliberately-framed image on screen, vs ~60 % of an
+arbitrarily-cropped one before.
+
 ### P5 batch (2026-07-05) — second-screening fixes
 
 After the user's 3-minute sample confirmed the P0–P4 stack on screen

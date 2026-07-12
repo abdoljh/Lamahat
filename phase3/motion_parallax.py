@@ -51,9 +51,32 @@ _ENC = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
         "-pix_fmt", "yuv420p", "-r", str(FPS)]
 
 # Render on a slightly larger buffer than the output so camera displacement never
-# pulls the frame edge into view (mirrors render.py's "1.6x buffer" philosophy;
-# parallax needs far less head-room because the moves are gentle).
-_BUFFER = 1.18
+# pulls the frame edge into view.  The buffer is MOTION-PROPORTIONAL (P6.4/R1):
+# its margin is sized from the shot's actual maximum lateral disparity
+# (amp_px × intensity) plus a safety pad, instead of the former fixed 1.18×.
+# The fixed 1.18 buffer silently discarded ~15 % of every source image on each
+# axis regardless of how far the camera actually moved (portraits move at
+# amp 36 but paid the amp-70 margin).  Zoom needs no margin — s ≥ 1 samples
+# INWARD — so the pad only covers the warp's edge softness.
+_BUFFER_PAD_PX = 16
+
+
+def _buffer_size(out_w: int, out_h: int,
+                 amp_px: float, intensity: float = 1.0) -> tuple[int, int]:
+    """Buffer dimensions for one clip: output + just enough margin to cover
+    the camera's maximum lateral displacement.
+
+    The buffer keeps the OUTPUT aspect so `_fit_to_frame`'s cover test sees
+    the same aspect the viewer does — a conditioned 16:9 source then covers
+    with zero crop.  Horizontal margin = amp_px·max(1, intensity) + pad;
+    the implied vertical margin (aspect-locked) always exceeds the largest
+    vertical path offset (|cy| ≤ 0.16, i.e. ≤ 0.16·amp_px)."""
+    margin = int(math.ceil(amp_px * max(1.0, intensity))) + _BUFFER_PAD_PX
+    bw = out_w + 2 * margin
+    bh = int(round(bw * out_h / out_w))
+    if (bh - out_h) % 2:          # keep the crop origin integral
+        bh += 1
+    return bw, bh
 
 
 # ============================================================================= #
@@ -279,7 +302,7 @@ def render_parallax_clip(img_bgr: np.ndarray,
     frame is pixel-identical.
     """
     out_path = Path(out_path)
-    bw, bh = int(round(out_w * _BUFFER)), int(round(out_h * _BUFFER))
+    bw, bh = _buffer_size(out_w, out_h, amp_px, intensity)
     mx, my = (bw - out_w) // 2, (bh - out_h) // 2
 
     # Fit image + depth onto the cover buffer.  _fit_to_frame contains (rather
