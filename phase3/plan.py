@@ -84,6 +84,10 @@ class Shot:
     visual: ShotVisual
     search_query: str = ""              # English query for the image source
     source_hint: str = "auto"           # "wikimedia" | "loc" | "pexels" | "auto"
+    era: str = ""                       # period the image must depict, e.g.
+                                        # "1900s-1910s Ottoman Mesopotamia";
+                                        # "timeless" = modern stock acceptable;
+                                        # "" = unspecified (legacy plans)
 
     # Motion
     motion: ShotMotion = "slow_push"
@@ -194,6 +198,18 @@ Hard rules
     designed background, not from an image search.
 10. Always open with a `title_card` (3–5 s) showing the book title.
 11. Optionally use `section_mark` shots between sections (2.5–5.0 s — brisk).
+12. Every image shot (portrait, location, object, archive, broll) must \
+    carry an `era` field stating the historical period the image has to \
+    depict, derived from the script's chronology — e.g. \
+    "1900s-1910s Ottoman Mesopotamia", "1916-1918 Arab Revolt", \
+    "1920s-1930s Kingdom of Iraq".  Be specific: decade(s) + polity/region. \
+    The image pipeline REJECTS candidates that don't plausibly belong to \
+    this period, so an accurate era is what keeps modern stock footage out \
+    of the film.  Use the exact string "timeless" ONLY for generic \
+    scene-setting b-roll where modern footage is genuinely acceptable — \
+    desert landscapes, close-ups of hands writing, calligraphy, textures, \
+    abstract skies.  A shot naming a person, event, institution, army, or \
+    city street is NEVER timeless.  Typography-kind shots leave `era` empty.
 
 Output schema
 -------------
@@ -205,6 +221,7 @@ Output schema
       "visual": "portrait" | "location" | "object" | "archive" | \
                 "broll" | "typography" | "title_card" | "section_mark",
       "search_query": "English search terms, specific and named",
+      "era": "period the image must depict, or 'timeless', or empty",
       "motion": "static_hold" | "slow_push" | "fast_push" | "slow_pull" |\
                 "pan_left" | "pan_right" | "ken_burns",
       "motion_intensity": 1.0,
@@ -507,6 +524,7 @@ def _shot_from_dict(d: dict) -> Shot:
         visual=d.get("visual", "broll"),
         search_query=d.get("search_query", "") or "",
         source_hint=d.get("source_hint", "auto") or "auto",
+        era=d.get("era", "") or "",
         motion=d.get("motion", "slow_push"),
         motion_intensity=float(d.get("motion_intensity", 1.0)),
         typography_template=d.get("typography_template") or None,
@@ -537,6 +555,7 @@ def _normalise_fields(shots: list[Shot]) -> list[Shot]:
             if shot.search_query:
                 shot.search_query = ""
                 cleaned += 1
+            shot.era = ""
         else:
             if shot.typography_text:
                 shot.typography_text = ""

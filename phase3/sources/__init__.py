@@ -10,9 +10,13 @@ The orchestrator runs a priority waterfall:
   1. User upload by shot index / manifest
   2. Phase 1a book extract (vision-scored against the query)
   3. Cached web result for this query
-  4. Live web fetch (LoC → Wikimedia → Internet Archive → Pexels),
-     vision-scored, top-ranked candidate kept
-  5. Returns FetchResult with .best = None → renderer uses placeholder
+  4. Live web fetch, STAGED (P6.2): archival sources first (Wikimedia →
+     Wikipedia), batch-vision-scored; Pexels is only queried when the
+     archival stage produced fewer than 2 keepers AND the shot's era
+     permits modern stock (era="timeless" or unset).  Period shots
+     (explicit era) never query Pexels at all (P6.1/E3).
+  5. Returns FetchResult with .best = None → renderer uses an Arabic
+     typography card (or the Latin placeholder when no text exists)
 
 Each layer is optional.  When `anthropic_api_key` is empty, vision
 scoring is skipped (candidates are kept in source priority order).
@@ -33,7 +37,8 @@ from .internet_archive import InternetArchive
 from .loc import LibraryOfCongress
 from .pexels import Pexels
 from .user_upload import UserUploadSource
-from .vision import VisionScorer, passes_threshold, rank_candidates
+from .vision import (VisionScorer, is_period_era, passes_threshold,
+                     rank_candidates)
 from .wikimedia import WikimediaCommons
 from .wikipedia import WikipediaLeadImage
 
@@ -212,7 +217,8 @@ class Fetcher:
     # ── Main entry point ───────────────────────────────────────── #
 
     def fetch_for_shot(self, query: str, shot_index: int,
-                       visual_type: str | None = None) -> FetchResult:
+                       visual_type: str | None = None,
+                       era: str = "") -> FetchResult:
         """
         Resolve an image for one shot.  Returns FetchResult; the
         caller uses result.best.local_path (or falls back to placeholder
@@ -221,6 +227,10 @@ class Fetcher:
         `visual_type` (optional): the shot's visual type ("portrait",
         "archive", etc).  Tightens the score threshold for portrait
         shots — see vision.passes_threshold.
+
+        `era` (optional, P6.1): the plan's per-shot period string.  A
+        period era makes the era axis a hard gate and removes Pexels
+        from the waterfall; "timeless" or "" keeps soft demotion.
         """
 
         # 0. Review dossier — if the user pre-approved an image (or
@@ -283,14 +293,17 @@ class Fetcher:
                      shot_index, user_cand.title)
             return FetchResult(query=query, candidates=[user_cand], best=user_cand)
 
-        # 2. Book extract — second priority, vision-scored against query
+        era_strict = is_period_era(era)
+
+        # 2. Book extract — second priority, vision-scored against query.
+        # Note: era_strict is NOT applied here — book plates are the
+        # book's own period material by construction.
         book_cands = self.book_source.all_candidates(query)
         if book_cands and self.scorer:
-            for c in book_cands:
-                self.scorer.score(c,
-                                  book_title=self.config.book_title,
-                                  character_name=self.config.character_name,
-                                  query=query)
+            self.scorer.score_batch(book_cands,
+                                    book_title=self.config.book_title,
+                                    character_name=self.config.character_name,
+                                    query=query, era=era)
             kept = [c for c in book_cands if passes_threshold(c, visual_type)]
             if kept:
                 best = rank_candidates(kept)[0]
@@ -316,6 +329,15 @@ class Fetcher:
         # so the cached best goes through the dedupe walk too.
         if self.cache:
             cached = self.cache.get(query)
+            if (cached and cached.has_image and era_strict
+                    and not passes_threshold(cached.best, visual_type,
+                                             era_strict=True)):
+                # Cache entry predates the era gate (or was scored without
+                # the explicit period) — refetch rather than render an
+                # anachronism.
+                log.info("Shot %d: cached winner fails the era gate (%s) — "
+                         "ignoring cache", shot_index, era)
+                cached = None
             if cached and cached.has_image:
                 log.info("Shot %d: cache hit", shot_index)
                 if self.config.dedupe_adjacent:
@@ -340,8 +362,8 @@ class Fetcher:
                     Path(cached.best.local_path) if cached.best else None)
                 return cached
 
-        # 4. Live web fetch
-        result = self._fetch_live(query, shot_index, visual_type)
+        # 4. Live web fetch (staged)
+        result = self._fetch_live(query, shot_index, visual_type, era)
 
         # Store to cache for next time
         if self.cache:
@@ -351,29 +373,19 @@ class Fetcher:
 
     # ── Live web fetch with vision scoring ──────────────────────── #
 
-    def _fetch_live(self, query: str, shot_index: int,
-                    visual_type: str | None = None) -> FetchResult:
-        all_candidates: list[ImageCandidate] = []
-        n = self.config.n_candidates_per_source
+    # Keepers the archival stage must produce before Pexels is skipped
+    # for timeless/legacy shots.  2 = a winner plus one alternate for
+    # dedupe-swap / backdrop-rotate.
+    _MIN_STAGE_KEEPERS = 2
 
-        for src in self.web_sources:
-            try:
-                cands = src.search(query, n=n)
-            except Exception as exc:
-                log.warning("Source %s raised: %s", src.name, exc)
-                cands = []
-            all_candidates.extend(cands)
-
-        if not all_candidates:
-            log.warning("Shot %d: no candidates from any web source for %r",
-                        shot_index, query)
-            self._remember_asset(None)   # placeholder breaks visual adjacency
-            return FetchResult(query=query, candidates=[], best=None)
-
-        # Download each candidate so we can vision-score it.
-        # Each download is guarded — one corrupt URL doesn't kill the run.
+    def _download_candidates(self, query: str,
+                             cands: list[ImageCandidate],
+                             start_index: int) -> None:
+        """Download each candidate (guarded — one corrupt URL doesn't
+        kill the run).  `start_index` keeps cache filenames unique
+        across waterfall stages."""
         if self.cache:
-            for i, c in enumerate(all_candidates):
+            for i, c in enumerate(cands, start=start_index):
                 if c.local_path:
                     continue
                 try:
@@ -386,10 +398,9 @@ class Fetcher:
                     log.warning("Download failed for candidate %d of %r: %s",
                                 i, query, exc)
         else:
-            # No cache — use a temp dir
             import tempfile
             tmp_dir = Path(tempfile.mkdtemp(prefix="lamahat_fetch_"))
-            for i, c in enumerate(all_candidates):
+            for i, c in enumerate(cands, start=start_index):
                 try:
                     dest = tmp_dir / f"cand_{i:02d}{ext_from_url(c.url)}"
                     src = self._source_by_name(c.source)
@@ -399,40 +410,126 @@ class Fetcher:
                     log.warning("Download failed for candidate %d of %r: %s",
                                 i, query, exc)
 
-        # Drop candidates that failed to download
-        downloaded = [c for c in all_candidates if c.local_path]
+    @staticmethod
+    def _drop_duplicate_candidates(
+            new: list[ImageCandidate],
+            existing: list[ImageCandidate]) -> list[ImageCandidate]:
+        """Cross-source duplicate removal (P6.2/C4): the Wikipedia lead
+        image is very often the same file Commons already returned.
+        Matching is by URL, then by dHash at a tight threshold (≤ 6 bits
+        ≈ the same photo re-encoded/resized — distinct photos of the
+        same subject sit ≥ 15).  Scoring the same image twice wastes a
+        vision call and pads the dossier with repeats."""
+        from .dedupe import dhash, near_duplicate
+        seen_urls = {c.url for c in existing if c.url}
+        seen_hashes = [h for c in existing if c.local_path
+                       if (h := dhash(c.local_path)) is not None]
+        out: list[ImageCandidate] = []
+        for c in new:
+            if c.url and c.url in seen_urls:
+                log.info("Duplicate candidate dropped (same URL): %s",
+                         c.title[:50])
+                continue
+            h = dhash(c.local_path) if c.local_path else None
+            if h is not None and any(near_duplicate(h, h2, 6)
+                                     for h2 in seen_hashes):
+                log.info("Duplicate candidate dropped (same image): %s [%s]",
+                         c.title[:50], c.source)
+                continue
+            if c.url:
+                seen_urls.add(c.url)
+            if h is not None:
+                seen_hashes.append(h)
+            out.append(c)
+        return out
+
+    def _fetch_live(self, query: str, shot_index: int,
+                    visual_type: str | None = None,
+                    era: str = "") -> FetchResult:
+        n = self.config.n_candidates_per_source
+        era_strict = is_period_era(era)
+
+        # Stage the waterfall: archival sources first; Pexels (modern
+        # stock) only as a second stage, and never for period shots —
+        # Pexels structurally cannot satisfy an explicit historical era.
+        stage_archival = [s for s in self.web_sources if s.name != "pexels"]
+        stage_modern = [s for s in self.web_sources if s.name == "pexels"]
+        if era_strict and stage_modern:
+            log.info("Shot %d: period shot (era=%r) — Pexels excluded "
+                     "from the waterfall", shot_index, era)
+            stage_modern = []
+
+        downloaded: list[ImageCandidate] = []
+        searched: list[ImageCandidate] = []
+        keepers: list[ImageCandidate] = []
+
+        for stage_name, sources in (("archival", stage_archival),
+                                    ("modern", stage_modern)):
+            if not sources:
+                continue
+            if (stage_name == "modern"
+                    and len(keepers) >= self._MIN_STAGE_KEEPERS):
+                log.info("Shot %d: %d keeper(s) from archival sources — "
+                         "skipping Pexels", shot_index, len(keepers))
+                break
+
+            cands: list[ImageCandidate] = []
+            for src in sources:
+                try:
+                    cands.extend(src.search(query, n=n))
+                except Exception as exc:
+                    log.warning("Source %s raised: %s", src.name, exc)
+            if not cands:
+                continue
+            searched.extend(cands)
+
+            self._download_candidates(query, cands, start_index=len(searched) - len(cands))
+            got = [c for c in cands if c.local_path]
+            got = self._drop_duplicate_candidates(got, existing=downloaded)
+            if not got:
+                continue
+
+            # Vision-score the stage in one batched call (fail-open
+            # internally; belt-and-braces guard here).
+            if self.scorer:
+                try:
+                    self.scorer.score_batch(
+                        got,
+                        book_title=self.config.book_title,
+                        character_name=self.config.character_name,
+                        query=query, era=era,
+                    )
+                except Exception as exc:
+                    log.warning("Scoring failed for %r: %s", query[:40], exc)
+
+            downloaded.extend(got)
+            if self.scorer:
+                keepers = [c for c in downloaded
+                           if passes_threshold(c, visual_type,
+                                               era_strict=era_strict)]
+            else:
+                keepers = downloaded
+
+        if not searched:
+            log.warning("Shot %d: no candidates from any web source for %r",
+                        shot_index, query)
+            self._remember_asset(None)   # placeholder breaks visual adjacency
+            return FetchResult(query=query, candidates=[], best=None)
+
         if not downloaded:
             log.warning("Shot %d: all downloads failed for %r",
                         shot_index, query)
             self._remember_asset(None)
-            return FetchResult(query=query, candidates=all_candidates, best=None)
+            return FetchResult(query=query, candidates=searched, best=None)
 
-        # Vision-score (also guarded — score() is fail-open internally
-        # but extra belt-and-braces here)
         if self.scorer:
-            for c in downloaded:
-                try:
-                    self.scorer.score(
-                        c,
-                        book_title=self.config.book_title,
-                        character_name=self.config.character_name,
-                        query=query,
-                    )
-                except Exception as exc:
-                    log.warning("Scoring failed for %s: %s", c.title[:40], exc)
-                    # Apply neutral score so the candidate stays in the pool
-                    c.score_subject = 2
-                    c.score_quality = 2
-                    c.score_cinematic = 1
-                    c.score_era = 2
-                    c.vision_reason = f"[error] {exc!s}"[:200]
-            kept = [c for c in downloaded if passes_threshold(c, visual_type)]
-            if not kept:
-                log.warning("Shot %d: all %d candidates failed threshold",
-                            shot_index, len(downloaded))
+            if not keepers:
+                log.warning("Shot %d: all %d candidates failed threshold%s",
+                            shot_index, len(downloaded),
+                            " (era gate)" if era_strict else "")
                 self._remember_asset(None)
                 return FetchResult(query=query, candidates=downloaded, best=None)
-            ranked = rank_candidates(kept)
+            ranked = rank_candidates(keepers)
         else:
             # No vision — keep source-priority order
             ranked = downloaded
@@ -460,9 +557,10 @@ class Fetcher:
 # ── Convenience export ─────────────────────────────────────────── #
 
 def fetch_for_shot(query: str, shot_index: int, config: FetcherConfig,
-                   visual_type: str | None = None) -> FetchResult:
+                   visual_type: str | None = None,
+                   era: str = "") -> FetchResult:
     """One-shot wrapper.  Build a Fetcher and run one query."""
-    return Fetcher(config).fetch_for_shot(query, shot_index, visual_type)
+    return Fetcher(config).fetch_for_shot(query, shot_index, visual_type, era)
 
 
 __all__ = [
