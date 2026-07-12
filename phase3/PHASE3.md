@@ -28,6 +28,7 @@ lands; the Colab notebooks pin `BRANCH` in their bootstrap cell):
 | **P1/P2** pacing + text | dHash adjacent-duplicate swap, effective-holds audit (`audit_plan.py --review-dir`), lower-third overlay anchor, adaptive text scrim |
 | **P3/P4** look + polish | Documentary tone on Pexels winners, section parser fixed (5 sections, sidecar override), honest provenance logs, title-card polish (+`--title-subtitle`), word-by-word reveal (opt-in `--word-reveal`) |
 | **P5** screening fixes | `visual_type` passthrough bug fixed, era rubric hardened (wrong century EITHER direction = 0), `--backdrop-rotate` (P1.3), `--grade-map` per-section grading (P3.4), **ElevenLabs TTS** (Phase 2 complete) |
+| **P6** era + cost + dossier (2026-07-12) | `Shot.era` contract (hard gate + Arabic gap card), staged waterfall (no Pexels for period shots), batched per-shot vision scoring, prebuild skips bank/pool-covered shots, top-3 dossier at prebuild, `$LAMAHAT_CACHE` persistence — see the P6 section below + `phase3/REVIEW_2026-07-12.md` |
 
 **Verified on screen** (second screening, SCREENING_REVIEW.md §5): the
 3-minute sample carries photo-bank imagery, working word reveal,
@@ -178,6 +179,65 @@ Details and verification numbers in `phase3/SCREENING_REVIEW.md` §4.
   closed.**
 - Deferred consciously: P1.3 (overlay backdrop rotation past 10 s) and
   P2.3 (saliency nudge) — re-evaluate after the next screening pass.
+
+### P6 batch (2026-07-12) — era contract + cost + top-3 dossier
+
+Implements §1/§3/§4 of `phase3/REVIEW_2026-07-12.md` (the review driven
+by the third screening: ~$1/run, dossier bloat, Pexels winning 46 % of
+image shots in a period documentary).  Framing (§2 / P6.4) is the next
+batch.
+
+- **`Shot.era` (P6.1/E1)**: every image shot in the plan now carries the
+  historical period it must depict (planner rule 12; e.g.
+  `"1900s-1910s Ottoman Mesopotamia"`), or the literal `"timeless"` for
+  generic b-roll where modern stock is acceptable.  Legacy plans load
+  with `era=""` → old soft-demotion behaviour throughout.
+- **Era hard gate (E2)**: for period shots,
+  `passes_threshold(..., era_strict=True)` REJECTS era ≤ 1 candidates.
+  When nothing era-true survives, the renderer draws an **Arabic
+  typography gap card** (§7.7 shipped — pull-quote card from the shot's
+  narration text) instead of the least-bad anachronism; the Latin "TBD"
+  card remains the final fallback when no Arabic text exists.  Fail-open
+  is preserved: unscored/vision-down candidates still pass (neutral
+  score sets era=2).
+- **No Pexels for the past (E3)**: `_fetch_live` is staged — archival
+  sources (Wikimedia → Wikipedia) first; Pexels is a second stage that
+  (a) never runs for period shots and (b) for timeless/legacy shots only
+  runs when the archival stage produced < 2 keepers.
+- **Explicit era in the rubric (E4)**: the vision prompt receives the
+  plan's period verbatim instead of inferring it from the query.
+- **Batched vision scoring (C1)**: `VisionScorer.score_batch()` scores
+  all of a shot's candidates in one Haiku call (chunks of ≤ 8 numbered
+  images, JSON-array response, per-image and per-chunk fail-open).  One
+  Anthropic client per scorer instead of per call.
+- **Prebuild skips covered shots (C3)**: photo-bank-assigned shots and
+  character-pool portraits (`subject_is_character`) no longer run the
+  web waterfall — `--fetch-covered` opts back in; the shot's
+  `context.txt` records the skip.  `--photo-bank-only` is now a legacy
+  alias.
+- **Cross-source dedupe (C4)**: pooled candidates are de-duplicated by
+  URL and dHash (≤ 6 bits) before scoring — the Wikipedia lead image no
+  longer gets scored (and dossier'd) twice when Commons already
+  returned it.
+- **Top-3 dossier (P6.3/D1-D3)**: prebuild ranks candidates and copies
+  only the top `--dossier-keep` (default 3) threshold-passing files per
+  shot; every candidate stays in `candidates.json`/`context.txt` as
+  metadata (marked `· not saved (see URL)`).  The main notebook slims
+  legacy dossiers (`slim_review_dir(mode="top")`) before zipping, and
+  `build_total_solution`'s slim default changed `"chosen"` → `"top"`
+  (a chosen-only dossier silently disabled `--backdrop-rotate` and the
+  dedupe swap on render-only re-runs).
+- **Cache persistence (C5)**: prebuild's cache is always on, defaulting
+  to `$LAMAHAT_CACHE` or `~/.cache/lamahat/images` (previously the CLI
+  default was NO cache).  The notebook settings cell shows the
+  Drive-mount override so Colab re-runs stop re-downloading and
+  re-scoring.  A cached winner that fails a period shot's era gate is
+  ignored and refetched.
+
+Expected effect: fresh total-solution run ≈ $0.30–0.40 (from ≈ $1),
+re-runs near-free with a Drive cache; dossier ~3–5× smaller with no
+sub-threshold or duplicate files; zero modern-stock imagery on shots
+the plan marks as historical.
 
 ### P5 batch (2026-07-05) — second-screening fixes
 

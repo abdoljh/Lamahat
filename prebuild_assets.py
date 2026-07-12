@@ -61,6 +61,11 @@ from phase3.sources.photo_bank import (
     caption_bank,
     list_bank_photos,
 )
+from phase3.sources.vision import (
+    is_period_era,
+    passes_threshold,
+    rank_candidates,
+)
 from phase3 import motion_parallax as mp
 from phase3.sources.decisions import (
     CandidateEntry,
@@ -70,6 +75,7 @@ from phase3.sources.decisions import (
     ShotDecision,
     is_image_shot,
     shot_folder_name,
+    subject_is_character,
     write_readme,
 )
 
@@ -138,12 +144,24 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
                   parallax_backend: str = "depthanything",
                   bank_photo: Path | None = None,
                   bank_caption: str = "",
-                  skip_waterfall: bool = False) -> ShotDecision | None:
+                  skip_waterfall: bool = False,
+                  skip_reason: str = "",
+                  keep_n: int = 3) -> ShotDecision | None:
     """Run the waterfall for one shot and write its review folder.
 
     `bank_photo`: a curated photo the Sonnet assignment pass matched to
     this shot.  It becomes the chosen winner; waterfall candidates are
     still captured as alternates unless `skip_waterfall` is True.
+
+    `skip_waterfall` / `skip_reason`: the shot is already covered (bank
+    assignment, character pool) — no web fetch, no vision cost; the
+    decision entry records why.
+
+    `keep_n` (P6.3): only the top `keep_n` ranked, threshold-passing
+    candidates are COPIED into the shot folder.  Every candidate stays
+    in candidates.json / context.txt as metadata (with its source URL),
+    so nothing is hidden — only bytes are saved and rejects never
+    masquerade as pickable files.
     """
 
     if not is_image_shot(shot.visual):
@@ -154,20 +172,23 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
     shot_dir.mkdir(parents=True, exist_ok=True)
 
     query = (shot.search_query or "").strip()
+    era = (getattr(shot, "era", "") or "").strip()
     duration = float(shot.end - shot.start)
 
-    log.info("Shot %d/%s: query=%r duration=%.1fs%s",
-             idx, shot.visual, query[:60], duration,
-             f"  [photo_bank: {bank_photo.name}]" if bank_photo else "")
+    log.info("Shot %d/%s: query=%r era=%r duration=%.1fs%s%s",
+             idx, shot.visual, query[:60], era[:40], duration,
+             f"  [photo_bank: {bank_photo.name}]" if bank_photo else "",
+             f"  [waterfall skipped: {skip_reason}]" if skip_reason else "")
 
     # Run the fetcher — this writes candidates to the on-disk cache, vision-
     # scores them, and picks a winner.  We replay the data back into our
     # review-dir layout.
     result = None
-    if not (bank_photo and skip_waterfall):
+    if not skip_waterfall:
         try:
             result = fetcher.fetch_for_shot(query=query, shot_index=idx,
-                                            visual_type=shot.visual)
+                                            visual_type=shot.visual,
+                                            era=era)
         except Exception as exc:
             log.warning("Shot %d: fetcher raised %s — emitting empty decision",
                         idx, exc)
@@ -206,13 +227,32 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
                         idx, bank_photo, dest, exc)
 
     if result is not None:
-        for cand in result.candidates:
+        # Rank first (era tier → total score), then copy only the top
+        # `keep_n` threshold-passing candidates into the shot folder
+        # (P6.3).  The rest stay as metadata-only entries — their URLs
+        # remain browsable, but sub-threshold rejects never sit on disk
+        # looking pickable, and the dossier stays small.
+        era_strict = is_period_era(era)
+        ranked = rank_candidates(list(result.candidates))
+        copy_set = {
+            id(c) for c in
+            [c for c in ranked
+             if c.local_path and Path(c.local_path).exists()
+             and passes_threshold(c, shot.visual, era_strict=era_strict)
+             ][:max(1, keep_n)]
+        }
+        # The winner is always copied, whatever its rank.
+        if result.best is not None:
+            copy_set.add(id(result.best))
+
+        for cand in ranked:
             n_so_far = seen_per_source.get(cand.source, 0)
             seen_per_source[cand.source] = n_so_far + 1
 
             label = _short_source_label(cand.source, n_so_far)
             rel_file = ""
-            if cand.local_path and Path(cand.local_path).exists():
+            if (id(cand) in copy_set
+                    and cand.local_path and Path(cand.local_path).exists()):
                 ext = Path(cand.local_path).suffix or ".jpg"
                 dest = shot_dir / f"{label}{ext}"
                 try:
@@ -272,19 +312,27 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
         f"Shot {idx} — {shot.visual}",
         f"Duration: {duration:.2f} s   (timeline {shot.start:.2f} → {shot.end:.2f} s)",
         f"Search query (English): {query}",
+        f"Required era: {era}" if era else "",
         f"Spoken / typography excerpt (Arabic): {arabic}" if arabic else "",
         "",
         "Candidates:",
     ]
+    if skip_reason:
+        context_lines.append(f"  (web waterfall skipped — {skip_reason}; "
+                             "rerun prebuild with --fetch-covered to "
+                             "capture web alternates)")
     if not candidates:
-        context_lines.append("  (no candidates returned by any source)")
+        if not skip_reason:
+            context_lines.append("  (no candidates returned by any source)")
     else:
         for c in candidates:
             score_str = f"score {c.score}/9" if c.score >= 0 else "unscored"
-            era = (c.score_breakdown or {}).get("era", -1)
-            era_flag = "  ⚠ ERA MISMATCH" if 0 <= era < 2 else ""
+            c_era = (c.score_breakdown or {}).get("era", -1)
+            era_flag = "  ⚠ ERA MISMATCH" if 0 <= c_era < 2 else ""
+            saved_flag = "" if c.file else "  · not saved (see URL)"
             context_lines.append(
-                f"  [{c.source:<16}] {score_str:<12} {c.title[:80]}{era_flag}"
+                f"  [{c.source:<16}] {score_str:<12} {c.title[:80]}"
+                f"{era_flag}{saved_flag}"
             )
             if c.vision_reason:
                 context_lines.append(f"      → {c.vision_reason[:120]}")
@@ -373,7 +421,10 @@ def main():
     ap.add_argument("--pexels-key", default="",
                     help="PEXELS_API_KEY (optional)")
     ap.add_argument("--cache-dir", type=Path, default=None,
-                    help="Disk cache root.  Defaults to ~/.cache/lamahat/images")
+                    help="Disk cache root.  Defaults to $LAMAHAT_CACHE or "
+                         "~/.cache/lamahat/images.  Point it at a Drive "
+                         "path on Colab so re-runs reuse downloads and "
+                         "vision scores across sessions (P6.2/C5).")
     ap.add_argument("--book-extracts", type=Path, default=None,
                     help="Phase 1a photos.zip or directory.  Vision-scored "
                          "against each shot's query.")
@@ -385,13 +436,24 @@ def main():
                          "chosen winners.  Auto-detected at "
                          "$LAMAHAT_RESOURCES/photo_bank/ when omitted.")
     ap.add_argument("--photo-bank-only", action="store_true",
-                    help="For shots that received a photo-bank assignment, "
-                         "skip the web waterfall entirely (faster, cheaper; "
-                         "no alternate candidates captured for those shots).")
+                    help="(Legacy alias — skipping covered shots is now the "
+                         "default; see --fetch-covered to opt back in.)")
     ap.add_argument("--photo-bank-max-uses", type=int, default=1,
                     help="How many shots one bank photo may cover (default 1).")
+    ap.add_argument("--fetch-covered", action="store_true",
+                    help="Also run the web waterfall for shots that are "
+                         "already covered — photo-bank assignments and "
+                         "character-pool portraits.  Default is to SKIP "
+                         "them (P6.2/C3): they resolve from curated files "
+                         "at render time, so fetching/scoring web "
+                         "candidates for them is pure API cost.")
     ap.add_argument("--n-candidates", type=int, default=3,
                     help="Candidates to request per source (default 3)")
+    ap.add_argument("--dossier-keep", type=int, default=3,
+                    help="Copy at most N top-ranked, threshold-passing "
+                         "candidates into each shot folder (default 3). "
+                         "All candidates stay in candidates.json as "
+                         "metadata; only files on disk are capped (P6.3).")
     ap.add_argument("--no-vision", action="store_true",
                     help="Skip vision scoring entirely (faster, no API cost; "
                          "candidates are pooled unscored)")
@@ -561,10 +623,20 @@ def main():
                                 for idx, fname in assigned.items()}
 
     # ── Configure the fetcher ─────────────────────────────────── #
+    # Cache always on: without one, every prebuild re-downloads and
+    # re-scores everything.  $LAMAHAT_CACHE lets Colab point it at a
+    # Drive path that survives the VM (P6.2/C5).
+    cache_dir = args.cache_dir
+    if cache_dir is None:
+        env_cache = os.environ.get("LAMAHAT_CACHE")
+        cache_dir = (Path(env_cache).expanduser() if env_cache
+                     else Path.home() / ".cache" / "lamahat" / "images")
+    log.info("Image/score cache: %s", cache_dir)
+
     cfg = FetcherConfig(
         anthropic_api_key=args.anthropic_key,
         pexels_api_key=args.pexels_key,
-        cache_dir=args.cache_dir,
+        cache_dir=cache_dir,
         user_dir=None,
         book_extracts=args.book_extracts,
         book_title=args.book_title,
@@ -587,9 +659,30 @@ def main():
     )
 
     processed = 0
+    skipped_covered = 0
     for idx0, shot in enumerate(shots):
         idx = idx0 + 1                # decisions.json uses 1-indexed
         bank_photo = bank_assignments.get(idx)
+
+        # Covered shots (P6.2/C3): a bank assignment or a character-pool
+        # portrait resolves from curated files at render time — running
+        # the web waterfall for them is pure fetch + vision cost.
+        # Default: skip; --fetch-covered restores the old behaviour of
+        # capturing web alternates for everything.
+        skip_reason = ""
+        if not args.fetch_covered:
+            if bank_photo is not None:
+                skip_reason = f"photo-bank assignment ({bank_photo.name})"
+            elif (pool_has_images and shot.visual == "portrait"
+                    and subject_is_character(shot.search_query or "",
+                                             args.character_name)):
+                skip_reason = "character pool covers this portrait"
+        elif bank_photo is not None and args.photo_bank_only:
+            skip_reason = f"photo-bank assignment ({bank_photo.name})"
+
+        if skip_reason:
+            skipped_covered += 1
+
         decision = _process_shot(
             idx=idx, shot=shot,
             fetcher=fetcher,
@@ -600,7 +693,9 @@ def main():
             bank_photo=bank_photo,
             bank_caption=(bank_captions.get(bank_photo.name, "")
                           if bank_photo else ""),
-            skip_waterfall=args.photo_bank_only,
+            skip_waterfall=bool(skip_reason),
+            skip_reason=skip_reason,
+            keep_n=args.dossier_keep,
         )
         if decision is None:
             continue
@@ -635,6 +730,9 @@ def main():
     print(f"Image shots processed:  {processed}")
     print(f"  with a chosen winner: {have_chosen}")
     print(f"  with no candidates:   {no_candidates}")
+    if skipped_covered:
+        print(f"  covered (no web fetch): {skipped_covered}  "
+              f"(bank/pool — use --fetch-covered to capture alternates)")
     if by_source:
         print("Winner source breakdown:")
         for src, n in sorted(by_source.items(), key=lambda x: -x[1]):

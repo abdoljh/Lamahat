@@ -464,11 +464,13 @@ def _build_shot_asset(shot: Shot, shot_index: int,
 
     # Image visual: try the fetcher first.  visual_type matters: portrait
     # shots get a stricter vision subject floor (a wrong face is far more
-    # jarring than off-topic b-roll).
+    # jarring than off-topic b-roll).  era makes the period a hard gate
+    # for shots the plan marks as historical (P6.1).
     if fetcher is not None:
         try:
             result = fetcher.fetch_for_shot(shot.search_query, shot_index,
-                                            visual_type=shot.visual)
+                                            visual_type=shot.visual,
+                                            era=getattr(shot, "era", ""))
         except Exception as exc:
             log.warning("Fetcher raised on shot %d (%s): %s — using placeholder",
                         shot_index, shot.visual, exc)
@@ -508,8 +510,52 @@ def _build_shot_asset(shot: Shot, shot_index: int,
                             shot_index, best.local_path, exc)
                 # fall through to placeholder
 
+    # No image survived the waterfall.  A period shot whose candidates all
+    # failed the era gate lands here by design — render the gap as an
+    # Arabic typography beat (§7.7) instead of the Latin "TBD" card, so
+    # the miss reads as an intentional design moment.
+    card = _arabic_gap_card(shot, out_path, width, height,
+                            typography_family=typography_family,
+                            scrim=scrim)
+    if card is not None:
+        log.info("Shot %d: no era-true image — Arabic typography card",
+                 shot_index)
+        return card, False
+
     # Last resort: placeholder card showing the search query
     return _placeholder_card(shot, out_path, width, height), False
+
+
+def _arabic_gap_card(shot: Shot, out_path: Path,
+                     width: int, height: int, *,
+                     typography_family: str,
+                     scrim: "str | None") -> Path | None:
+    """Style an un-sourced image shot as a pull-quote typography card
+    using the Arabic being narrated over it (§7.7).  Returns None when
+    the shot carries no usable Arabic text (caller falls back to the
+    Latin placeholder) or the typography render fails."""
+    text = (getattr(shot, "typography_text", "") or "").strip()
+    if not text:
+        words = ((shot.caption_text or "").strip()).split()
+        if len(words) >= 3:
+            text = " ".join(words[:12])
+    if not text:
+        return None
+    try:
+        from dataclasses import replace as _dc_replace
+        quote_shot = _dc_replace(shot, visual="typography",
+                                 typography_template="pull_quote",
+                                 typography_text=text)
+        spec = _typography_spec(
+            quote_shot, width=width, height=height,
+            typography_family=typography_family,
+            scrim=scrim,
+        )
+        return render_typography(spec, out_path)
+    except Exception as exc:  # noqa: BLE001 — placeholder is the safety net
+        log.warning("Arabic gap card failed for shot %.1f–%.1fs (%s) — "
+                    "using Latin placeholder", shot.start, shot.end, exc)
+        return None
 
 
 # ── Per-shot clip builder (FFmpeg) ──────────────────────────────────── #

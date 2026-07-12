@@ -590,7 +590,11 @@ def build_total_solution(
     config: "RenderConfig | None" = None,
     condition: bool = True,
     sr: str = "none",
-    slim_mode: str = "chosen",
+    # "top" (not "chosen") is the default: --backdrop-rotate and the
+    # adjacent-dedupe swap both need ranked ALTERNATES in the dossier on
+    # a later render-only pass; a chosen-only dossier silently disables
+    # them (P6.3).
+    slim_mode: str = "top",
     slim_keep_n: int = 3,
     on_progress: Callable[[str, float], None] | None = None,
 ) -> dict:
