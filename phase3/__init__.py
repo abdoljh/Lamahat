@@ -320,6 +320,7 @@ def condition_review_dir(
     min_usable: int = 600,
     mismatch: float = 0.28,
     quality: int = 95,
+    crop_cover: str = "smart",
     on_progress: Callable[[str, float], None] | None = None,
 ) -> dict:
     """Normalise captured assets to crisp, aspect-correct sizes before render.
@@ -335,7 +336,8 @@ def condition_review_dir(
         Path(review_dir),
         mismatch=mismatch, target_cover=target_cover, contain_floor=contain_floor,
         max_cap=max_cap, min_usable=min_usable, sr=sr, quality=quality,
-        dry_run=dry_run, tone=tone, on_progress=on_progress,
+        dry_run=dry_run, tone=tone, crop_cover=crop_cover,
+        on_progress=on_progress,
     )
 
 
