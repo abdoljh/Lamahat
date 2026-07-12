@@ -1,5 +1,5 @@
 
-Plan   : output/shot_plan.json  (96 shots)
+Plan   : output/shot_plan.json  (74 shots)
 Audio  : resources/audio/narration.mp3
 Output : output/final_cut_B.mp4
 Config : 1920×1080 @ 25 fps  captions=off
@@ -9,311 +9,278 @@ Motion : 2.5D parallax ON (backend=depthanything, warp=auto)
 Text   : typography-over-image ON (text overlaid on footage; title_card keeps cover)
 Review : output/review (dossier consulted before fetcher)
 
-INFO  phase3.sources.decisions  Decisions loaded from output/review/decisions.json: 57 shots, pinned_portrait=(none)
+INFO  phase3.sources.decisions  Decisions loaded from output/review/decisions.json: 46 shots, pinned_portrait=(none)
 Cover  : /content/Lamahat/resources/book_cover/memoirs_3d.jpeg (pool pick #1 of 4 in resources/book_cover/)
 Cover fit: contain (from --book-cover-fit)
 Cover align: left (from --book-cover-align)
-INFO  phase3.render  [render 6%] shot 1/96: title_card
+INFO  phase3.render  [render 6%] shot 1/74: title_card
 INFO  phase3.sources.decisions  Shot 2: portrait pool hit jafar_profile.jpg (rank 0 of 11)
 INFO  phase3.sources  Shot 2: review-dossier hit jafar_profile.jpg
 INFO  phase3.render  Shot 2: using fetched image from review_dossier
-2026-07-12 05:51:38.158298: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+2026-07-12 14:13:36.238096: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 AVX512F FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
 INFO  numexpr.utils  NumExpr defaulting to 2 threads.
 Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.
 Device set to use cuda:0
-INFO  phase3.render  [render 6%] shot 2/96: portrait
-INFO  phase3.render  [render 7%] shot 3/96: typography
-INFO  phase3.sources.decisions  Shot 4: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 4: review-dossier hit pexels_c.cond.jpg
+INFO  phase3.render  [render 7%] shot 2/74: portrait
+INFO  phase3.render  [render 8%] shot 3/74: typography
+INFO  phase3.sources.decisions  Shot 4: chosen-file hit bank_cultural_mosul.jpg
+INFO  phase3.sources  Shot 4: review-dossier hit bank_cultural_mosul.jpg
 INFO  phase3.render  Shot 4: using fetched image from review_dossier
-INFO  phase3.render  [render 8%] shot 4/96: location
-INFO  phase3.sources.decisions  Shot 5: chosen-file hit wikipedia_a.cond.jpg
-INFO  phase3.sources  Shot 5: review-dossier hit wikipedia_a.cond.jpg
+INFO  phase3.render  [render 9%] shot 4/74: broll
+INFO  phase3.sources.decisions  Shot 5: chosen-file hit bank_handwritten_memoirs.jpg
+INFO  phase3.sources  Shot 5: review-dossier hit bank_handwritten_memoirs.jpg
 INFO  phase3.render  Shot 5: using fetched image from review_dossier
-INFO  phase3.render  [render 9%] shot 5/96: broll
-INFO  phase3.sources.decisions  Shot 6: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 6: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 6: using fetched image from review_dossier
-INFO  phase3.render  [render 9%] shot 6/96: archive
-INFO  phase3.render  [render 10%] shot 7/96: typography
-INFO  phase3.sources.decisions  Shot 8: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 8: review-dossier hit wikimedia_a.cond.jpg
+INFO  phase3.render  [render 10%] shot 5/74: archive
+INFO  phase3.render  [render 11%] shot 6/74: typography
+INFO  phase3.sources.decisions  Shot 7: portrait pool hit alayubi_jafar_alsaeed.jpg (rank 1 of 11)
+INFO  phase3.sources  Shot 7: review-dossier hit alayubi_jafar_alsaeed.jpg
+INFO  phase3.render  Shot 7: using fetched image from review_dossier
+INFO  phase3.render  [render 12%] shot 7/74: portrait
+INFO  phase3.sources.decisions  Shot 8: chosen-file hit bank_harbiye_mektebi.jpg
+INFO  phase3.sources  Shot 8: review-dossier hit bank_harbiye_mektebi.jpg
 INFO  phase3.render  Shot 8: using fetched image from review_dossier
-INFO  phase3.render  [render 11%] shot 8/96: archive
-INFO  phase3.sources.decisions  Shot 9: chosen-file hit wikipedia_b.cond.jpg
-INFO  phase3.sources  Shot 9: review-dossier hit wikipedia_b.cond.jpg
-INFO  phase3.render  Shot 9: using fetched image from review_dossier
-INFO  phase3.render  [render 12%] shot 9/96: broll
-INFO  phase3.render  [render 12%] shot 10/96: typography
-INFO  phase3.sources.decisions  Shot 11: portrait pool hit memoirs_3dw2.jpg (rank 1 of 11)
-INFO  phase3.sources  Shot 11: review-dossier hit memoirs_3dw2.jpg
-INFO  phase3.render  Shot 11: using fetched image from review_dossier
-INFO  phase3.render  [render 13%] shot 11/96: portrait
-INFO  phase3.sources.decisions  Shot 12: chosen-file hit wikipedia_c.cond.jpg
-INFO  phase3.sources  Shot 12: review-dossier hit wikipedia_c.cond.jpg
-INFO  phase3.render  Shot 12: using fetched image from review_dossier
-INFO  phase3.render  [render 14%] shot 12/96: broll
-INFO  phase3.render  [render 14%] shot 13/96: typography
-INFO  phase3.sources.decisions  Shot 14: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 14: review-dossier hit pexels_b.cond.jpg
+INFO  phase3.render  [render 13%] shot 8/74: broll
+INFO  phase3.sources.decisions  Shot 8: chosen-file hit bank_harbiye_mektebi.jpg
+INFO  phase3.render  [render 14%] shot 9/74: typography
+INFO  phase3.sources.decisions  Shot 10: chosen-file hit bank_arab_revolt_1.jpeg
+INFO  phase3.sources  Shot 10: review-dossier hit bank_arab_revolt_1.jpeg
+INFO  phase3.render  Shot 10: using fetched image from review_dossier
+INFO  phase3.render  [render 14%] shot 10/74: broll
+INFO  phase3.sources.decisions  Shot 10: chosen-file hit bank_arab_revolt_1.jpeg
+INFO  phase3.render  [render 15%] shot 11/74: typography
+INFO  phase3.sources.decisions  Shot 10: chosen-file hit bank_arab_revolt_1.jpeg
+INFO  phase3.render  [render 16%] shot 12/74: section_mark
+INFO  phase3.sources.decisions  Shot 13: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.sources  Shot 13: review-dossier hit wikimedia_a.cond.jpg
+INFO  phase3.render  Shot 13: using fetched image from review_dossier
+INFO  phase3.render  [render 17%] shot 13/74: location
+INFO  phase3.sources.decisions  Shot 14: portrait pool hit jafar_in_quweira.jpg (rank 2 of 11)
+INFO  phase3.sources  Shot 14: review-dossier hit jafar_in_quweira.jpg
 INFO  phase3.render  Shot 14: using fetched image from review_dossier
-INFO  phase3.render  [render 15%] shot 14/96: archive
-INFO  phase3.render  [render 16%] shot 15/96: section_mark
-INFO  phase3.sources.decisions  Shot 16: chosen-file hit wikimedia_b.cond.jpg
-INFO  phase3.sources  Shot 16: review-dossier hit wikimedia_b.cond.jpg
+INFO  phase3.render  [render 18%] shot 14/74: portrait
+INFO  phase3.sources.decisions  Shot 15: chosen-file hit bank_from_mosul_to_istanbul.jpg
+INFO  phase3.sources  Shot 15: review-dossier hit bank_from_mosul_to_istanbul.jpg
+INFO  phase3.render  Shot 15: using fetched image from review_dossier
+INFO  phase3.render  [render 19%] shot 15/74: location
+INFO  phase3.sources.decisions  Shot 16: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.sources  Shot 16: review-dossier hit wikipedia_a.cond.jpg
 INFO  phase3.render  Shot 16: using fetched image from review_dossier
-INFO  phase3.render  [render 17%] shot 16/96: location
-INFO  phase3.render  [render 17%] shot 17/96: typography
-INFO  phase3.sources.decisions  Shot 18: chosen-file hit wikimedia_a.jpg
-INFO  phase3.sources  Shot 18: review-dossier hit wikimedia_a.jpg
+INFO  phase3.render  [render 20%] shot 16/74: archive
+INFO  phase3.render  [render 21%] shot 17/74: typography
+INFO  phase3.sources.decisions  Shot 18: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.sources  Shot 18: review-dossier hit wikimedia_a.cond.jpg
 INFO  phase3.render  Shot 18: using fetched image from review_dossier
-You seem to be using the pipelines sequentially on GPU. In order to maximize efficiency please use a dataset
-INFO  phase3.render  [render 18%] shot 18/96: location
-INFO  phase3.sources.decisions  Shot 19: chosen-file hit wikipedia_b.cond.jpg
-INFO  phase3.sources  Shot 19: review-dossier hit wikipedia_b.cond.jpg
+INFO  phase3.render  [render 22%] shot 18/74: broll
+INFO  phase3.sources.decisions  Shot 19: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.sources  Shot 19: review-dossier hit wikipedia_a.cond.jpg
 INFO  phase3.render  Shot 19: using fetched image from review_dossier
-INFO  phase3.render  [render 19%] shot 19/96: broll
-INFO  phase3.render  [render 20%] shot 20/96: typography
-INFO  phase3.sources.decisions  Shot 21: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 21: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 21: using fetched image from review_dossier
-INFO  phase3.render  [render 20%] shot 21/96: archive
-INFO  phase3.sources.decisions  Shot 22: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 22: review-dossier hit pexels_a.cond.jpg
+INFO  phase3.render  [render 23%] shot 19/74: location
+INFO  phase3.sources.decisions  Shot 20: chosen-file hit bank_jafar_with_collegues.jpg
+INFO  phase3.sources  Shot 20: review-dossier hit bank_jafar_with_collegues.jpg
+INFO  phase3.render  Shot 20: using fetched image from review_dossier
+INFO  phase3.render  [render 24%] shot 20/74: archive
+INFO  phase3.render  [render 25%] shot 21/74: typography
+INFO  phase3.sources.decisions  Shot 22: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.sources  Shot 22: review-dossier hit wikipedia_a.cond.jpg
 INFO  phase3.render  Shot 22: using fetched image from review_dossier
-INFO  phase3.render  [render 21%] shot 22/96: broll
-INFO  phase3.render  [render 22%] shot 23/96: typography
-INFO  phase3.sources.decisions  Shot 24: chosen-file hit wikimedia_a.jpg
-INFO  phase3.sources  Shot 24: review-dossier hit wikimedia_a.jpg
-INFO  phase3.render  Shot 24: using fetched image from review_dossier
-INFO  phase3.render  [render 22%] shot 24/96: location
-INFO  phase3.sources.decisions  Shot 25: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 25: review-dossier hit wikimedia_a.cond.jpg
+INFO  phase3.render  [render 26%] shot 22/74: portrait
+INFO  phase3.sources.decisions  Shot 23: chosen-file hit bank_ottoman_empire_fall_2.jpeg
+INFO  phase3.sources  Shot 23: review-dossier hit bank_ottoman_empire_fall_2.jpeg
+INFO  phase3.render  Shot 23: using fetched image from review_dossier
+INFO  phase3.render  [render 27%] shot 23/74: broll
+INFO  phase3.sources.decisions  Shot 23: chosen-file hit bank_ottoman_empire_fall_2.jpeg
+INFO  phase3.render  [render 28%] shot 24/74: typography
+INFO  phase3.sources.decisions  Shot 25: chosen-file hit bank_young_turks_revolution.jpg
+INFO  phase3.sources  Shot 25: review-dossier hit bank_young_turks_revolution.jpg
 INFO  phase3.render  Shot 25: using fetched image from review_dossier
-INFO  phase3.render  [render 23%] shot 25/96: archive
-INFO  phase3.render  [render 24%] shot 26/96: typography
-INFO  phase3.sources.decisions  Shot 27: chosen-file hit wikimedia_b.cond.jpg
-INFO  phase3.sources  Shot 27: review-dossier hit wikimedia_b.cond.jpg
-INFO  phase3.render  Shot 27: using fetched image from review_dossier
-INFO  phase3.render  [render 25%] shot 27/96: broll
-INFO  phase3.sources.decisions  Shot 28: chosen-file hit wikipedia_a.jpg
-INFO  phase3.sources  Shot 28: review-dossier hit wikipedia_a.jpg
+INFO  phase3.render  [render 29%] shot 25/74: archive
+INFO  phase3.sources.decisions  Shot 26: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.sources  Shot 26: review-dossier hit wikipedia_a.cond.jpg
+INFO  phase3.render  Shot 26: using fetched image from review_dossier
+INFO  phase3.render  [render 30%] shot 26/74: broll
+INFO  phase3.sources.decisions  Shot 26: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate wikimedia_a.png (source shot 26)
+[motion_parallax] no cached depth for shot_026_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
+INFO  phase3.render  [render 31%] shot 27/74: typography
+INFO  phase3.sources.decisions  Shot 28: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.sources  Shot 28: review-dossier hit wikimedia_a.cond.jpg
 INFO  phase3.render  Shot 28: using fetched image from review_dossier
-libpng warning: iCCP: profile 'ICC Profile': 'GRAY': Gray color space not permitted on RGB PNG
-INFO  phase3.render  [render 25%] shot 28/96: portrait
-INFO  phase3.sources.decisions  Shot 29: chosen-file hit wikimedia_b.cond.jpg
-INFO  phase3.sources  Shot 29: review-dossier hit wikimedia_b.cond.jpg
-INFO  phase3.render  Shot 29: using fetched image from review_dossier
-INFO  phase3.render  [render 26%] shot 29/96: archive
-INFO  phase3.render  [render 27%] shot 30/96: typography
-INFO  phase3.sources.decisions  Shot 31: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 31: review-dossier hit pexels_a.cond.jpg
+You seem to be using the pipelines sequentially on GPU. In order to maximize efficiency please use a dataset
+INFO  phase3.render  [render 31%] shot 28/74: location
+INFO  phase3.sources.decisions  Shot 28: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.render  [render 32%] shot 29/74: section_mark
+INFO  phase3.sources.decisions  Shot 30: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.sources  Shot 30: review-dossier hit wikipedia_a.cond.jpg
+INFO  phase3.render  Shot 30: using fetched image from review_dossier
+INFO  phase3.render  [render 33%] shot 30/74: broll
+INFO  phase3.sources.decisions  Shot 31: chosen-file hit bank_young_turks_leaders.jpg
+INFO  phase3.sources  Shot 31: review-dossier hit bank_young_turks_leaders.jpg
 INFO  phase3.render  Shot 31: using fetched image from review_dossier
-INFO  phase3.render  [render 28%] shot 31/96: broll
-INFO  phase3.render  [render 28%] shot 32/96: typography
-INFO  phase3.sources.decisions  Shot 33: chosen-file hit wikipedia_a.cond.jpg
-INFO  phase3.sources  Shot 33: review-dossier hit wikipedia_a.cond.jpg
+INFO  phase3.render  [render 34%] shot 31/74: archive
+INFO  phase3.sources.decisions  Shot 31: chosen-file hit bank_young_turks_leaders.jpg
+INFO  phase3.render  [render 35%] shot 32/74: typography
+INFO  phase3.sources.decisions  Shot 33: chosen-file hit wikipedia_a.jpg
+INFO  phase3.sources  Shot 33: review-dossier hit wikipedia_a.jpg
 INFO  phase3.render  Shot 33: using fetched image from review_dossier
-INFO  phase3.render  [render 29%] shot 33/96: archive
-INFO  phase3.sources.decisions  Shot 33: chosen-file hit wikipedia_a.cond.jpg
-INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate wikipedia_b.png (source shot 33)
-[motion_parallax] no cached depth for shot_033_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
-INFO  phase3.render  [render 30%] shot 34/96: typography
-INFO  phase3.sources.decisions  Shot 35: chosen-file hit wikimedia_c.cond.jpg
-INFO  phase3.sources  Shot 35: review-dossier hit wikimedia_c.cond.jpg
+INFO  phase3.render  [render 36%] shot 33/74: location
+INFO  phase3.sources.decisions  Shot 34: chosen-file hit wikimedia_a.jpg
+INFO  phase3.sources  Shot 34: review-dossier hit wikimedia_a.jpg
+INFO  phase3.render  Shot 34: using fetched image from review_dossier
+INFO  phase3.render  [render 37%] shot 34/74: portrait
+INFO  phase3.sources.decisions  Shot 35: chosen-file hit bank_arab_revolt_2.jpeg
+INFO  phase3.sources  Shot 35: review-dossier hit bank_arab_revolt_2.jpeg
 INFO  phase3.render  Shot 35: using fetched image from review_dossier
-INFO  phase3.render  [render 31%] shot 35/96: location
-INFO  phase3.sources.decisions  Shot 35: chosen-file hit wikimedia_c.cond.jpg
-INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate wikimedia_a.jpg (source shot 35)
-[motion_parallax] no cached depth for shot_035_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
-INFO  phase3.render  [render 31%] shot 36/96: section_mark
-INFO  phase3.sources.decisions  Shot 37: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 37: review-dossier hit pexels_b.cond.jpg
+INFO  phase3.render  [render 38%] shot 35/74: archive
+INFO  phase3.sources.decisions  Shot 35: chosen-file hit bank_arab_revolt_2.jpeg
+INFO  phase3.render  [render 39%] shot 36/74: typography
+INFO  phase3.sources.decisions  Shot 37: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.sources  Shot 37: review-dossier hit wikipedia_a.cond.jpg
 INFO  phase3.render  Shot 37: using fetched image from review_dossier
-INFO  phase3.render  [render 32%] shot 37/96: broll
-INFO  phase3.sources.decisions  Shot 38: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 38: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 38: using fetched image from review_dossier
-INFO  phase3.render  [render 33%] shot 38/96: location
-INFO  phase3.render  [render 33%] shot 39/96: typography
-INFO  phase3.sources.decisions  Shot 40: chosen-file hit wikimedia_c.cond.jpg
-INFO  phase3.sources  Shot 40: review-dossier hit wikimedia_c.cond.jpg
+INFO  phase3.render  [render 40%] shot 37/74: broll
+INFO  phase3.sources.decisions  Shot 37: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.render  [render 41%] shot 38/74: typography
+INFO  phase3.sources.decisions  Shot 39: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.sources  Shot 39: review-dossier hit wikimedia_a.cond.jpg
+INFO  phase3.render  Shot 39: using fetched image from review_dossier
+INFO  phase3.render  [render 42%] shot 39/74: archive
+INFO  phase3.sources.decisions  Shot 40: portrait pool hit jafar_in_uniform.jpg (rank 5 of 11)
+INFO  phase3.sources  Shot 40: review-dossier hit jafar_in_uniform.jpg
 INFO  phase3.render  Shot 40: using fetched image from review_dossier
-INFO  phase3.render  [render 34%] shot 40/96: archive
-INFO  phase3.render  [render 35%] shot 41/96: typography
-INFO  phase3.sources.decisions  Shot 42: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 42: review-dossier hit wikimedia_a.cond.jpg
+INFO  phase3.render  [render 43%] shot 40/74: portrait
+INFO  phase3.sources.decisions  Shot 40: portrait pool hit jafar_in_uniform.jpg (rank 5 of 11)
+INFO  phase3.render  [render 44%] shot 41/74: typography
+INFO  phase3.sources.decisions  Shot 42: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.sources  Shot 42: review-dossier hit wikipedia_a.cond.jpg
 INFO  phase3.render  Shot 42: using fetched image from review_dossier
-INFO  phase3.render  [render 36%] shot 42/96: archive
-INFO  phase3.sources.decisions  Shot 43: chosen-file hit wikipedia_a.cond.jpg
-INFO  phase3.sources  Shot 43: review-dossier hit wikipedia_a.cond.jpg
-INFO  phase3.render  Shot 43: using fetched image from review_dossier
-INFO  phase3.render  [render 36%] shot 43/96: portrait
-INFO  phase3.sources.decisions  Shot 44: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 44: review-dossier hit wikimedia_a.cond.jpg
+INFO  phase3.render  [render 45%] shot 42/74: broll
+INFO  phase3.sources.decisions  Shot 42: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate wikipedia_b.jpg (source shot 42)
+[motion_parallax] no cached depth for shot_042_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
+INFO  phase3.render  [render 46%] shot 43/74: typography
+INFO  phase3.sources.decisions  Shot 44: chosen-file hit bank_tulip_memory.jpg
+INFO  phase3.sources  Shot 44: review-dossier hit bank_tulip_memory.jpg
 INFO  phase3.render  Shot 44: using fetched image from review_dossier
-INFO  phase3.render  [render 37%] shot 44/96: broll
-INFO  phase3.render  [render 38%] shot 45/96: typography
-INFO  phase3.sources.decisions  Shot 46: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 46: review-dossier hit pexels_a.cond.jpg
+INFO  phase3.render  [render 47%] shot 44/74: archive
+INFO  phase3.render  [render 48%] shot 45/74: section_mark
+INFO  phase3.sources.decisions  Shot 46: chosen-file hit bank_balkan_war_memory.jpg
+INFO  phase3.sources  Shot 46: review-dossier hit bank_balkan_war_memory.jpg
 INFO  phase3.render  Shot 46: using fetched image from review_dossier
-INFO  phase3.render  [render 39%] shot 46/96: archive
-INFO  phase3.render  [render 39%] shot 47/96: typography
-INFO  phase3.sources.decisions  Shot 48: chosen-file hit wikipedia_a.cond.jpg
-INFO  phase3.sources  Shot 48: review-dossier hit wikipedia_a.cond.jpg
-INFO  phase3.render  Shot 48: using fetched image from review_dossier
-INFO  phase3.render  [render 40%] shot 48/96: broll
-INFO  phase3.sources.decisions  Shot 49: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 49: review-dossier hit pexels_a.cond.jpg
+INFO  phase3.render  [render 49%] shot 46/74: archive
+INFO  phase3.sources.decisions  Shot 47: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.sources  Shot 47: review-dossier hit wikimedia_a.cond.jpg
+INFO  phase3.render  Shot 47: using fetched image from review_dossier
+INFO  phase3.render  [render 49%] shot 47/74: broll
+INFO  phase3.sources.decisions  Shot 47: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate wikipedia_a.jpg (source shot 47)
+[motion_parallax] no cached depth for shot_047_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
+INFO  phase3.render  [render 50%] shot 48/74: typography
+INFO  phase3.sources.decisions  Shot 49: portrait pool hit jafar_at_window_w.jpg (rank 6 of 11)
+INFO  phase3.sources  Shot 49: review-dossier hit jafar_at_window_w.jpg
 INFO  phase3.render  Shot 49: using fetched image from review_dossier
-INFO  phase3.render  [render 41%] shot 49/96: archive
-INFO  phase3.sources.decisions  Shot 49: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate pexels_b.jpg (source shot 49)
-[motion_parallax] no cached depth for shot_049_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
-INFO  phase3.render  [render 41%] shot 50/96: typography
-INFO  phase3.sources.decisions  Shot 51: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 51: review-dossier hit pexels_b.cond.jpg
+INFO  phase3.render  [render 51%] shot 49/74: portrait
+INFO  phase3.sources.decisions  Shot 50: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.sources  Shot 50: review-dossier hit wikipedia_a.cond.jpg
+INFO  phase3.render  Shot 50: using fetched image from review_dossier
+INFO  phase3.render  [render 52%] shot 50/74: location
+INFO  phase3.sources.decisions  Shot 51: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.sources  Shot 51: review-dossier hit wikipedia_a.cond.jpg
 INFO  phase3.render  Shot 51: using fetched image from review_dossier
-INFO  phase3.render  [render 42%] shot 51/96: broll
-INFO  phase3.sources.decisions  Shot 51: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate pexels_c.jpg (source shot 51)
-[motion_parallax] no cached depth for shot_051_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
-INFO  phase3.render  [render 43%] shot 52/96: typography
-INFO  phase3.sources.decisions  Shot 53: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 53: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 53: using fetched image from review_dossier
-INFO  phase3.render  [render 44%] shot 53/96: archive
-INFO  phase3.sources.decisions  Shot 53: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate wikipedia_b.jpg (source shot 53)
-[motion_parallax] no cached depth for shot_053_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
-INFO  phase3.render  [render 44%] shot 54/96: typography
-INFO  phase3.sources.decisions  Shot 55: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 55: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 55: using fetched image from review_dossier
-INFO  phase3.render  [render 45%] shot 55/96: location
-INFO  phase3.render  [render 46%] shot 56/96: section_mark
-INFO  phase3.sources.decisions  Shot 57: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 57: review-dossier hit wikimedia_a.cond.jpg
-INFO  phase3.render  Shot 57: using fetched image from review_dossier
-INFO  phase3.render  [render 47%] shot 57/96: archive
-INFO  phase3.sources.decisions  Shot 58: chosen-file hit wikipedia_a.cond.jpg
-INFO  phase3.sources  Shot 58: review-dossier hit wikipedia_a.cond.jpg
+INFO  phase3.render  [render 53%] shot 51/74: archive
+INFO  phase3.sources.decisions  Shot 51: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.render  [render 54%] shot 52/74: typography
+INFO  phase3.sources  Shot 53: period shot (era='1916-1918 Arab Revolt Hejaz') — Pexels excluded from the waterfall
+INFO  phase3.sources.wikimedia  Wikimedia: 1 candidates for 'Arabian Peninsula desert Hejaz'
+INFO  phase3.sources.wikipedia  Wikipedia: 3 lead-image candidates for 'Arabian Peninsula desert Hejaz'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 2/2/1 era=0  File:Geographical changes due to the Gre  — Historical map of the correct region (Anatolia, Mesopotamia,
+INFO  phase3.sources.vision  Vision 3/3/2 era=1  Lead image: Nafud desert  — Aerial view of Arabian desert landscape with distinctive geo
+INFO  phase3.sources.vision  Vision 1/3/1 era=0  Lead image: Hejaz  — Modern photograph of Masjid al-Haram in Mecca (correct regio
+INFO  phase3.sources.vision  Vision 3/2/2 era=2  Lead image: Arabian Peninsula  — Satellite imagery of Arabian Peninsula showing Hejaz region 
+INFO  phase3.sources  Shot 53: best=Lead image: Arabian Peninsula (score 7)
+INFO  phase3.render  Shot 53: using fetched image from wikipedia
+INFO  phase3.render  [render 55%] shot 53/74: location
+INFO  phase3.sources.decisions  Shot 54: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.sources  Shot 54: review-dossier hit wikimedia_a.cond.jpg
+INFO  phase3.render  Shot 54: using fetched image from review_dossier
+INFO  phase3.render  [render 56%] shot 54/74: broll
+INFO  phase3.sources.decisions  Shot 54: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate wikipedia_a.jpg (source shot 54)
+[motion_parallax] no cached depth for shot_054_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
+INFO  phase3.render  [render 57%] shot 55/74: typography
+INFO  phase3.sources.decisions  Shot 56: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.sources  Shot 56: review-dossier hit wikimedia_a.cond.jpg
+INFO  phase3.render  Shot 56: using fetched image from review_dossier
+INFO  phase3.render  [render 58%] shot 56/74: archive
+INFO  phase3.sources.decisions  Shot 56: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate wikipedia_a.jpg (source shot 56)
+[motion_parallax] no cached depth for shot_056_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
+INFO  phase3.render  [render 59%] shot 57/74: section_mark
+INFO  phase3.sources.decisions  Shot 58: chosen-file hit wikimedia_a.cond.jpg
+INFO  phase3.sources  Shot 58: review-dossier hit wikimedia_a.cond.jpg
 INFO  phase3.render  Shot 58: using fetched image from review_dossier
-INFO  phase3.render  [render 47%] shot 58/96: archive
-INFO  phase3.render  [render 48%] shot 59/96: typography
-INFO  phase3.sources.decisions  Shot 60: portrait pool hit jafar_in_office.jpg (rank 4 of 11)
-INFO  phase3.sources  Shot 60: review-dossier hit jafar_in_office.jpg
-INFO  phase3.render  Shot 60: using fetched image from review_dossier
-INFO  phase3.render  [render 49%] shot 60/96: portrait
-INFO  phase3.render  [render 49%] shot 61/96: typography
-INFO  phase3.sources.decisions  Shot 62: chosen-file hit wikipedia_a.cond.jpg
-INFO  phase3.sources  Shot 62: review-dossier hit wikipedia_a.cond.jpg
+INFO  phase3.render  [render 60%] shot 58/74: broll
+INFO  phase3.sources.decisions  Shot 59: portrait pool hit jafar_in_office.jpg (rank 7 of 11)
+INFO  phase3.sources  Shot 59: review-dossier hit jafar_in_office.jpg
+INFO  phase3.render  Shot 59: using fetched image from review_dossier
+INFO  phase3.render  [render 61%] shot 59/74: portrait
+INFO  phase3.sources.decisions  Shot 59: portrait pool hit jafar_in_office.jpg (rank 7 of 11)
+INFO  phase3.render  [render 62%] shot 60/74: typography
+INFO  phase3.sources.decisions  Shot 61: chosen-file hit wikipedia_a.jpg
+INFO  phase3.sources  Shot 61: review-dossier hit wikipedia_a.jpg
+INFO  phase3.render  Shot 61: using fetched image from review_dossier
+INFO  phase3.render  [render 63%] shot 61/74: broll
+INFO  phase3.sources.decisions  Shot 62: chosen-file hit bank_najdat_fathi_safwat.jpg
+INFO  phase3.sources  Shot 62: review-dossier hit bank_najdat_fathi_safwat.jpg
 INFO  phase3.render  Shot 62: using fetched image from review_dossier
-INFO  phase3.render  [render 50%] shot 62/96: archive
-INFO  phase3.sources.decisions  Shot 63: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 63: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 63: using fetched image from review_dossier
-INFO  phase3.render  [render 51%] shot 63/96: location
-INFO  phase3.sources.decisions  Shot 64: chosen-file hit wikipedia_b.cond.jpg
-INFO  phase3.sources  Shot 64: review-dossier hit wikipedia_b.cond.jpg
+INFO  phase3.render  [render 64%] shot 62/74: archive
+INFO  phase3.sources.decisions  Shot 62: chosen-file hit bank_najdat_fathi_safwat.jpg
+INFO  phase3.render  [render 65%] shot 63/74: typography
+INFO  phase3.sources.decisions  Shot 64: chosen-file hit bank_book_presentation.jpg
+INFO  phase3.sources  Shot 64: review-dossier hit bank_book_presentation.jpg
 INFO  phase3.render  Shot 64: using fetched image from review_dossier
-INFO  phase3.render  [render 52%] shot 64/96: archive
-INFO  phase3.sources.decisions  Shot 65: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 65: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 65: using fetched image from review_dossier
-INFO  phase3.render  [render 52%] shot 65/96: broll
-INFO  phase3.render  [render 53%] shot 66/96: typography
+INFO  phase3.render  [render 66%] shot 64/74: object
+INFO  phase3.sources.decisions  Shot 64: chosen-file hit bank_book_presentation.jpg
+INFO  phase3.render  [render 66%] shot 65/74: typography
+INFO  phase3.sources.decisions  Shot 66: chosen-file hit bank_jafar_sovereign_nation.cond.jpg
+INFO  phase3.sources  Shot 66: review-dossier hit bank_jafar_sovereign_nation.cond.jpg
+INFO  phase3.render  Shot 66: using fetched image from review_dossier
+INFO  phase3.render  [render 67%] shot 66/74: archive
 INFO  phase3.sources.decisions  Shot 67: chosen-file hit wikipedia_a.cond.jpg
 INFO  phase3.sources  Shot 67: review-dossier hit wikipedia_a.cond.jpg
 INFO  phase3.render  Shot 67: using fetched image from review_dossier
-INFO  phase3.render  [render 54%] shot 67/96: broll
-INFO  phase3.sources.decisions  Shot 68: chosen-file hit wikipedia_a.cond.jpg
-INFO  phase3.sources  Shot 68: review-dossier hit wikipedia_a.cond.jpg
-INFO  phase3.render  Shot 68: using fetched image from review_dossier
-INFO  phase3.render  [render 55%] shot 68/96: archive
-INFO  phase3.render  [render 55%] shot 69/96: typography
-INFO  phase3.sources.decisions  Shot 70: chosen-file hit wikipedia_a.cond.jpg
-INFO  phase3.sources  Shot 70: review-dossier hit wikipedia_a.cond.jpg
-INFO  phase3.render  Shot 70: using fetched image from review_dossier
-INFO  phase3.render  [render 56%] shot 70/96: archive
-INFO  phase3.sources.decisions  Shot 70: chosen-file hit wikipedia_a.cond.jpg
-INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate pexels_c.jpg (source shot 70)
-[motion_parallax] no cached depth for shot_070_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
-INFO  phase3.render  [render 57%] shot 71/96: typography
-INFO  phase3.sources.decisions  Shot 72: chosen-file hit wikipedia_b.cond.jpg
-INFO  phase3.sources  Shot 72: review-dossier hit wikipedia_b.cond.jpg
-INFO  phase3.render  Shot 72: using fetched image from review_dossier
-INFO  phase3.render  [render 58%] shot 72/96: archive
-INFO  phase3.render  [render 58%] shot 73/96: section_mark
-INFO  phase3.sources.decisions  Shot 74: portrait pool hit jafar_at_window_w.jpg (rank 5 of 11)
-INFO  phase3.sources  Shot 74: review-dossier hit jafar_at_window_w.jpg
-INFO  phase3.render  Shot 74: using fetched image from review_dossier
-INFO  phase3.render  [render 59%] shot 74/96: portrait
-INFO  phase3.sources.decisions  Shot 75: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 75: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 75: using fetched image from review_dossier
-INFO  phase3.render  [render 60%] shot 75/96: broll
-INFO  phase3.render  [render 60%] shot 76/96: typography
-INFO  phase3.sources.decisions  Shot 77: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 77: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 77: using fetched image from review_dossier
-INFO  phase3.render  [render 61%] shot 77/96: archive
-INFO  phase3.render  [render 62%] shot 78/96: typography
-INFO  phase3.sources.decisions  Shot 79: chosen-file hit wikipedia_a.jpg
-INFO  phase3.sources  Shot 79: review-dossier hit wikipedia_a.jpg
-INFO  phase3.render  Shot 79: using fetched image from review_dossier
-INFO  phase3.render  [render 63%] shot 79/96: broll
-INFO  phase3.sources.decisions  Shot 80: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 80: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 80: using fetched image from review_dossier
-INFO  phase3.render  [render 63%] shot 80/96: archive
-INFO  phase3.render  [render 64%] shot 81/96: typography
-INFO  phase3.sources.decisions  Shot 82: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 82: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 82: using fetched image from review_dossier
-INFO  phase3.render  [render 65%] shot 82/96: archive
-INFO  phase3.render  [render 66%] shot 83/96: typography
-INFO  phase3.sources.decisions  Shot 84: chosen-file hit pexels_a.cond.jpg
-INFO  phase3.sources  Shot 84: review-dossier hit pexels_a.cond.jpg
-INFO  phase3.render  Shot 84: using fetched image from review_dossier
-INFO  phase3.render  [render 66%] shot 84/96: broll
-INFO  phase3.sources.decisions  Shot 85: chosen-file hit pexels_c.cond.jpg
-INFO  phase3.sources  Shot 85: review-dossier hit pexels_c.cond.jpg
-INFO  phase3.render  Shot 85: using fetched image from review_dossier
-INFO  phase3.render  [render 67%] shot 85/96: archive
-INFO  phase3.render  [render 68%] shot 86/96: typography
-INFO  phase3.sources.decisions  Shot 87: portrait pool hit jafar_in_quweira.jpg (rank 6 of 11)
-INFO  phase3.sources  Shot 87: review-dossier hit jafar_in_quweira.jpg
-INFO  phase3.render  Shot 87: using fetched image from review_dossier
-INFO  phase3.render  [render 68%] shot 87/96: portrait
-INFO  phase3.sources.decisions  Shot 87: portrait pool hit jafar_in_quweira.jpg (rank 6 of 11)
-INFO  phase3.render  [render 69%] shot 88/96: typography
-INFO  phase3.sources.decisions  Shot 89: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.sources  Shot 89: review-dossier hit pexels_b.cond.jpg
-INFO  phase3.render  Shot 89: using fetched image from review_dossier
-INFO  phase3.render  [render 70%] shot 89/96: archive
-INFO  phase3.sources.decisions  Shot 89: chosen-file hit pexels_b.cond.jpg
-INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate pexels_c.jpg (source shot 89)
-[motion_parallax] no cached depth for shot_089_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
-INFO  phase3.render  [render 71%] shot 90/96: typography
-INFO  phase3.sources.decisions  Shot 91: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.sources  Shot 91: review-dossier hit wikimedia_a.cond.jpg
-INFO  phase3.render  Shot 91: using fetched image from review_dossier
-INFO  phase3.render  [render 71%] shot 91/96: broll
-INFO  phase3.sources.decisions  Shot 91: chosen-file hit wikimedia_a.cond.jpg
-INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate wikimedia_b.jpg (source shot 91)
-[motion_parallax] no cached depth for shot_091_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
-INFO  phase3.render  [render 72%] shot 92/96: typography
-INFO  phase3.sources.decisions  Shot 93: portrait pool hit jafar_order_of_the_medjidie.jpg (rank 7 of 11)
-INFO  phase3.sources  Shot 93: review-dossier hit jafar_order_of_the_medjidie.jpg
-INFO  phase3.render  Shot 93: using fetched image from review_dossier
-INFO  phase3.render  [render 73%] shot 93/96: portrait
-INFO  phase3.render  [render 74%] shot 94/96: typography
-INFO  phase3.sources.decisions  Shot 93: portrait pool hit jafar_order_of_the_medjidie.jpg (rank 7 of 11)
-INFO  phase3.render  [render 74%] shot 95/96: typography
-INFO  phase3.sources.decisions  Shot 93: portrait pool hit jafar_order_of_the_medjidie.jpg (rank 7 of 11)
-INFO  phase3.render  [render 75%] shot 96/96: typography
+INFO  phase3.render  [render 68%] shot 67/74: broll
+INFO  phase3.sources.decisions  Shot 67: chosen-file hit wikipedia_a.cond.jpg
+INFO  phase3.render  Overlay run > rotate: backdrop switched to alternate wikipedia_b.jpg (source shot 67)
+[motion_parallax] no cached depth for shot_067_bgrot.png; estimating in-memory (prefer prebuild/render-stage caching).
+INFO  phase3.render  [render 69%] shot 68/74: typography
+INFO  phase3.sources.decisions  Shot 69: portrait pool hit memoirs_3dw2.jpg (rank 8 of 11)
+INFO  phase3.sources  Shot 69: review-dossier hit memoirs_3dw2.jpg
+INFO  phase3.render  Shot 69: using fetched image from review_dossier
+INFO  phase3.render  [render 70%] shot 69/74: portrait
+INFO  phase3.sources.decisions  Shot 69: portrait pool hit memoirs_3dw2.jpg (rank 8 of 11)
+INFO  phase3.render  [render 71%] shot 70/74: typography
+INFO  phase3.sources  Shot 71: period shot (era='1920s-1930s Kingdom of Iraq') — Pexels excluded from the waterfall
+INFO  phase3.sources.wikimedia  Wikimedia: 3 candidates for 'Baghdad Iraq street people'
+INFO  phase3.sources.wikipedia  Wikipedia: 3 lead-image candidates for 'Baghdad Iraq street people'
+INFO  httpx  HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO  phase3.sources.vision  Vision 0/1/1 era=0  File:Baghdad street fight.jpg  — Modern U.S. soldier in digital camouflage with contemporary 
+INFO  phase3.sources.vision  Vision 0/2/1 era=0  File:Flickr - The U.S. Army - Stephen Co  — Modern U.S. military personnel in contemporary uniforms; unr
+INFO  phase3.sources.vision  Vision 0/2/1 era=0  File:Secretary Kerry Addresses Staff and  — Contemporary political/diplomatic event indoors; modern sett
+INFO  phase3.sources.vision  Vision 1/3/2 era=0  Lead image: Baghdad  — Shows Baghdad riverscape and government building (plausibly 
+INFO  phase3.sources.vision  Vision 2/3/2 era=1  Lead image: Mutanabbi Street  — Ornate historical gate architecture in Baghdad (right place,
+INFO  phase3.sources.vision  Vision 2/3/2 era=1  Lead image: Al-Rashid Street, Baghdad  — Baghdad street with Ottoman/Islamic architecture (right loca
+WARNING  phase3.sources  Shot 71: all 6 candidates failed threshold (era gate)
+INFO  phase3.render  Shot 71: no era-true image — Arabic typography card
+INFO  phase3.render  [render 72%] shot 71/74: broll
+INFO  phase3.sources.decisions  Shot 69: portrait pool hit memoirs_3dw2.jpg (rank 8 of 11)
+INFO  phase3.render  [render 73%] shot 72/74: typography
+INFO  phase3.sources.decisions  Shot 73: chosen-file hit bank_memoirs_first_pages.jpg
+INFO  phase3.sources  Shot 73: review-dossier hit bank_memoirs_first_pages.jpg
+INFO  phase3.render  Shot 73: using fetched image from review_dossier
+INFO  phase3.render  [render 74%] shot 73/74: archive
+INFO  phase3.sources.decisions  Shot 73: chosen-file hit bank_memoirs_first_pages.jpg
+INFO  phase3.render  [render 75%] shot 74/74: typography
 INFO  phase3.render  [render 80%] concat all shots
 INFO  phase3.render  [render 92%] mux audio and captions
 INFO  phase3.render  Color grade applied: warm
@@ -321,4 +288,4 @@ INFO  phase3.render  Music bed: -13 dB, ducked under narration
 INFO  phase3.render  [render 100%] done
 INFO  phase3.render  Rendered video → output/final_cut_B.mp4
 
-Done in 2445s  —  output/final_cut_B.mp4  (235.2 MB)
+Done in 2449s  —  output/final_cut_B.mp4  (179.4 MB)
