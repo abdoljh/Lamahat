@@ -169,6 +169,14 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
 
     shot_dir_name = shot_folder_name(idx, shot.visual)
     shot_dir = review_dir / shot_dir_name
+    # A previous conditioning pass may have starred this folder
+    # (`shot_NN_visual*` = needs attention).  Reuse it under the plain
+    # name so a re-prebuild never creates a duplicate sibling.
+    if not shot_dir.exists():
+        for starred in sorted(review_dir.glob(shot_dir_name + "*")):
+            if starred.is_dir():
+                starred.rename(shot_dir)
+                break
     shot_dir.mkdir(parents=True, exist_ok=True)
 
     query = (shot.search_query or "").strip()
@@ -363,6 +371,7 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
         chosen_file=chosen_file,
         override=None,
         candidates=candidates,
+        covered=skip_reason,
     )
 
 

@@ -38,15 +38,25 @@ The cover/contain decision mirrors the renderer's `_fit_to_frame` aspect test
 (same `--mismatch`, default 0.28) so the prediction here matches what actually
 renders.
 
-For each chosen asset it writes a conditioned copy next to the original
-(`<stem>.cond.jpg`), repoints `chosen_file` at it (keeping
-`chosen_file_original`), and records in decisions.json:
+For each chosen asset the conditioned image REPLACES the raw download
+(P6.5a — one copy on disk, so the dossier stays small): it is written as
+`<stem>*.jpg` (the star marks "pixels were conditioned"; `--mark '+'`
+for Windows-safe names, `--keep-originals` for the legacy add-a-copy
+`.cond.jpg` behaviour), `chosen_file` and the winning candidate entry
+are repointed at it, and decisions.json records:
     native_size, conditioned_size, aspect, aspect_class, framing,
-    res_grade, crop_box.
+    res_grade, crop_box (+ chosen_file_original as name provenance).
+Untouched assets (nothing to crop/resize/tone) keep their name unmarked.
+
+After conditioning, shot folders with NO pickable image are flagged by
+appending the marker to the FOLDER name (`shot_NN_visual*`, P6.5b) so
+the curator can spot them at a glance; folders covered by the photo
+bank / character pool are never flagged, and a flagged folder is
+unflagged automatically once it gains an image.  The renderer finds
+my_/user_ files inside flagged folders too.
 
 Idempotent: re-running skips assets already conditioned to the same target
-(a 16:9 .cond.jpg re-plans as a no-op crop).
-Non-destructive: originals are never modified or deleted.
+(a 16:9 starred .jpg re-plans as a no-op).
 
 Usage:
     python condition_assets.py --review-dir output/review
@@ -305,11 +315,56 @@ def is_user_added(name: str) -> bool:
     return base.startswith(_USER_PREFIXES)
 
 
+# ── conditioned-file marker (P6.5a) ─────────────────────────────────────── #
+#
+# A conditioned image REPLACES its source (one copy on disk — the dossier
+# stays small) and carries a marker before the extension so the reviewer can
+# see at a glance which files were pixel-modified:  pexels_a.jpg → pexels_a*.jpg
+#
+# NOTE: '*' is not a legal filename character on Windows.  Review the dossier
+# on Drive/Colab/Linux/macOS, or run with --mark '+' for a Windows-safe name.
+DEFAULT_MARK = "*"
+
+
+def marked_name(src: Path, mark: str) -> Path:
+    """`pexels_a.jpg` → `pexels_a*.jpg` (idempotent — a stem that already
+    ends with the marker is not marked twice; legacy `.cond` suffixes are
+    folded into the marker)."""
+    stem = src.stem
+    if stem.endswith(".cond"):
+        stem = stem[: -len(".cond")]
+    stem = stem.rstrip(mark)
+    return src.with_name(f"{stem}{mark}.jpg")
+
+
+def is_marked(path: Path | str, mark: str = DEFAULT_MARK) -> bool:
+    return Path(path).stem.endswith(mark)
+
+
+def _replace_source(src: Path, out: Path) -> None:
+    """Delete the raw source once its conditioned replacement is written."""
+    if src.resolve() != out.resolve():
+        try:
+            src.unlink()
+        except OSError as exc:
+            log.warning("Couldn't remove replaced source %s (%s)", src, exc)
+
+
 def condition_file(src: Path, *, mismatch: float, target_cover: int,
                    contain_floor: int, max_cap: int, min_usable: int,
                    sr: str, quality: int,
-                   crop_cover: str = "smart") -> tuple[Path, Plan] | None:
-    """Condition one image in place-adjacent; return (conditioned_path, plan)."""
+                   crop_cover: str = "smart",
+                   mark: str = DEFAULT_MARK,
+                   keep_originals: bool = False) -> tuple[Path, Plan] | None:
+    """Condition one image; return (conditioned_path, plan).
+
+    The conditioned image REPLACES the source (P6.5a): it is written as
+    `<stem><mark>.jpg` and the raw source is deleted, so each winner
+    exists exactly once on disk.  Untouched files (nothing to crop or
+    resize) keep their original name — the marker means "pixels were
+    modified".  `keep_originals=True` restores the legacy add-a-copy
+    behaviour (`<stem>.cond.jpg`, source kept).
+    """
     try:
         with Image.open(src) as im:
             im.load()
@@ -319,12 +374,13 @@ def condition_file(src: Path, *, mismatch: float, target_cover: int,
                               target_cover=target_cover, contain_floor=contain_floor,
                               max_cap=max_cap, min_usable=min_usable,
                               crop_cover=crop_cover)
-            out = src.with_name(src.stem + ".cond.jpg")
             if (plan.crop is None and plan.target == plan.native
                     and src.suffix.lower() in (".jpg", ".jpeg")):
-                # No crop or resize needed — reference the original directly
-                # (no recompress).
+                # Nothing to change — reference the file as-is
+                # (no recompress, no marker).
                 return src, plan
+            out = (src.with_name(src.stem + ".cond.jpg") if keep_originals
+                   else marked_name(src, mark))
             work = im.convert("RGB")
             if plan.crop is not None:
                 cw, ch = plan.crop
@@ -333,7 +389,9 @@ def condition_file(src: Path, *, mismatch: float, target_cover: int,
                 work = work.crop(plan.crop_box)
             conditioned = resample(work, plan, sr)
             conditioned.save(out, "JPEG", quality=quality, subsampling=0)
-            return out, plan
+        if not keep_originals:
+            _replace_source(src, out)
+        return out, plan
     except Exception as exc:
         log.warning("Could not condition %s (%s) — left untouched.", src, exc)
         return None
@@ -345,6 +403,8 @@ def run(review_dir: Path, *, mismatch: float, target_cover: int,
         contain_floor: int, max_cap: int, min_usable: int, sr: str,
         quality: int, dry_run: bool, tone: str = "documentary",
         crop_cover: str = "smart",
+        mark: str = DEFAULT_MARK,
+        keep_originals: bool = False,
         on_progress: Callable[[str, float], None] | None = None) -> dict:
     decisions_path = review_dir / "decisions.json"
     if not decisions_path.exists():
@@ -356,7 +416,8 @@ def run(review_dir: Path, *, mismatch: float, target_cover: int,
 
     stats = {"total": 0, "asis": 0, "crop": 0, "upscale": 0, "downscale": 0,
              "sr": 0, "low": 0, "cover": 0, "contain": 0, "cropped": 0,
-             "flipped_to_cover": 0, "skipped_no_file": 0, "toned": 0}
+             "flipped_to_cover": 0, "skipped_no_file": 0, "toned": 0,
+             "replaced": 0, "flagged_folders": 0}
 
     _n_shots = len(shots) or 1
     for _i, (key, shot) in enumerate(shots.items()):
@@ -384,7 +445,8 @@ def run(review_dir: Path, *, mismatch: float, target_cover: int,
                   else condition_file(src, mismatch=mismatch, target_cover=target_cover,
                                       contain_floor=contain_floor, max_cap=max_cap,
                                       min_usable=min_usable, sr=sr, quality=quality,
-                                      crop_cover=crop_cover))
+                                      crop_cover=crop_cover, mark=mark,
+                                      keep_originals=keep_originals))
         if dry_run:
             user = is_user_added(src.name)
             plan = plan_asset(w0, h0, user_added=user, mismatch=mismatch,
@@ -418,11 +480,15 @@ def run(review_dir: Path, *, mismatch: float, target_cover: int,
                 tone_src = review_dir / cond_rel
                 with Image.open(tone_src) as im:
                     toned = apply_documentary_tone(im)
-                if tone_src.name.endswith(".cond.jpg"):
+                if tone_src.name.endswith(".cond.jpg") or is_marked(tone_src, mark):
                     out = tone_src            # derived file — safe to rewrite
-                else:
+                elif keep_originals:
                     out = tone_src.with_name(tone_src.stem + ".cond.jpg")
+                else:
+                    out = marked_name(tone_src, mark)
                 toned.save(out, "JPEG", quality=quality, subsampling=0)
+                if not keep_originals:
+                    _replace_source(tone_src, out)
                 cond_rel = str(out.relative_to(review_dir))
                 applied_tone = "documentary"
                 stats["toned"] += 1
@@ -431,9 +497,22 @@ def run(review_dir: Path, *, mismatch: float, target_cover: int,
             except Exception as exc:  # noqa: BLE001 — tone is best-effort
                 log.warning("Shot %s: tone failed (%s) — left as-is", key, exc)
 
-        # Record metadata + repoint chosen_file (original preserved).
+        # Record metadata + repoint chosen_file.  The pre-conditioning name
+        # is kept as provenance in `chosen_file_original`; in replace mode
+        # (the default) that file no longer exists on disk — the marked
+        # conditioned image is the only copy.
         shot.setdefault("chosen_file_original", rel)
         shot["chosen_file"] = cond_rel
+        if cond_rel != rel:
+            stats["replaced"] += int(not keep_originals)
+            # Keep the candidate list consistent: the winning candidate's
+            # `file` entry must follow the replacement, or render-time
+            # alternate walks (dedupe swap, backdrop rotate) would chase a
+            # deleted path.
+            for cand in shot.get("candidates") or []:
+                if cand.get("file") == rel:
+                    cand["file"] = cond_rel
+                    break
         shot["conditioning"] = {
             "native_size": list(plan.native),
             "conditioned_size": list(plan.target),
@@ -449,16 +528,106 @@ def run(review_dir: Path, *, mismatch: float, target_cover: int,
                  plan.action, *plan.native, *plan.target, plan.res_grade,
                  f"  crop={plan.crop_box}" if plan.crop_box else "")
 
+    # ── Flag attention-needing shot folders (P6.5b) ─────────────────── #
+    # A shot folder with NO pickable image gets the marker appended
+    # (`shot_NN_visual` → `shot_NN_visual*`) so the curator can spot it
+    # in one glance; a previously starred folder that has since gained a
+    # file (user drop, re-prebuild) is unstarred.  Folders that are empty
+    # because a curated source covers the shot (photo bank assignment,
+    # character pool — recorded in the decision's `covered` field) are
+    # fine and never starred.  The renderer's user-file lookup tolerates
+    # the starred name, so dropping my_/user_ files into a starred folder
+    # still works.
+    stats["flagged_folders"] = _flag_empty_folders(
+        review_dir, shots, mark=mark, dry_run=dry_run)
+
     if not dry_run:
         decisions.setdefault("conditioning_meta", {})
         decisions["conditioning_meta"] = {
             "target_cover": target_cover, "contain_floor": contain_floor,
             "max_cap": max_cap, "mismatch": mismatch, "sr": sr,
-            "crop_cover": crop_cover,
+            "crop_cover": crop_cover, "mark": mark,
         }
         decisions_path.write_text(json.dumps(decisions, ensure_ascii=False, indent=2),
                                   encoding="utf-8")
     return stats
+
+
+_IMG_EXTS = (".jpg", ".jpeg", ".png", ".webp")
+
+
+def _shot_folder_base(key: str, visual: str) -> str:
+    """Mirror of phase3.sources.decisions.shot_folder_name — duplicated
+    here so this script stays importable without the phase3 package's
+    heavy dependencies (cv2 via the renderer)."""
+    return f"shot_{int(key):02d}_{visual}"
+
+
+def _folder_has_pickable(folder: Path, shot: dict, review_dir: Path) -> bool:
+    """True when the shot needs no curator attention: a chosen/override
+    file that exists, any candidate image on disk, any image dropped into
+    the folder, or an explicit `covered` note (photo bank / character
+    pool resolve the shot at render time)."""
+    if (shot.get("covered") or "").strip():
+        return True
+    # Dossiers from before the `covered` field: the skip note only exists
+    # in the folder's context.txt.
+    ctx = folder / "context.txt" if folder else None
+    if ctx is not None and ctx.is_file():
+        try:
+            if "waterfall skipped" in ctx.read_text(encoding="utf-8"):
+                return True
+        except OSError:
+            pass
+    for key in ("override", "chosen_file"):
+        rel = shot.get(key)
+        if rel and (review_dir / rel).exists():
+            return True
+    for cand in shot.get("candidates") or []:
+        rel = cand.get("file")
+        if rel and (review_dir / rel).exists():
+            return True
+    if folder.is_dir():
+        for f in folder.iterdir():
+            if f.is_file() and f.suffix.lower() in _IMG_EXTS:
+                return True
+    return False
+
+
+def _flag_empty_folders(review_dir: Path, shots: dict, *,
+                        mark: str, dry_run: bool) -> int:
+    """Star/unstar shot folders by attention state; returns the number of
+    folders currently flagged."""
+    flagged = 0
+    for key, shot in shots.items():
+        try:
+            base = _shot_folder_base(key, shot.get("visual", ""))
+        except (TypeError, ValueError):
+            continue
+        plain = review_dir / base
+        starred = review_dir / (base + mark)
+        folder = plain if plain.is_dir() else (
+            starred if starred.is_dir() else None)
+        if folder is None:
+            continue
+        needs_attention = not _folder_has_pickable(folder, shot, review_dir)
+        if needs_attention:
+            flagged += 1
+            if folder == plain and not dry_run:
+                try:
+                    plain.rename(starred)
+                    log.info("Shot %s: no pickable candidate — flagged %s",
+                             key, starred.name)
+                except OSError as exc:
+                    log.warning("Shot %s: couldn't flag folder (%s)", key, exc)
+        elif folder == starred and not dry_run:
+            try:
+                starred.rename(plain)
+                log.info("Shot %s: folder has a pickable image again — "
+                         "unflagged %s", key, plain.name)
+            except OSError as exc:
+                log.warning("Shot %s: couldn't unflag folder (%s)", key, exc)
+    return flagged
 
 
 def main(argv=None):
@@ -500,10 +669,23 @@ def main(argv=None):
                          "Authentic sources (photo bank, Wikimedia/Wikipedia, "
                          "user files) are never touched. Default documentary; "
                          "'off' disables.")
+    ap.add_argument("--mark", default=DEFAULT_MARK,
+                    help="Marker character appended to conditioned image "
+                         "names and to attention-needing shot folders "
+                         "(default '*').  '*' is not a legal filename "
+                         "character on Windows — use --mark '+' if the "
+                         "dossier will be unzipped there.")
+    ap.add_argument("--keep-originals", action="store_true",
+                    help="Legacy behaviour: write the conditioned copy as "
+                         "<stem>.cond.jpg NEXT TO the original instead of "
+                         "replacing it (roughly doubles winner storage).")
     ap.add_argument("--dry-run", action="store_true",
                     help="Report the plan without writing anything.")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args(argv)
+
+    if len(args.mark) != 1 or args.mark.isalnum():
+        ap.error("--mark must be a single non-alphanumeric character")
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(levelname)s  %(name)s  %(message)s")
@@ -511,15 +693,20 @@ def main(argv=None):
                 target_cover=args.target_cover, contain_floor=args.contain_floor,
                 max_cap=args.max_cap, min_usable=args.min_usable, sr=args.sr,
                 quality=args.quality, dry_run=args.dry_run, tone=args.tone,
-                crop_cover=args.crop_cover)
+                crop_cover=args.crop_cover, mark=args.mark,
+                keep_originals=args.keep_originals)
     print("\nConditioning summary"
           f"{' (dry-run)' if args.dry_run else ''}:")
     for k in ("total", "cover", "contain", "cropped", "flipped_to_cover",
               "upscale", "sr", "downscale", "asis", "low", "toned",
-              "skipped_no_file"):
+              "replaced", "flagged_folders", "skipped_no_file"):
         print(f"  {k:<18}: {stats.get(k, 0)}")
     if stats.get("low"):
         print(f"  ⚠ {stats['low']} asset(s) flagged res_grade=low — consider swapping.")
+    if stats.get("flagged_folders"):
+        print(f"  ⚠ {stats['flagged_folders']} shot folder(s) have no pickable "
+              f"image — flagged with '{args.mark}'; drop a my_/user_ file in "
+              f"or they render as Arabic typography cards.")
     return 0
 
 
