@@ -158,10 +158,21 @@ def find_user_marked_file(
 
     Alphabetical (not newest-modified) so the choice is stable when the
     user accidentally deletes a file from the folder.
+
+    Marker-tolerant: conditioning stars a shot folder that has no
+    pickable candidate (`shot_NN_visual*`) so the curator can spot it.
+    A user file dropped into the STARRED folder must still be found, so
+    the lookup falls back to any marker-suffixed variant of the name.
     """
-    folder = review_dir / f"shot_{shot_index:02d}_{visual}"
+    base = f"shot_{shot_index:02d}_{visual}"
+    folder = review_dir / base
     if not folder.is_dir():
-        return None
+        variants = sorted(
+            d for d in review_dir.glob(base + "*") if d.is_dir()
+        )
+        if not variants:
+            return None
+        folder = variants[0]
 
     matches = sorted(
         p for p in folder.iterdir()
@@ -215,6 +226,10 @@ class ShotDecision:
     chosen_file: str = ""
     override: str | None = None       # Path under review_dir (e.g. 'overrides/shot_03.jpg')
     candidates: list[CandidateEntry] = field(default_factory=list)
+    covered: str = ""                 # why the web waterfall was skipped
+                                      # ("character pool …", "photo-bank …");
+                                      # an empty folder with `covered` set is
+                                      # fine and is NOT starred by conditioning
 
 
 @dataclass
@@ -242,6 +257,7 @@ class Decisions:
                     "chosen_url":   d.chosen_url,
                     "chosen_file":  d.chosen_file,
                     "override":     d.override,
+                    "covered":      d.covered,
                     "candidates":   [asdict(c) for c in d.candidates],
                 }
                 for idx, d in self.shots.items()
@@ -262,6 +278,7 @@ class Decisions:
                 chosen_url=raw.get("chosen_url", ""),
                 chosen_file=raw.get("chosen_file", ""),
                 override=raw.get("override"),
+                covered=raw.get("covered", ""),
                 candidates=cands,
             )
         return cls(
@@ -526,6 +543,24 @@ WHAT'S IN HERE
                        - context.txt     what this shot is about
                        - candidates.json same as decisions.json["shots"]["NN"]["candidates"]
                        - SOURCE_X.jpg    the actual downloaded candidate
+
+STAR MARKERS (added by the conditioning pass)
+---------------------------------------------
+  SOURCE_X*.jpg        A star before the extension = this image was
+                       CONDITIONED (cropped to 16:9 / resized / toned).
+                       It REPLACES the raw download — there is only one
+                       copy on disk, and decisions.json points at it.
+  shot_NN_VISUAL*/     A star on a folder = NO pickable candidate
+                       survived for this shot (it will render as an
+                       Arabic typography card unless you drop an image
+                       in).  Fix it by dropping a my_/user_ file inside —
+                       the renderer finds it in the starred folder too —
+                       or via overrides/.  Folders that are empty
+                       because a curated source covers them (photo
+                       bank, character pool) are NOT starred.
+  (Note: '*' is not a legal filename character on Windows — unzip and
+   review this dossier on Drive/Colab/Linux/macOS, or re-run
+   conditioning with --mark '+'.)
 
 WHAT YOU CAN CHANGE IN decisions.json
 -------------------------------------

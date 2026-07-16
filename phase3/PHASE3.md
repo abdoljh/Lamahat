@@ -276,6 +276,35 @@ Net for a conditioned 16:9 source on a portrait-amp parallax shot:
 ~95 % of the deliberately-framed image on screen, vs ~60 % of an
 arbitrarily-cropped one before.
 
+### P6.5 batch (2026-07-13) — dossier review ergonomics (user-requested)
+
+Two `condition_assets.py` behaviours requested after reviewing the
+first P6.4 dossier:
+
+- **Conditioned images REPLACE their source** (P6.5a): written as
+  `<stem>*.jpg` (star before the extension = "pixels were conditioned")
+  and the raw download deleted — one copy per winner, dossier roughly
+  halves for conditioned shots.  `chosen_file`, the winning candidate's
+  `file` entry, and `chosen_file_original` (name provenance) stay
+  consistent in decisions.json, so dedupe-swap / `--backdrop-rotate`
+  alternate walks never chase a deleted path.  Untouched assets keep
+  their unmarked name.  `--keep-originals` restores the legacy
+  `.cond.jpg` add-a-copy behaviour; `--mark '+'` gives Windows-safe
+  names (`*` is illegal in Windows filenames — review the dossier on
+  Drive/Colab/Linux/macOS otherwise).
+- **Attention-needing shot folders are starred** (P6.5b): after
+  conditioning, a `shot_NN_visual/` folder with NO pickable image is
+  renamed `shot_NN_visual*` so the curator reaches it at a glance;
+  it renders as an Arabic typography card unless an image is dropped
+  in.  Folders that are empty because a curated source covers the shot
+  (photo-bank assignment, character pool — the new `covered` field in
+  decisions.json, with a context.txt fallback for older dossiers) are
+  never starred, and a starred folder is automatically unstarred once
+  it gains an image.  `find_user_marked_file` tolerates the starred
+  name (my_/user_ drops inside a starred folder still resolve), and
+  prebuild reuses a starred folder under its plain name instead of
+  creating a duplicate.  The dossier README documents both markers.
+
 ### P5 batch (2026-07-05) — second-screening fixes
 
 After the user's 3-minute sample confirmed the P0–P4 stack on screen
