@@ -395,6 +395,8 @@ def main() -> int:
     args = ap.parse_args()
 
     plan = json.loads(Path(args.plan_path).read_text(encoding="utf-8"))
+    if isinstance(plan, dict):   # v2 envelope (P7.2): {"shots": [...], "captions": [...]}
+        plan = plan.get("shots", [])
 
     script_text = None
     if args.script:

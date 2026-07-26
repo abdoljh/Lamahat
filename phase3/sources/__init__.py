@@ -10,11 +10,13 @@ The orchestrator runs a priority waterfall:
   1. User upload by shot index / manifest
   2. Phase 1a book extract (vision-scored against the query)
   3. Cached web result for this query
-  4. Live web fetch, STAGED (P6.2): archival sources first (Wikimedia →
-     Wikipedia), batch-vision-scored; Pexels is only queried when the
-     archival stage produced fewer than 2 keepers AND the shot's era
-     permits modern stock (era="timeless" or unset).  Period shots
-     (explicit era) never query Pexels at all (P6.1/E3).
+  4. Live web fetch, STAGED (P6.2, softened P7.3): archival sources
+     first (Wikimedia → Wikipedia), batch-vision-scored; Pexels is only
+     queried when the archival stage produced fewer than 2 keepers
+     (timeless/legacy shots) or ZERO keepers (period shots — last
+     resort, and the era gate still rejects clearly-modern content, so
+     only era-plausible stock can win).  P6.1/E3 banned Pexels outright
+     for period shots, which starved them into typography gap cards.
   5. Returns FetchResult with .best = None → renderer uses an Arabic
      typography card (or the Latin placeholder when no text exists)
 
@@ -228,9 +230,10 @@ class Fetcher:
         "archive", etc).  Tightens the score threshold for portrait
         shots — see vision.passes_threshold.
 
-        `era` (optional, P6.1): the plan's per-shot period string.  A
-        period era makes the era axis a hard gate and removes Pexels
-        from the waterfall; "timeless" or "" keeps soft demotion.
+        `era` (optional, P6.1/P7.3): the plan's per-shot period string.
+        A period era rejects clearly-anachronistic candidates (era 0),
+        demotes doubtful ones (era 1), and holds Pexels back as a last
+        resort; "timeless" or "" keeps soft demotion.
         """
 
         # 0. Review dossier — if the user pre-approved an image (or
@@ -450,14 +453,13 @@ class Fetcher:
         era_strict = is_period_era(era)
 
         # Stage the waterfall: archival sources first; Pexels (modern
-        # stock) only as a second stage, and never for period shots —
-        # Pexels structurally cannot satisfy an explicit historical era.
+        # stock) only as a second stage.  For period shots it is a LAST
+        # resort (P7.3): queried only when the archival stage produced
+        # zero keepers, and its candidates still face the era gate — so
+        # an era-plausible texture/landscape can rescue the shot, but
+        # clearly-modern content never renders on a period shot.
         stage_archival = [s for s in self.web_sources if s.name != "pexels"]
         stage_modern = [s for s in self.web_sources if s.name == "pexels"]
-        if era_strict and stage_modern:
-            log.info("Shot %d: period shot (era=%r) — Pexels excluded "
-                     "from the waterfall", shot_index, era)
-            stage_modern = []
 
         downloaded: list[ImageCandidate] = []
         searched: list[ImageCandidate] = []
@@ -467,11 +469,17 @@ class Fetcher:
                                     ("modern", stage_modern)):
             if not sources:
                 continue
-            if (stage_name == "modern"
-                    and len(keepers) >= self._MIN_STAGE_KEEPERS):
-                log.info("Shot %d: %d keeper(s) from archival sources — "
-                         "skipping Pexels", shot_index, len(keepers))
-                break
+            if stage_name == "modern":
+                needed = 1 if era_strict else self._MIN_STAGE_KEEPERS
+                if len(keepers) >= needed:
+                    log.info("Shot %d: %d keeper(s) from archival sources — "
+                             "skipping Pexels", shot_index, len(keepers))
+                    break
+                if era_strict:
+                    log.info("Shot %d: period shot (era=%r) with no "
+                             "archival keeper — querying Pexels as last "
+                             "resort (era gate still applies)",
+                             shot_index, era)
 
             cands: list[ImageCandidate] = []
             for src in sources:

@@ -251,12 +251,13 @@ def main() -> int:
                          "to the source shot's next-ranked dossier candidate "
                          "(default 10; 0 disables). Needs --review-dir for "
                          "alternates to exist.")
-    ap.add_argument("--word-reveal", action="store_true",
+    ap.add_argument("--word-reveal", default=True,
+                    action=argparse.BooleanOptionalAction,
                     help="Word-by-word reveal on over-image pull quotes and "
                          "name reveals: the text extends word-group by "
                          "word-group over ~1.6 s instead of appearing whole. "
-                         "Opt-in (experimental until screened); needs "
-                         "--typography-over-image.")
+                         "ON by default since P7.4 (--no-word-reveal to "
+                         "disable); needs typography-over-image.")
     ap.add_argument("--overlay-anchor", choices=("auto", "center", "lower"),
                     default="auto",
                     help="Vertical anchor for --typography-over-image text. "
@@ -296,13 +297,20 @@ def main() -> int:
                          "backward = fast single remap (soft edges); inpaint = "
                          "amodal-background composite (clean disocclusions for "
                          "bold moves on sharp-edged photos, ~2x cost).")
-    ap.add_argument("--typography-over-image", action="store_true",
+    ap.add_argument("--typography-over-image", default=True,
+                    action=argparse.BooleanOptionalAction,
                     help="Composite typography / section_mark text as an overlay "
                          "on the most recent real image's footage (parallaxing if "
                          "--parallax is on) instead of a flat static card — cuts "
                          "the static-text share that reads as a slideshow. "
                          "title_card keeps its book cover. Falls back to a static "
-                         "card when no recent real image exists. Off by default.")
+                         "card when no recent real image exists. ON by default "
+                         "since P7.4 (--no-typography-over-image to disable).")
+    ap.add_argument("--card-motion", default=True,
+                    action=argparse.BooleanOptionalAction,
+                    help="Near-subliminal drift on typography cards so text "
+                         "beats are never frozen frames (P7.4). ON by default; "
+                         "--no-card-motion restores static holds.")
 
     # ── Cinematic final-assembly: score + fades ─────────────────────── #
     ap.add_argument("--music", metavar="PATH",
@@ -347,7 +355,11 @@ def main() -> int:
         print(f"ERROR: plan file not found: {plan_path}", file=sys.stderr)
         return 1
     shots = load_plan(plan_path)
-    print(f"\nPlan   : {plan_path}  ({len(shots)} shots)")
+    from phase3.plan import load_caption_events
+    caption_events = load_caption_events(plan_path)
+    print(f"\nPlan   : {plan_path}  ({len(shots)} shots"
+          + (f", {len(caption_events)} sentence captions" if caption_events
+             else "") + ")")
 
     cache_dir = (
         None if args.no_cache
@@ -544,6 +556,7 @@ def main() -> int:
         parallax_backend=args.parallax_backend,
         parallax_warp=args.parallax_warp,
         typography_over_image=args.typography_over_image,
+        card_motion=args.card_motion,
         music_path=Path(args.music) if args.music else None,
         music_gain_db=args.music_gain,
         music_duck=not args.no_duck,
@@ -555,6 +568,7 @@ def main() -> int:
         title_subtitle=args.title_subtitle,
         word_reveal=args.word_reveal,
         overlay_backdrop_rotate_sec=args.backdrop_rotate,
+        caption_events=caption_events or None,
         caption_size=args.caption_size,
         caption_color=_hex_ass(args.caption_color),
         caption_pos=args.caption_pos,

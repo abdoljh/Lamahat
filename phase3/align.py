@@ -72,6 +72,49 @@ class WordTiming:
         return max(0.0, self.end - self.start)
 
 
+# ── Sentence / clause punctuation (P7.2) ────────────────────────────────── #
+#
+# The tokenizer's character class covers the Arabic block, so the Arabic
+# marks ، ؛ ؟ ride INSIDE the token they follow ("وطنه،" is one token),
+# while ASCII/latin marks (. ! : …) fall in the gap between tokens.
+# `script_punct_flags` normalises both cases into one flag per token so
+# the planner and the caption builder can see where sentences end.
+
+STRONG_PUNCT = ".؟!…?"     # ends a sentence
+WEAK_PUNCT = "،؛:,;"       # ends a clause
+
+
+def token_trailing_punct(token: str, following: str = "") -> str:
+    """The sentence/clause mark this token ends with ('' when none).
+
+    Checks the token's own tail first (Arabic marks are part of the
+    token), then the inter-token text `following` (ASCII marks are not).
+    """
+    tail = ""
+    for ch in reversed(token):
+        if ch in STRONG_PUNCT or ch in WEAK_PUNCT:
+            tail = ch
+        else:
+            break
+    if tail:
+        return tail
+    for ch in following:
+        if ch in STRONG_PUNCT or ch in WEAK_PUNCT:
+            return ch
+    return ""
+
+
+def script_punct_flags(script_text: str) -> list[str]:
+    """One flag per tokenize_script() token: the punctuation mark that
+    closes it ('' = mid-sentence).  Same length as tokenize_script()."""
+    matches = list(_ARABIC_WORD_RE.finditer(script_text))
+    flags: list[str] = []
+    for i, m in enumerate(matches):
+        nxt = matches[i + 1].start() if i + 1 < len(matches) else len(script_text)
+        flags.append(token_trailing_punct(m.group(0), script_text[m.end():nxt]))
+    return flags
+
+
 # ── Public API ───────────────────────────────────────────────────────────── #
 
 def tokenize_script(script_text: str) -> list[str]:

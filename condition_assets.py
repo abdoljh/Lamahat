@@ -424,6 +424,11 @@ def run(review_dir: Path, *, mismatch: float, target_cover: int,
         if on_progress:
             on_progress(f"Conditioning assets… {_i + 1}/{_n_shots}",
                         (_i + 1) / _n_shots)
+        # Typography-kind entries (P7.1 full-coverage dossier) render from
+        # text — nothing to condition, and they must not count as missing.
+        if shot.get("visual") in ("title_card", "section_mark",
+                                  "chapter_heading", "typography"):
+            continue
         rel = shot.get("chosen_file")
         if not rel:
             stats["skipped_no_file"] += 1
