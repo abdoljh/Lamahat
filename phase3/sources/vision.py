@@ -437,16 +437,21 @@ def passes_threshold(c: ImageCandidate, visual_type: str | None = None,
     1 → 2 because a portrait shot showing the wrong person is far more
     jarring than a B-roll shot in roughly the right era.
 
-    `era_strict` (P6.1): the shot's plan carries an explicit historical
-    period — an era-failing candidate (era ≤ 1) is REJECTED, not merely
-    demoted.  A period-false image in a documentary is worse than no
-    image; the renderer's fallback is an Arabic typography card.
+    `era_strict` (P6.1, softened in P7.3): the shot's plan carries an
+    explicit historical period — a CLEARLY anachronistic candidate
+    (era == 0: wrong century, modern staging, reenactors) is rejected
+    outright.  A merely DOUBTFUL candidate (era == 1) passes the
+    threshold but sits in the demotion tier of rank_candidates, so it
+    only renders when nothing era-true exists.  P6.1 rejected era ≤ 1,
+    which starved period shots into typography gap cards — a doubtful
+    period image beats a fourth consecutive text card, while a plainly
+    modern image still never renders on a period shot.
     Unscored candidates still pass (vision-down degradation preserved —
     the neutral fail-open score sets era=2).
     """
     if not c.is_scored:
         return True   # unscored candidates pass (vision skipped)
-    if era_strict and 0 <= c.score_era <= 1:
+    if era_strict and c.score_era == 0:
         return False
     subject_floor = (MIN_KEEP_SUBJECT_PORTRAIT
                      if visual_type == "portrait"

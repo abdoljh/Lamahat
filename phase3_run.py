@@ -275,7 +275,8 @@ def _run_plan_only(args, script_text: str, anthropic_key: str) -> None:
 
     from phase3.align import align, tokenize_script
     from phase3.parser import parse_sections
-    from phase3.plan import build_shot_plan, save_plan, summarise_plan
+    from phase3.plan import (build_caption_events, build_shot_plan,
+                             save_plan, summarise_plan)
 
     audio_path = Path(args.audio) if args.audio else None
     total_dur = _resolve_audio_duration(audio_path, script_text, args.audio_duration)
@@ -318,8 +319,12 @@ def _run_plan_only(args, script_text: str, anthropic_key: str) -> None:
     print()
 
     if args.save_plan:
-        save_plan(shots, Path(args.save_plan))
-        print(f"Shot plan → {args.save_plan}")
+        # Sentence-level caption track travels with the plan (P7.2) so
+        # render_plan.py can keep subtitles continuous across cuts.
+        caption_events = build_caption_events(timings, sections)
+        save_plan(shots, Path(args.save_plan), caption_events=caption_events)
+        print(f"Shot plan → {args.save_plan}  "
+              f"({len(caption_events)} sentence captions)")
     if args.save_alignment:
         _save_alignment(timings, Path(args.save_alignment))
         print(f"Word timings → {args.save_alignment}")

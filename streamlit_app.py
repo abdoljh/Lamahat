@@ -560,10 +560,9 @@ with st.sidebar:
              "sit lower-third (off faces), section marks stay centered.",
     )
     p3_word_reveal = st.checkbox(
-        "Word-by-word reveal", value=False, key="p3_word_reveal",
+        "Word-by-word reveal", value=True, key="p3_word_reveal",
         help="Quotes build up word-group by word-group over ~1.6 s instead "
-             "of appearing whole. Experimental; needs ‘Typography over "
-             "image’.",
+             "of appearing whole. Needs ‘Typography over image’.",
     )
     p3_fades = st.checkbox(
         "Cinematic fades", value=True, key="p3_fades",

@@ -29,12 +29,18 @@ lands; the Colab notebooks pin `BRANCH` in their bootstrap cell):
 | **P3/P4** look + polish | Documentary tone on Pexels winners, section parser fixed (5 sections, sidecar override), honest provenance logs, title-card polish (+`--title-subtitle`), word-by-word reveal (opt-in `--word-reveal`) |
 | **P5** screening fixes | `visual_type` passthrough bug fixed, era rubric hardened (wrong century EITHER direction = 0), `--backdrop-rotate` (P1.3), `--grade-map` per-section grading (P3.4), **ElevenLabs TTS** (Phase 2 complete) |
 | **P6** era + cost + dossier (2026-07-12) | `Shot.era` contract (hard gate + Arabic gap card), staged waterfall (no Pexels for period shots), batched per-shot vision scoring, prebuild skips bank/pool-covered shots, top-3 dossier at prebuild, `$LAMAHAT_CACHE` persistence — see the P6 section below + `phase3/REVIEW_2026-07-12.md` |
+| **P7** movie-quality (2026-07-26) | Screening critique batch ("still a slide show"): full-coverage dossier (a folder for EVERY shot incl. typography card previews), sentence-integrity editing (punctuation-aware planner prompt, clause-snapped cuts, sentence-level caption events in the v2 plan JSON that survive cuts), era gate softened (era 0-only rejection, Pexels as era-gated last resort), living typography cards (`card_drift`), `motion_intensity` wired into zoompan, auto-split pieces alternate camera direction, split-undo merge bug fixed, `--typography-over-image` + `--word-reveal` now default ON — see the P7 section below |
 
 **Verified on screen** (second screening, SCREENING_REVIEW.md §5): the
 3-minute sample carries photo-bank imagery, working word reveal,
 lower-third quotes, adaptive scrim, one warm look.
 
 **Open / waiting on the next screening:**
+- **P7 (2026-07-26) is on `claude/phase3-movie-quality-d1n58l`** — the
+  movie-quality batch answering the third screening ("slide show"
+  critique + three notes).  Regenerate the plan (the planner prompt
+  changed), re-prebuild (full-coverage dossier), and re-render before
+  judging.  See the P7 section below.
 - User curation: bank photos for the education + CUP beats; the four
   era-miss shots (SCREENING_REVIEW.md §5.1); `PHOTO_BANK_MAX_USES=2`.
 - First ElevenLabs narration render (set `ELEVENLABS_API_KEY` /
@@ -304,6 +310,58 @@ first P6.4 dossier:
   name (my_/user_ drops inside a starred folder still resolve), and
   prebuild reuses a starred folder under its plain name instead of
   creating a duplicate.  The dossier README documents both markers.
+
+### P7 batch (2026-07-26) — movie-quality (third-screening critique)
+
+The user's verdict on the third cut: "lacks the intended audience
+attraction and gives the impression of not more than a slide show",
+with three recorded notes.  Each traced to a code cause; all fixed on
+branch `claude/phase3-movie-quality-d1n58l`:
+
+- **Note 1 — "not all shots are listed" (P7.1)**: `prebuild_assets.py`
+  skipped every typography-kind shot, so the dossier showed shot_02,
+  shot_04 … with no shot_01/shot_03 — reading as if script parts were
+  cut.  Now EVERY shot gets a `shot_NN_<visual>/` folder: typography
+  shots carry `context.txt` (timing, template, exact Arabic card text)
+  plus a rendered `card_preview.png` (`--typography-family` matches the
+  render look; `--no-card-previews` to skip).  Their decisions.json
+  entries carry `covered="typography card …"`, so conditioning never
+  stars them and slimming/render are untouched.
+- **Note 2 — "Arabic sentence cut across shots" (P7.2)**: three layers.
+  (a) The tokenizer keeps Arabic marks (، ؛ ؟) inside tokens and drops
+  ASCII marks; `align.script_punct_flags()` normalises both into one
+  flag per word, and the planner prompt's WORDS lines now show the
+  punctuation with an explicit CUT ON SENTENCES rule.  (b)
+  `plan._snap_to_clause_boundaries()` nudges every off-sentence
+  boundary onto the nearest sentence end (±0.9 s) or clause end
+  (±0.5 s) when neither neighbour breaks the 1.6 s floor or its
+  HARD_CAP.  (c) `plan.build_caption_events()` builds a SENTENCE-level
+  subtitle track stored in the v2 plan JSON ({"version":2, "shots",
+  "captions"}); the renderer's events mode keeps one continuous line
+  across image-image cuts, clipping only where typography shots show
+  their own text.  Legacy bare-list plans still load everywhere
+  (`load_plan`, `audit_plan.py` unwrap).
+- **Note 3 — "era restriction has many disadvantages" (P7.3)**: the P6
+  hard gate (reject era ≤ 1 + no Pexels for period shots) starved weakly
+  covered period shots into typography gap cards.  Softened: only
+  era==0 (clearly modern/anachronistic) is rejected under the strict
+  gate; era==1 "doubtful" passes but stays in the demotion tier (only
+  renders when nothing era-true exists).  Pexels is now a LAST-RESORT
+  stage for period shots (queried only at zero archival keepers, still
+  era-gated).  The planner prompt now steers thematic/emotional beats
+  toward "timeless" metaphor b-roll instead of doomed narrow-period
+  archival queries.
+- **Slide-show structural fixes (P7.4)**: typography cards get a
+  near-subliminal `card_drift` push (1.00→1.03) instead of frozen
+  frames (`--no-card-motion` restores static); the planner's
+  `motion_intensity` is finally wired into every zoompan expression
+  (clamped 0.4–1.6); auto-split pieces alternate camera direction
+  (push→pull→push) so long shots read as edited sequences; and a real
+  bug: the adjacent-identical merge pass was silently re-joining the
+  pieces the runaway splitter had just produced — merging now respects
+  the per-visual HARD_CAP.  Defaults flipped ON (CLI
+  `--no-typography-over-image` / `--no-word-reveal` to opt out):
+  typography-over-image and word-by-word reveal.
 
 ### P5 batch (2026-07-05) — second-screening fixes
 

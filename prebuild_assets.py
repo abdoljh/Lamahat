@@ -54,6 +54,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from phase3.plan import load_plan
+from phase3.render import _typography_spec
+from phase3.typography import render as render_typography
 from phase3.sources import Fetcher, FetcherConfig
 from phase3.sources.base import is_free_license
 from phase3.sources.photo_bank import (
@@ -375,6 +377,79 @@ def _process_shot(idx: int, shot, *, fetcher: Fetcher, review_dir: Path,
     )
 
 
+def _process_typography_shot(idx: int, shot, *, review_dir: Path,
+                             typography_family: str = "A",
+                             preview: bool = True) -> ShotDecision:
+    """Write the review folder for a typography-kind shot (title_card /
+    section_mark / typography).
+
+    These shots need no image, but they ARE part of the film — a dossier
+    that silently skips them reads as if parts of the script were cut
+    (shot_02, shot_04 … with no shot_01/shot_03).  Every shot now gets a
+    folder: context.txt states the timing and the exact Arabic text the
+    card will carry, and card_preview.png shows the rendered card so the
+    curator reviews the *whole* film, not just the image shots.
+
+    The decision entry records `covered` so conditioning never stars the
+    folder and the render path is untouched (the renderer only consults
+    the dossier for image shots).
+    """
+    shot_dir_name = shot_folder_name(idx, shot.visual)
+    shot_dir = review_dir / shot_dir_name
+    if not shot_dir.exists():
+        for starred in sorted(review_dir.glob(shot_dir_name + "*")):
+            if starred.is_dir():
+                starred.rename(shot_dir)
+                break
+    shot_dir.mkdir(parents=True, exist_ok=True)
+
+    text = (getattr(shot, "typography_text", "") or "").strip()
+    template = (getattr(shot, "typography_template", None)
+                or {"title_card": "title_card",
+                    "section_mark": "section_mark",
+                    "chapter_heading": "chapter_heading"}.get(
+                        shot.visual, "pull_quote"))
+    duration = float(shot.end - shot.start)
+
+    log.info("Shot %d/%s: typography card (%s) duration=%.1fs",
+             idx, shot.visual, template, duration)
+
+    preview_note = "(preview not rendered)"
+    if preview:
+        try:
+            spec = _typography_spec(shot, width=1280, height=720,
+                                    typography_family=typography_family)
+            render_typography(spec, shot_dir / "card_preview.png")
+            preview_note = "card_preview.png"
+        except Exception as exc:  # noqa: BLE001 — preview is best-effort
+            log.warning("Shot %d: card preview failed (%s) — context only",
+                        idx, exc)
+            preview_note = f"(preview failed: {exc})"
+
+    context_lines = [
+        f"Shot {idx} — {shot.visual}  (typography card — no image needed)",
+        f"Duration: {duration:.2f} s   (timeline {shot.start:.2f} → {shot.end:.2f} s)",
+        f"Template: {template}",
+        f"Arabic text on the card: {text}" if text else "",
+        f"Spoken during this shot (Arabic): "
+        f"{(getattr(shot, 'caption_text', '') or '').strip()[:200]}",
+        "",
+        f"Rendered preview: {preview_note}",
+        "This shot renders from its text — there is nothing to source or",
+        "swap here.  To change the wording, edit the shot plan JSON.",
+    ]
+    (shot_dir / "context.txt").write_text(
+        "\n".join(L for L in context_lines if L) + "\n", encoding="utf-8")
+
+    return ShotDecision(
+        visual=shot.visual,
+        query="",
+        duration_sec=duration,
+        arabic_caption_excerpt=(text or "")[:120],
+        covered="typography card — renders from text, no image required",
+    )
+
+
 # ── Main ──────────────────────────────────────────────────────────────── #
 
 def main():
@@ -463,6 +538,15 @@ def main():
                          "candidates into each shot folder (default 3). "
                          "All candidates stay in candidates.json as "
                          "metadata; only files on disk are capped (P6.3).")
+    ap.add_argument("--typography-family", choices=("A", "B", "C"),
+                    default="A",
+                    help="Typography family used for the card_preview.png "
+                         "written into each typography shot's folder "
+                         "(default A).  Match the family you plan to "
+                         "render with so previews are faithful.")
+    ap.add_argument("--no-card-previews", action="store_true",
+                    help="Skip rendering card_preview.png for typography "
+                         "shots (folders + context.txt are still written).")
     ap.add_argument("--no-vision", action="store_true",
                     help="Skip vision scoring entirely (faster, no API cost; "
                          "candidates are pooled unscored)")
@@ -668,9 +752,23 @@ def main():
     )
 
     processed = 0
+    n_typography = 0
     skipped_covered = 0
     for idx0, shot in enumerate(shots):
         idx = idx0 + 1                # decisions.json uses 1-indexed
+
+        # Typography-kind shots get a folder too (context + card preview)
+        # so the dossier is a complete storyboard — shot_01, shot_02, …
+        # with no holes.  They carry `covered` and are never starred.
+        if not is_image_shot(shot.visual):
+            decisions.shots[idx] = _process_typography_shot(
+                idx, shot, review_dir=review_dir,
+                typography_family=args.typography_family,
+                preview=not args.no_card_previews,
+            )
+            n_typography += 1
+            continue
+
         bank_photo = bank_assignments.get(idx)
 
         # Covered shots (P6.2/C3): a bank assignment or a character-pool
@@ -716,7 +814,9 @@ def main():
 
     # ── Summary ───────────────────────────────────────────────── #
     have_chosen     = sum(1 for d in decisions.shots.values() if d.chosen)
-    no_candidates   = sum(1 for d in decisions.shots.values() if not d.candidates)
+    no_candidates   = sum(1 for d in decisions.shots.values()
+                          if is_image_shot(d.visual)
+                          and not d.candidates and not d.covered)
     by_source = {}
     for d in decisions.shots.values():
         if d.chosen:
@@ -736,7 +836,11 @@ def main():
     print()
     print("─" * 64)
     print(f"Review dossier ready: {review_dir}")
+    print(f"Shots in dossier:       {len(decisions.shots)} of {len(shots)} "
+          f"(complete storyboard)")
     print(f"Image shots processed:  {processed}")
+    print(f"Typography shots:       {n_typography}  (card previews, "
+          f"no image needed)")
     print(f"  with a chosen winner: {have_chosen}")
     print(f"  with no candidates:   {no_candidates}")
     if skipped_covered:

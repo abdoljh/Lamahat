@@ -46,8 +46,11 @@ _USER_MARK_RE = re.compile(r"^(my|user)[_-].+\.(jpg|jpeg|png|webp)$", re.IGNOREC
 from .align import align
 from .parser import parse_sections
 from .plan import (
+    CaptionEvent,
     Shot,
+    build_caption_events,
     build_shot_plan,
+    load_caption_events,
     load_plan,
     save_plan,
     summarise_plan,
@@ -77,6 +80,9 @@ __all__ = [
     "load_plan",
     "save_plan",
     "summarise_plan",
+    "CaptionEvent",
+    "build_caption_events",
+    "load_caption_events",
 ]
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -167,7 +173,7 @@ def generate_video_v2(
     caption_size: float = 1.0,
     caption_color: str | None = None,
     caption_pos: float | None = None,
-    typography_over_image: bool = False,
+    typography_over_image: bool = True,
     book_extracts: Path | None = None,
     user_dir: Path | None = None,
     review_dir: Path | None = None,
@@ -244,6 +250,9 @@ def generate_video_v2(
             debug_dir=output_path.parent,
         )
         log.info("Planned %d shots", len(shots))
+        # Sentence-level caption track (P7.2): subtitles follow speech,
+        # not cuts.
+        caption_events = build_caption_events(timings, sections)
 
         # ── Stage 3: render ───────────────────────────────────────────── #
         fetcher = Fetcher(FetcherConfig(
@@ -276,6 +285,7 @@ def generate_video_v2(
             caption_size=caption_size,
             caption_color=caption_color,
             caption_pos=caption_pos,
+            caption_events=caption_events or None,
             typography_over_image=typography_over_image,
             music_path=Path(music_path) if music_path else None,
             music_gain_db=music_gain_db,
@@ -545,6 +555,9 @@ def render_from_review(
             log.warning("Asset conditioning skipped: %s", exc)
 
     cfg = config or RenderConfig()
+    # Sentence-level caption track from the dossier's v2 plan (P7.2).
+    if cfg.caption_events is None:
+        cfg.caption_events = load_caption_events(plan_path) or None
     cfg.fetcher = Fetcher(FetcherConfig(
         anthropic_api_key=anthropic_api_key,
         pexels_api_key=pexels_api_key,
@@ -661,7 +674,11 @@ def build_total_solution(
         debug_dir=review_dir,
     )
     plan_path = review_dir / "shot_plan.json"
-    save_plan(shots, plan_path)
+    # v2 plan: the sentence-level caption track travels inside the
+    # dossier's shot_plan.json, so the render-only route (and any later
+    # re-render) keeps subtitles continuous across cuts (P7.2).
+    save_plan(shots, plan_path,
+              caption_events=build_caption_events(timings, sections))
     script_path = review_dir / "script.txt"
     script_path.write_text(script_text, encoding="utf-8")
     (review_dir / "word_timings.json").write_text(

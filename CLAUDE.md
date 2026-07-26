@@ -390,8 +390,16 @@ API keys: `--anthropic-key` / `--pexels-key` flags, `ANTHROPIC_API_KEY` /
   (sidecar → regex → short-line heuristic; production script now
   opening + 3 points + closing), honest provenance labels, TTY-only
   progress bar, Family B title-card polish (+`--title-subtitle`),
-  **word-by-word reveal** on over-image quotes (opt-in
-  `--word-reveal` — screen before defaulting).
+  **word-by-word reveal** on over-image quotes (default ON since P7).
+- **P7 movie-quality batch** — **shipped 2026-07-26** (branch
+  `claude/phase3-movie-quality-d1n58l`, PHASE3.md P7 section):
+  full-coverage dossier (folder + card preview for every shot),
+  sentence-integrity editing (punctuation-aware planner, clause-snapped
+  cuts, sentence-level caption events in the v2 plan JSON), era gate
+  softened (era-0-only rejection; Pexels as era-gated last resort),
+  living typography cards (`card_drift`), `motion_intensity` wired,
+  auto-split motion alternation + split-undo merge fix,
+  typography-over-image + word-reveal defaults ON.
 - **Color grade per-section variation** (the `--grade` knob exists;
   `grade_map.json` per section is now unblocked by the §7.2 parser fix;
   design must respect the stream-copy concat invariant).

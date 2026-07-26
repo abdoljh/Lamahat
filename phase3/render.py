@@ -565,7 +565,8 @@ def _png_to_clip(png_path: Path, out_path: Path,
                 fps: int = DEFAULT_FPS,
                 width: int = DEFAULT_WIDTH,
                 height: int = DEFAULT_HEIGHT,
-                motion: str = "static_hold") -> Path:
+                motion: str = "static_hold",
+                intensity: float = 1.0) -> Path:
     """
     Encode a single PNG into a video clip of exact duration.
 
@@ -606,7 +607,10 @@ def _png_to_clip(png_path: Path, out_path: Path,
     else:
         # Motion path: source is rendered into a "zoom buffer" sized
         # 1.6× the output, then zoompan crops a window from it.
-        zoom_expr = _MOTION_FILTERS[motion](n_frames)
+        # Intensity is the planner's motion_intensity knob (P7.4),
+        # clamped so an outlier plan can't produce nauseating moves.
+        k = max(0.4, min(1.6, float(intensity or 1.0)))
+        zoom_expr = _MOTION_FILTERS[motion](n_frames, k)
         buf_w = int(width * 1.6)
         buf_h = int(height * 1.6)
         zoompan = (
@@ -675,33 +679,57 @@ def _png_to_clip(png_path: Path, out_path: Path,
 #   zoom         = current frame's zoom value (z expression)
 # The pan_step expressions use iw fractions so they work at any
 # buffer size — no hardcoded pixel constants.
-def _zoom_in(n: int):    return {"z": f"min(pzoom+{0.08/n:.6f},1.08)",
-                                  "x": "iw/2-(iw/zoom/2)",
-                                  "y": "ih/2-(ih/zoom/2)"}
-def _zoom_out(n: int):   return {"z": f"if(lte(on,1),1.08,max(1.0,pzoom-{0.08/n:.6f}))",
-                                  "x": "iw/2-(iw/zoom/2)",
-                                  "y": "ih/2-(ih/zoom/2)"}
-def _fast_push(n: int):  return {"z": f"min(pzoom+{0.20/n:.6f},1.20)",
-                                  "x": "iw/2-(iw/zoom/2)",
-                                  "y": "ih/2-(ih/zoom/2)"}
-def _pan_right(n: int):
-    # Travel half the buffer width over the clip
-    pan_per_frame = f"(iw*0.5)/{n}"
+#
+# Every factory takes (n_frames, k) where `k` is the planner's
+# motion_intensity (P7.4 — previously silently ignored): 0.5 = subtle,
+# 1.0 = default amplitude, 1.5 = exaggerated.  _png_to_clip clamps k.
+def _zoom_in(n: int, k: float = 1.0):
+    a = 0.08 * k
+    return {"z": f"min(pzoom+{a/n:.6f},{1 + a:.4f})",
+            "x": "iw/2-(iw/zoom/2)",
+            "y": "ih/2-(ih/zoom/2)"}
+def _zoom_out(n: int, k: float = 1.0):
+    a = 0.08 * k
+    return {"z": f"if(lte(on,1),{1 + a:.4f},max(1.0,pzoom-{a/n:.6f}))",
+            "x": "iw/2-(iw/zoom/2)",
+            "y": "ih/2-(ih/zoom/2)"}
+def _fast_push(n: int, k: float = 1.0):
+    a = 0.20 * k
+    return {"z": f"min(pzoom+{a/n:.6f},{1 + a:.4f})",
+            "x": "iw/2-(iw/zoom/2)",
+            "y": "ih/2-(ih/zoom/2)"}
+def _pan_right(n: int, k: float = 1.0):
+    # Travel half the buffer width over the clip (× intensity)
+    pan_per_frame = f"(iw*{0.5 * k:.4f})/{n}"
     return {"z": "1.10",
             "x": f"if(lte(on,1),0,min(x+{pan_per_frame},iw-iw/zoom))",
             "y": "ih/2-(ih/zoom/2)"}
-def _pan_left(n: int):
-    pan_per_frame = f"(iw*0.5)/{n}"
+def _pan_left(n: int, k: float = 1.0):
+    pan_per_frame = f"(iw*{0.5 * k:.4f})/{n}"
     return {"z": "1.10",
             "x": f"if(lte(on,1),iw-iw/zoom,max(0,x-{pan_per_frame}))",
             "y": "ih/2-(ih/zoom/2)"}
-def _ken_burns(n: int):
-    pan_per_frame = f"(iw*0.3)/{n}"
-    return {"z": f"min(pzoom+{0.12/n:.6f},1.12)",
+def _ken_burns(n: int, k: float = 1.0):
+    a = 0.12 * k
+    pan_per_frame = f"(iw*{0.3 * k:.4f})/{n}"
+    return {"z": f"min(pzoom+{a/n:.6f},{1 + a:.4f})",
             "x": f"if(lte(on,1),0,min(x+{pan_per_frame},iw-iw/zoom))",
             "y": "ih/2-(ih/zoom/2)"}
 
-def _section_accent(n: int):
+def _card_drift(n: int, k: float = 1.0):
+    """Near-subliminal 1.00 → 1.03 push for typography cards (P7.4).
+
+    A third of the film is text cards; a frozen frame there is the
+    single biggest "slide show" tell.  This drift is slow enough that
+    the type stays comfortably readable but the frame is alive — the
+    same trick every documentary title sequence uses.
+    """
+    a = 0.03 * k
+    return {"z": f"min(pzoom+{a/n:.6f},{1 + a:.4f})",
+            "x": "iw/2-(iw/zoom/2)",
+            "y": "ih/2-(ih/zoom/2)"}
+
+def _section_accent(n: int, k: float = 1.0):
     """
     0.3 s zoom-in "new chapter" accent for section_mark shots.
 
@@ -728,6 +756,7 @@ _MOTION_FILTERS = {
     "pan_right":      _pan_right,
     "pan_left":       _pan_left,
     "ken_burns":      _ken_burns,
+    "card_drift":     _card_drift,
     "section_accent": _section_accent,
 }
 
@@ -751,14 +780,21 @@ def _write_captions(shots: list[Shot], dest: Path,
                    *,
                    caption_size: float = 1.0,
                    caption_color: "str | None" = None,
-                   caption_pos: "float | None" = None) -> Path | None:
+                   caption_pos: "float | None" = None,
+                   events: "list | None" = None) -> Path | None:
     """
-    Generate an ASS subtitle file from each shot's caption_text.
+    Generate an ASS subtitle file.
 
-    Family A style: small Amiri Regular, charcoal-on-cream-bar, bottom
-    8% of frame, only visible during each shot's time window.
+    With `events` (sentence-level CaptionEvents from a v2 plan — P7.2),
+    subtitles follow the SPEECH, not the cuts: an event spanning two
+    image shots stays one continuous line across the cut.  Events are
+    only clipped where a typography-kind shot (which shows its own text)
+    or a show_caption=False shot is on screen.
 
-    Returns None if no shot has a caption (skips the subtitle pass).
+    Without `events`, falls back to the legacy per-shot caption_text
+    windows.
+
+    Returns None if there is nothing to show (skips the subtitle pass).
     """
     # Typography shots already show their text on screen as the
     # primary visual element.  Burning a caption layer on top would be
@@ -769,7 +805,7 @@ def _write_captions(shots: list[Shot], dest: Path,
         and s.caption_text.strip()
         and s.visual not in TYPOGRAPHY_VISUALS
     ]
-    if not visible:
+    if not visible and not events:
         return None
 
     # Font + position
@@ -815,6 +851,47 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
     lines: list[str] = []
+
+    if events:
+        # ── Sentence-level events (P7.2): subtitles follow the SPEECH.
+        # An event spanning a cut stays one continuous line; it is only
+        # clipped where a typography-kind shot shows its own text (or a
+        # shot explicitly hides captions).
+        hidden = sorted(
+            (s.start, s.end) for s in shots
+            if s.visual in TYPOGRAPHY_VISUALS or not s.show_caption)
+        MIN_SPAN = 0.4   # a clipped sliver shorter than this just flickers
+        for ev in events:
+            ev_text = (getattr(ev, "text", "") or "").strip()
+            ev_start = float(getattr(ev, "start", 0.0))
+            ev_end = float(getattr(ev, "end", 0.0))
+            if not ev_text or ev_end <= ev_start:
+                continue
+            spans = [(ev_start, ev_end)]
+            for h0, h1 in hidden:
+                nxt: list[tuple[float, float]] = []
+                for a, b in spans:
+                    if h1 <= a or h0 >= b:
+                        nxt.append((a, b))
+                        continue
+                    if a < h0:
+                        nxt.append((a, h0))
+                    if h1 < b:
+                        nxt.append((h1, b))
+                spans = nxt
+            body = _wrap_caption(_escape_ass(ev_text), max_words_per_line=8)
+            for a, b in spans:
+                if b - a < MIN_SPAN:
+                    continue
+                lines.append(
+                    f"Dialogue: 0,{_ts(a)},{_ts(b)},Caption,,0,0,0,,{body}")
+        if not lines:
+            return None
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(header + "\n".join(lines) + "\n", encoding="utf-8")
+        return dest
+
+    # ── Legacy per-shot captions (no events in the plan) ─────────────
     # Gap between the visual cut and the caption appearing / disappearing.
     # 0.15s on each side (0.3s total per shot) gives the eye a clear break
     # between consecutive captions, fixing the "merged" appearance where
@@ -1354,9 +1431,14 @@ class RenderConfig:
     # dates, centre for section marks) | "center" | "lower".  --overlay-anchor.
     overlay_anchor: str = "auto"
     # Word-by-word reveal on over-image pull quotes / name reveals (§7.9).
-    # Opt-in until screened: the quote extends word-group by word-group over
-    # the first ~1.6 s instead of appearing whole.  --word-reveal.
-    word_reveal: bool = False
+    # Default ON since P7.4 (screened opt-in through P5/P6): the quote
+    # extends word-group by word-group over the first ~1.6 s instead of
+    # appearing whole.  --no-word-reveal to disable.
+    word_reveal: bool = True
+    # Near-subliminal card_drift push on typography cards (P7.4) so text
+    # beats are never frozen frames.  section_mark keeps its accent;
+    # False restores the pre-P7.4 static holds.
+    card_motion: bool = True
     # P1.3: when a continuous typography-over-image run keeps one backdrop on
     # screen longer than this many seconds, the NEXT overlay card switches to
     # the source shot's next-ranked dossier alternate (near-duplicates
@@ -1371,6 +1453,12 @@ class RenderConfig:
     caption_size: float = 1.0
     caption_color: str | None = None
     caption_pos: float | None = None
+    # Sentence-level caption events (P7.2) from the v2 plan JSON (list of
+    # plan.CaptionEvent or anything with .start/.end/.text).  When set,
+    # subtitles follow the narration's sentences and survive shot cuts
+    # instead of being chopped into per-shot fragments.  None → legacy
+    # per-shot captions.
+    caption_events: list | None = None
     # 2.5D depth parallax (opt-in).  When True, real-image shots whose
     # visual is not in motion_parallax.PARALLAX_SKIP_VISUALS are rendered
     # as depth-parallax clips (foreground moves more than background)
@@ -1389,9 +1477,10 @@ class RenderConfig:
     # a flat static card — collapsing the "static text card" share that makes
     # a documentary feel like a slideshow.  title_card is excluded (it keeps
     # its book-cover treatment).  Falls back to a static card when no recent
-    # real image is available (e.g. before the first photo).  Selectable via
-    # --typography-over-image in render_plan.py.
-    typography_over_image: bool = False
+    # real image is available (e.g. before the first photo).  Default ON
+    # since P7.4 (matches the Streamlit default); --no-typography-over-image
+    # in render_plan.py to disable.
+    typography_over_image: bool = True
     # ── Cinematic final-assembly (audio score + fades) ──────────────── #
     # Optional music bed mixed UNDER the narration at the final mux.  When
     # set, the bed is looped to length, attenuated to `music_gain_db`,
@@ -1623,23 +1712,28 @@ def render_video(shots: list[Shot], out_path: Path, *,
                                         "back to %s", i + 1, exc, shot.motion)
 
                 if not rendered:
-                    # Motion only applies to fetched real images.  Typography
-                    # and placeholder cards stay static — with one exception:
-                    # section_mark shots get a 0.3 s zoom-in accent at the
-                    # start to signal "new chapter" (issue 3, opt-out via
-                    # RenderConfig.section_mark_accent=False).
+                    # Real images take the planner's motion.  Typography
+                    # cards are no longer frozen frames (P7.4): they get a
+                    # near-subliminal card_drift push — a static text card
+                    # is the single biggest "slide show" tell.  section_mark
+                    # keeps its 0.3 s new-chapter accent, and card motion as
+                    # a whole can be disabled via RenderConfig.card_motion.
                     if is_real_image:
                         shot_motion = shot.motion
                     elif (shot.visual == "section_mark"
                           and config.section_mark_accent):
                         shot_motion = "section_accent"
+                    elif config.card_motion:
+                        shot_motion = "card_drift"
                     else:
                         shot_motion = "static_hold"
                     _png_to_clip(asset_path, clip_path,
                                  duration=shot.duration,
                                  fps=config.fps,
                                  width=config.width, height=config.height,
-                                 motion=shot_motion)
+                                 motion=shot_motion,
+                                 intensity=(shot.motion_intensity
+                                            if is_real_image else 1.0))
             except Exception as exc:
                 log.error("Shot %d (%s) failed: %s — emitting error card",
                           i + 1, shot.visual, exc)
@@ -1683,7 +1777,8 @@ def render_video(shots: list[Shot], out_path: Path, *,
                                        width=config.width, height=config.height,
                                        caption_size=config.caption_size,
                                        caption_color=config.caption_color,
-                                       caption_pos=config.caption_pos)
+                                       caption_pos=config.caption_pos,
+                                       events=config.caption_events)
 
         # ── Final mux: burn captions + mux audio + hard-trim ──────── #
         _prog("mux audio and captions", 0.92)
