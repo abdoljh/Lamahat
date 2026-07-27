@@ -301,6 +301,12 @@ Notes for the planner:
   to re-engage the viewer.
 - Typography shots: choose the most emotionally resonant lines from the \
   script — quotes that would stand alone as social-media graphics.
+- This is a BIOGRAPHY: the protagonist's face anchors the film.  When a \
+  main character is specified, plan 6–10 `portrait` shots of them spread \
+  across the video — a curated portrait pool guarantees the imagery \
+  exists, so never let generic b-roll displace the protagonist.  The \
+  "prefer timeless metaphors" rule is for THEMATIC beats only; it must \
+  not reduce the number of shots that show the actual people of the story.
 - For portrait searches of "{character_name}", use the name in English \
   (e.g. "Jafar al-Askari portrait") plus any known historical context \
   from the script.
@@ -676,14 +682,18 @@ def _snap_to_clause_boundaries(
 ) -> list[Shot]:
     """Nudge interior shot boundaries onto sentence/clause ends (P7.2).
 
-    The planner is asked to cut on sentences, but it drifts.  For every
-    boundary not already on a clause end, look for a sentence-final word
-    end within ±0.9 s (clause-final within ±0.5 s) and move the cut
-    there — provided neither neighbour drops under 1.6 s or exceeds its
-    per-visual hard cap.  Cuts land in the natural speech pause after
-    the punctuation, which is exactly where a documentary editor puts
-    them; it also stops one sentence from being "used over more than a
-    shot" visually mid-thought.
+    The planner is asked to cut on sentences, but it drifts — badly.
+    Measured on real plans: 84 % of cuts landed mid-sentence before the
+    prompt fix, and still 67 % after it (the first ±0.9 s version of
+    this pass rescued almost nothing).  So this is now a HARD grid, not
+    a nudge: every interior boundary is moved to the best sentence end
+    within ±2.6 s (clause end within ±1.2 s as fallback), walked left to
+    right so cuts stay monotonic, provided neither neighbour drops under
+    1.6 s or exceeds its per-visual hard cap.  Sentences in this
+    material end every ~5 s, so a qualifying anchor almost always
+    exists; a boundary with no anchor keeps its word-end position.
+    Cuts land in the natural speech pause after the punctuation — where
+    a documentary editor puts them.
     """
     if not shots or not word_timings:
         return shots
@@ -702,6 +712,8 @@ def _snap_to_clause_boundaries(
         return shots
 
     MIN_SHOT = 1.6
+    STRONG_WIN = 2.6
+    WEAK_WIN = 1.2
     moved = 0
     for i in range(len(shots) - 1):
         a, b = shots[i], shots[i + 1]
@@ -709,7 +721,8 @@ def _snap_to_clause_boundaries(
         if any(abs(t - c) <= 0.05 for c in all_ends):
             continue    # already cutting on a clause end
         best = None
-        for anchors, window in ((strong_ends, 0.9), (weak_ends, 0.5)):
+        for anchors, window in ((strong_ends, STRONG_WIN),
+                                (weak_ends, WEAK_WIN)):
             cands = [
                 c for c in anchors
                 if abs(c - t) <= window

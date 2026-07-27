@@ -714,6 +714,20 @@ def main():
             )
             bank_assignments = {idx: bank_dir / fname
                                 for idx, fname in assigned.items()}
+            if not bank_assignments:
+                # A populated bank producing ZERO assignments is almost
+                # certainly a failure (API error, response format, key
+                # parsing) — not a creative judgement.  Say so loudly and
+                # leave a marker in the dossier so it can't ship unnoticed.
+                msg = (f"photo bank has {n_bank} photo(s) but ZERO were "
+                       f"assigned to shots — inspect "
+                       f"{review_dir / 'photo_bank_assignment_raw.txt'} "
+                       "before rendering; the film will use only web "
+                       "imagery otherwise")
+                log.error("photo_bank: %s", msg)
+                print(f"\n{'!' * 64}\n⚠ PHOTO BANK NOT USED: {msg}\n{'!' * 64}\n")
+                (review_dir / "PHOTO_BANK_NOT_ASSIGNED.txt").write_text(
+                    msg + "\n", encoding="utf-8")
 
     # ── Configure the fetcher ─────────────────────────────────── #
     # Cache always on: without one, every prebuild re-downloads and
