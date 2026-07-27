@@ -326,12 +326,17 @@ def assign_photo_bank(
     result: dict[int, str] = {}
     uses: dict[str, int] = {}
     for idx_str, fname in (data.get("assignments") or {}).items():
-        try:
-            idx = int(idx_str)
-        except (TypeError, ValueError):
-            log.warning("photo_bank: non-integer shot index %r — dropped",
+        # Sonnet echoes the prompt's shot labels — "shot 5", "Shot 12",
+        # or a bare "5" — depending on the run.  A strict int() parse
+        # silently discarded EVERY assignment when the "shot " prefix was
+        # present (the third-screening bank produced 27 assignments and
+        # rendered zero of them).  Accept any key containing one integer.
+        m = re.search(r"\d+", str(idx_str))
+        if not m:
+            log.warning("photo_bank: no shot number in key %r — dropped",
                         idx_str)
             continue
+        idx = int(m.group(0))
         if idx not in image_shots:
             log.warning("photo_bank: assignment to unknown shot %d — dropped",
                         idx)
