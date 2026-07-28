@@ -855,16 +855,24 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     if events:
         # ── Sentence-level events (P7.2): subtitles follow the SPEECH.
         # An event spanning a cut stays one continuous line; it is only
-        # clipped where a typography-kind shot shows its own text (or a
-        # shot explicitly hides captions).
+        # clipped where a typography-kind shot shows its own on-screen
+        # text — real-image shots (broll/archive/portrait/…) NEVER hide
+        # the sentence track, even when their own `show_caption` is False.
+        # That flag's semantics come from the legacy per-shot captions,
+        # where each shot's caption was self-contained; in the sentence
+        # track hiding one crossed shot silently deletes part of a
+        # sentence that continues into the next shot (confirmed by
+        # screenshot audit, 2026-07-28 — a clause vanished entirely
+        # because the shot carrying it had show_caption=False).
         hidden = sorted(
             (s.start, s.end) for s in shots
-            if s.visual in TYPOGRAPHY_VISUALS or not s.show_caption)
+            if s.visual in TYPOGRAPHY_VISUALS)
         MIN_SPAN = 0.4   # a clipped sliver shorter than this just flickers
         for ev in events:
             ev_text = (getattr(ev, "text", "") or "").strip()
             ev_start = float(getattr(ev, "start", 0.0))
             ev_end = float(getattr(ev, "end", 0.0))
+            ev_words = getattr(ev, "words", None) or []
             if not ev_text or ev_end <= ev_start:
                 continue
             spans = [(ev_start, ev_end)]
@@ -879,10 +887,22 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     if h1 < b:
                         nxt.append((h1, b))
                 spans = nxt
-            body = _wrap_caption(_escape_ass(ev_text), max_words_per_line=8)
             for a, b in spans:
                 if b - a < MIN_SPAN:
                     continue
+                # A clipped span must only show the words actually spoken
+                # during it — reusing the full event text here was
+                # confirmed to burn a title card's own words into the
+                # very next shot's caption (screenshot audit, 2026-07-28).
+                # Falls back to the full text for plans saved before
+                # CaptionEvent carried word-level timing.
+                if ev_words and (a, b) != (ev_start, ev_end):
+                    sub = [w for w in ev_words
+                          if float(w[1]) >= a - 0.05 and float(w[2]) <= b + 0.05]
+                    span_text = " ".join(w[0] for w in sub).strip() or ev_text
+                else:
+                    span_text = ev_text
+                body = _wrap_caption(_escape_ass(span_text), max_words_per_line=8)
                 lines.append(
                     f"Dialogue: 0,{_ts(a)},{_ts(b)},Caption,,0,0,0,,{body}")
         if not lines:
@@ -934,6 +954,23 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return dest
 
 
+# Neutral Arabic marks that libass/fribidi mis-resolve when they are the
+# LAST character of a visual line with nothing after them — the mark
+# escapes to the visual START of the line instead of trailing where it
+# belongs.  Confirmed by direct ffmpeg+libass render test (2026-07-28):
+# "...وطنه،" burns as "،...وطنه".  An invisible RLM (U+200F) right after
+# the mark anchors it in the RTL run; mid-line marks are unaffected and
+# need no fix (libass resolves those correctly on their own).
+_TRAILING_BIDI_ANCHOR_CHARS = "،؛؟"
+_RLM = "‏"
+
+
+def _anchor_trailing_punct(line: str) -> str:
+    if line and line[-1] in _TRAILING_BIDI_ANCHOR_CHARS:
+        return line + _RLM
+    return line
+
+
 def _wrap_caption(text: str, max_words_per_line: int = 8) -> str:
     """
     Insert a hard ASS line-break (\\N) so long captions render as
@@ -944,11 +981,15 @@ def _wrap_caption(text: str, max_words_per_line: int = 8) -> str:
     boundary, preferring breaks after punctuation when nearby.
 
     Documentary subtitle convention is 6-7 words per line.  We default
-    to splitting any caption over 8 words.
+    to splitting any caption over 8 words.  Each resulting visual line
+    gets `_anchor_trailing_punct` applied independently — a two-line
+    caption's first line ends mid-paragraph in ASS terms but is still
+    its own bidi row once libass breaks on \\N, and reproduces the same
+    escaping mark bug if left unanchored.
     """
     words = text.split()
     if len(words) <= max_words_per_line:
-        return text
+        return _anchor_trailing_punct(text)
 
     mid = len(words) // 2
     # Look ±2 positions around the midpoint for a word ending in
@@ -962,8 +1003,8 @@ def _wrap_caption(text: str, max_words_per_line: int = 8) -> str:
             best = idx
             break
 
-    line1 = " ".join(words[:best])
-    line2 = " ".join(words[best:])
+    line1 = _anchor_trailing_punct(" ".join(words[:best]))
+    line2 = _anchor_trailing_punct(" ".join(words[best:]))
     return f"{line1}\\N{line2}"
 
 
