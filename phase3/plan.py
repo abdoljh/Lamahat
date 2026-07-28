@@ -122,10 +122,20 @@ class CaptionEvent:
     a cut keeps one continuous subtitle instead of being chopped into
     per-shot fragments.  Built once from the word timings + script
     punctuation, stored in the v2 plan JSON, consumed by the renderer.
+
+    `words` (P7.7): per-word (word, start, end) triples covering the same
+    span as `text`.  When a typography-kind shot hides part of an event's
+    time range, the renderer must burn only the words actually spoken
+    during the VISIBLE remainder — reusing the full `text` for a clipped
+    span was confirmed (screenshot audit, 2026-07-28) to burn a title
+    card's own words into the next shot's caption.  Empty on events loaded
+    from a plan saved before this field existed; the renderer falls back
+    to the full `text` in that case.
     """
     start: float
     end: float
     text: str
+    words: list = field(default_factory=list)
 
 
 # Per-visual hard duration caps (seconds).  Shared by _validate_plan's
@@ -779,12 +789,14 @@ def build_caption_events(
                 or len(buf) >= max_words):
             events.append(CaptionEvent(
                 start=buf[0].start, end=buf[-1].end,
-                text=" ".join(x.word for x in buf)))
+                text=" ".join(x.word for x in buf),
+                words=[(x.word, x.start, x.end) for x in buf]))
             buf = []
     if buf:
         events.append(CaptionEvent(
             start=buf[0].start, end=buf[-1].end,
-            text=" ".join(x.word for x in buf)))
+            text=" ".join(x.word for x in buf),
+            words=[(x.word, x.start, x.end) for x in buf]))
 
     for i, ev in enumerate(events):
         limit = events[i + 1].start if i + 1 < len(events) else ev.end + hang
@@ -1031,10 +1043,13 @@ def load_caption_events(path: Path | str) -> list[CaptionEvent]:
     events = []
     for d in data.get("captions", []) or []:
         try:
+            words = [(str(w[0]), float(w[1]), float(w[2]))
+                     for w in (d.get("words") or [])]
             events.append(CaptionEvent(start=float(d["start"]),
                                        end=float(d["end"]),
-                                       text=str(d.get("text", ""))))
-        except (KeyError, TypeError, ValueError):
+                                       text=str(d.get("text", "")),
+                                       words=words))
+        except (KeyError, TypeError, ValueError, IndexError):
             continue
     return events
 

@@ -362,6 +362,34 @@ branch `claude/phase3-movie-quality-d1n58l`:
   the per-visual HARD_CAP.  Defaults flipped ON (CLI
   `--no-typography-over-image` / `--no-word-reveal` to opt out):
   typography-over-image and word-by-word reveal.
+- **P7.6 hotfix** (2026-07-27): the photo-bank assignment validator did
+  `int(idx_str)` on keys Sonnet returns as `"shot 5"` — every assignment
+  in every run was silently dropped.  Fixed to extract the integer from
+  any key shape; prebuild now prints a loud banner + writes
+  `PHOTO_BANK_NOT_ASSIGNED.txt` if a populated bank ever again yields
+  zero assignments.  Sentence-cut grid widened to ±2.6 s/±1.2 s
+  (was ±0.9 s/±0.5 s, too timid).  Biography portrait floor added to
+  the planner prompt (6–10 protagonist portraits; P7.3's "prefer
+  timeless" guidance had collapsed portraits to near zero).
+- **P7.7 hotfix** (2026-07-28): three bugs found by watching the actual
+  rendered captions (not log analysis) on the first run with the P7.6
+  fixes and captions on — all reproduced pixel-for-pixel with a direct
+  `ffmpeg`+`libass` render and fixed:
+  (a) a clipped caption span burned the event's FULL text instead of
+  only the words spoken during the visible remainder, so a title
+  card's own words leaked into the next shot's caption — fixed via
+  `CaptionEvent.words` (per-word timing) and per-span text
+  reconstruction in `_write_captions`;
+  (b) `show_caption=False` on a real-image shot (its old per-shot-
+  caption semantics) could silently delete an entire clause of the
+  sentence track when it fell inside that shot — fixed by restricting
+  events-mode hidden ranges to `TYPOGRAPHY_VISUALS` only;
+  (c) a caption line ending in ، ؛ or ؟ renders with the mark visually
+  escaping to the START of the RTL line (confirmed libass/fribidi
+  neutral-character bidi gap, not digit-related, not exclusive to the
+  whole-Dialogue-field end — first line of a `\N`-wrapped caption needs
+  it too) — fixed with an invisible RLM (U+200F) appended after the
+  mark, via `_wrap_caption`'s new `_anchor_trailing_punct`.
 
 ### P5 batch (2026-07-05) — second-screening fixes
 
