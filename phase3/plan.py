@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Literal
@@ -577,10 +578,14 @@ def build_shot_plan(
     shots = _snap_to_word_boundaries(shots, word_timings)
     shots = _snap_to_clause_boundaries(
         shots, word_timings, _global_punct_flags(sections, word_timings))
-    shots = _fill_captions(shots, word_timings)
     shots = _assign_sections(shots, section_word_map)
     shots = _normalise_fields(shots)
     shots = _validate_plan(shots, total_duration_sec)
+    # Put every typography card onto the words it quotes (P7.9).  Runs
+    # after _validate_plan so it sees the final shot grid, and before
+    # _fill_captions so each shot's caption_text reflects its real span.
+    shots, _ = sync_typography_to_speech(shots, word_timings)
+    shots = _fill_captions(shots, word_timings)
 
     log.info("Plan produced: %d shots", len(shots))
     return shots
@@ -1086,6 +1091,183 @@ def _attach_words_from_timings(
         ev.words = [(w.word, w.start, w.end) for w in inside]
         repaired += 1
     return repaired
+
+
+# ── Typography/speech synchronisation (P7.9) ─────────────────────────────── #
+
+# Visual kinds that display their own on-screen text.  Mirrors
+# render.TYPOGRAPHY_VISUALS (duplicated here to keep plan.py import-free
+# of the renderer).
+_TYPO_VISUALS = {"title_card", "section_mark", "chapter_heading", "typography"}
+
+# Minimum on-screen time, per kind, when boundaries are being reflowed.
+_MIN_DUR = {"section_mark": 1.8, "title_card": 2.5}
+_MIN_DUR_DEFAULT = 1.6
+
+
+def _norm_tokens(text: str) -> list[str]:
+    """Normalise Arabic text to bare comparison tokens.
+
+    Strips diacritics and punctuation and folds the orthographic variants
+    that differ between a written card and an ASR transcript (hamza
+    carriers, alef maqsura, ta marbuta) so a card can be matched against
+    the narration it quotes.
+    """
+    import unicodedata
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
+    for a, b in (("أ", "ا"), ("إ", "ا"), ("آ", "ا"), ("ى", "ي"), ("ة", "ه")):
+        text = text.replace(a, b)
+    return [t for t in text.split() if t]
+
+
+def _locate_card(card: list[str], narration: list[str],
+                 min_cover: float = 0.6) -> tuple[int, int] | None:
+    """Find where a card's text is spoken; (first, last) word index or None.
+
+    Fuzzy on purpose: a pull quote is usually a lightly-edited excerpt of
+    the narration (dropped connective, added full stop), so an exact
+    subsequence test finds far too few.  Requires `min_cover` of the
+    card's tokens to match before it will claim a location.
+    """
+    import difflib
+    if not card or not narration:
+        return None
+    sm = difflib.SequenceMatcher(a=narration, b=card, autojunk=False)
+    blocks = [b for b in sm.get_matching_blocks() if b.size]
+    if not blocks:
+        return None
+    if sum(b.size for b in blocks) < min_cover * len(card):
+        return None
+    lo = min(b.a for b in blocks)
+    hi = max(b.a + b.size for b in blocks) - 1
+    # Reject a DIFFUSE match.  A section heading like "الصراع الأيديولوجي
+    # والسياسي — بين الولاء والحلم" joins two phrases the narration keeps
+    # seconds apart; matching the first and last of them spans everything
+    # in between and would stretch the card across half a minute.  A real
+    # quote occupies roughly its own length in the narration.
+    if (hi - lo + 1) > 1.5 * len(card) + 2:
+        return None
+    return lo, hi
+
+
+def sync_typography_to_speech(
+    shots: list[Shot],
+    word_timings: list[WordTiming],
+    *,
+    tolerance: float = 0.35,
+) -> tuple[list[Shot], dict]:
+    """Make every typography card agree with the voice under it (P7.9).
+
+    The planner picks a resonant line and places a card NEAR that beat,
+    not ON it.  Measured on a real 84-shot plan, only 4 of 33 cards sat
+    within 0.5 s of the words they quote (median drift 3.1 s).  Because a
+    card also suppresses the subtitle track, a drifted card shows
+    sentence A in silence while the narrator speaks sentence B and the
+    audience gets neither.  That is the root cause behind the
+    duplicated-title and repeated-phrase reports — clipping captions
+    only treated the symptom.
+
+    Two bounded repairs, chosen per card:
+
+    * **trim** — the card's words fall inside its own shot, so the shot
+      is tightened onto them and the freed time is handed to the
+      IMMEDIATE neighbour (never a global reflow: stretching the whole
+      timeline pushed 13 image shots past `HARD_CAPS` and reintroduced
+      the static-hold problem).
+    * **retext** — the card's words are somewhere else entirely, so the
+      card is rewritten to the words actually spoken during its span.
+      The line loses the planner's editorial trim but gains the thing
+      that matters: it says what the audience is hearing.
+
+    Shot count and order are preserved, so a review dossier keyed by shot
+    index stays valid — safe to run before a render-only pass.
+    Returns `(shots, report)`.
+    """
+    if not shots or not word_timings:
+        return shots, {"trimmed": 0, "retexted": 0, "n_cards": 0}
+
+    narration = [(_norm_tokens(w.word) or [""])[0] for w in word_timings]
+    out = [Shot(**asdict(s)) for s in shots]
+    n = len(out)
+    trimmed: list[int] = []
+    retexted: list[int] = []
+    n_cards = 0
+
+    def _min_dur(k: int) -> float:
+        return _MIN_DUR.get(out[k].visual, _MIN_DUR_DEFAULT)
+
+    for i, s in enumerate(out):
+        if s.visual not in _TYPO_VISUALS:
+            continue
+        card = _norm_tokens(s.typography_text or "")
+        if not card:
+            continue
+        n_cards += 1
+        hit = _locate_card(card, narration)
+        want = (None if hit is None
+                else (word_timings[hit[0]].start,
+                      word_timings[min(hit[1], len(word_timings) - 1)].end))
+
+        # Case 1 — the card's words live inside this shot: tighten onto them.
+        if (want and want[0] >= s.start - tolerance
+                and want[1] <= s.end + tolerance):
+            new_start = max(want[0], s.start)
+            new_end = min(want[1], s.end)
+            # A card may shrink to the length of its own line — holding a
+            # title for 1.7 s after its words are spoken buys nothing and
+            # costs a subtitle, since the card suppresses one.  1.5 s is
+            # the floor below which text stops being readable at all.
+            if new_end - new_start < 1.5:
+                continue
+            head = new_start - s.start          # time handed back
+            tail = s.end - new_end              # time handed forward
+            if head > 0.05 and i > 0:
+                prev = out[i - 1]
+                if prev.duration + head <= HARD_CAPS.get(prev.visual, 8.0) + 0.1:
+                    out[i - 1] = Shot(**{**asdict(prev), "end": new_start})
+                else:
+                    new_start = s.start         # neighbour is full — keep as is
+            elif head > 0.05:
+                new_start = s.start
+            if tail > 0.05 and i + 1 < n:
+                nxt = out[i + 1]
+                if nxt.duration + tail <= HARD_CAPS.get(nxt.visual, 8.0) + 0.1:
+                    out[i + 1] = Shot(**{**asdict(nxt), "start": new_end})
+                else:
+                    new_end = s.end
+            elif tail > 0.05:
+                new_end = s.end
+            if abs(new_start - s.start) > 0.05 or abs(new_end - s.end) > 0.05:
+                out[i] = Shot(**{**asdict(s), "start": new_start, "end": new_end})
+                trimmed.append(i)
+            continue
+
+        # Case 2 — the card quotes something spoken elsewhere (or nothing
+        # we can find).  Rewrite it to the words under it, so the card and
+        # the voice finally say the same thing.
+        spoken = [w.word for w in word_timings
+                  if w.start >= s.start - 0.05 and w.end <= s.end + 0.05]
+        text = " ".join(spoken).strip()
+        if not text or _norm_tokens(text) == card:
+            continue
+        out[i] = Shot(**{**asdict(s), "typography_text": text})
+        retexted.append(i)
+        log.debug("typography retext @%.2fs: %r -> %r",
+                  s.start, s.typography_text, text)
+
+    # Re-stitch: only neighbours were touched, so this is a no-op check.
+    for k in range(1, n):
+        if abs(out[k].start - out[k - 1].end) > 1e-6:
+            out[k] = Shot(**{**asdict(out[k]), "start": out[k - 1].end})
+
+    log.info("typography sync: %d card(s) trimmed onto their words, "
+             "%d rewritten to the words spoken under them (%d cards total)",
+             len(trimmed), len(retexted), n_cards)
+    return out, {"trimmed": len(trimmed), "retexted": len(retexted),
+                 "n_cards": n_cards,
+                 "trimmed_idx": trimmed, "retexted_idx": retexted}
 
 
 def repair_caption_events(
