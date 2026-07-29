@@ -1054,6 +1054,90 @@ def load_caption_events(path: Path | str) -> list[CaptionEvent]:
     return events
 
 
+def _attach_words_from_timings(
+    events: list[CaptionEvent],
+    word_timings: list[WordTiming],
+) -> int:
+    """Fill in missing per-word timing on caption events, in place.
+
+    Returns the number of events repaired.  Conservative by design: an
+    event only gains `words` when the words falling inside its own time
+    range join back to EXACTLY its stored text.  A mismatch (different
+    narration, hand-edited caption text) leaves that event untouched, so
+    the renderer keeps its old whole-text behaviour rather than burning
+    something that was never said.
+    """
+    if not events or not word_timings:
+        return 0
+    eps = 0.05
+    repaired = 0
+    for ev in events:
+        if ev.words:
+            continue
+        inside = [w for w in word_timings
+                  if w.start >= ev.start - eps and w.end <= ev.end + eps]
+        if not inside:
+            continue
+        if " ".join(w.word for w in inside).strip() != (ev.text or "").strip():
+            log.warning(
+                "caption repair: words in %.2f–%.2fs don't reproduce the "
+                "stored text — left unrepaired", ev.start, ev.end)
+            continue
+        ev.words = [(w.word, w.start, w.end) for w in inside]
+        repaired += 1
+    return repaired
+
+
+def repair_caption_events(
+    events: list[CaptionEvent],
+    plan_path: Path | str,
+    review_dir: Path | str | None = None,
+) -> list[CaptionEvent]:
+    """Self-heal caption events saved before `CaptionEvent.words` existed.
+
+    Plans written before P7.7 (commit 873f9d8) carry aggregate
+    start/end/text only.  Without per-word timing the renderer cannot
+    reconstruct the text of a span that a hidden typography card clips,
+    so it falls back to burning the WHOLE sentence — which is how a
+    title card's own words end up glued onto the next shot's caption.
+
+    Rather than require the curator to regenerate the plan (and to guess
+    WHICH of the dossier's several `shot_plan.json` copies the renderer
+    will actually read), repair it here at load time from whichever
+    `word_timings.json` sits beside the plan or inside the dossier.
+    Returns the same list, repaired in place where possible.
+    """
+    if not events or all(ev.words for ev in events):
+        return events
+
+    plan_path = Path(plan_path)
+    candidates = [plan_path.parent / "word_timings.json",
+                  plan_path.parent / "review" / "word_timings.json"]
+    if review_dir:
+        candidates.insert(0, Path(review_dir) / "word_timings.json")
+
+    for cand in candidates:
+        if not cand.exists():
+            continue
+        try:
+            from .align import load_word_timings
+            timings = load_word_timings(cand)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("caption repair: could not read %s (%s)", cand, exc)
+            continue
+        n = _attach_words_from_timings(events, timings)
+        if n:
+            log.info("caption repair: attached word timing to %d/%d event(s) "
+                     "from %s (plan predates P7.7)", n, len(events), cand)
+            return events
+    log.warning(
+        "caption repair: %d caption event(s) carry no word timing and no "
+        "usable word_timings.json was found next to %s — captions spanning "
+        "a typography card will show the full sentence",
+        sum(1 for ev in events if not ev.words), plan_path)
+    return events
+
+
 # ── Plan summary printer ─────────────────────────────────────────────────── #
 
 def summarise_plan(shots: list[Shot]) -> str:

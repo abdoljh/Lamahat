@@ -868,6 +868,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             (s.start, s.end) for s in shots
             if s.visual in TYPOGRAPHY_VISUALS)
         MIN_SPAN = 0.4   # a clipped sliver shorter than this just flickers
+        # A clipped span keeps only the words actually spoken while it was
+        # on screen, which can leave a one- or two-word stub ("أن", "كان")
+        # flashing after a typography card — noise, not a subtitle.  The
+        # card itself already carried that sentence's text, so dropping
+        # the stub loses nothing the viewer hasn't read (P7.8).
+        MIN_CLIPPED_WORDS = 3
         for ev in events:
             ev_text = (getattr(ev, "text", "") or "").strip()
             ev_start = float(getattr(ev, "start", 0.0))
@@ -900,6 +906,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     sub = [w for w in ev_words
                           if float(w[1]) >= a - 0.05 and float(w[2]) <= b + 0.05]
                     span_text = " ".join(w[0] for w in sub).strip() or ev_text
+                    if len(span_text.split()) < MIN_CLIPPED_WORDS:
+                        continue
                 else:
                     span_text = ev_text
                 body = _wrap_caption(_escape_ass(span_text), max_words_per_line=8)

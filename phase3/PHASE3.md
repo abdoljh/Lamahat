@@ -391,6 +391,27 @@ branch `claude/phase3-movie-quality-d1n58l`:
   it too) — fixed with an invisible RLM (U+200F) appended after the
   mark, via `_wrap_caption`'s new `_anchor_trailing_punct`.
 
+- **P7.8 hotfix** (2026-07-29): P7.7(a) was correct but invisible in
+  practice, for two reasons found on the user's next render-only pass:
+  (a) **a dossier holds more than one `shot_plan.json`.** The
+  render-only notebook renders `output/shot_plan.json` while the
+  dossier carries `output/review/shot_plan.json`; a plan repaired by
+  hand hit the copy the renderer never reads, so the film came out
+  byte-identical. `plan.repair_caption_events()` now runs at load time
+  in **both** render entry points — when caption events lack `words`
+  it attaches per-word timing from whichever `word_timings.json` sits
+  beside the plan or in the dossier, but only where the words inside an
+  event's own range reproduce its stored text EXACTLY (a mismatched
+  narration is left alone, never silently re-captioned).
+  `regenerate_captions.py` also repairs every copy it finds now. The
+  copy question no longer changes the output.
+  (b) **word-accurate clipping produces stubs.** A sentence whose body
+  is spoken under a typography card leaves a one- or two-word tail
+  ("أن", "كان") flashing on the following shot. The card already shows
+  that sentence's text, so `_write_captions` drops a *clipped* span
+  under `MIN_CLIPPED_WORDS = 3`; unclipped short events are untouched
+  (61 → 54 caption lines on the reference plan).
+
 ### P5 batch (2026-07-05) — second-screening fixes
 
 After the user's 3-minute sample confirmed the P0–P4 stack on screen
