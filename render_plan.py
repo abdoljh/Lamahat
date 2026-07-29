@@ -355,8 +355,10 @@ def main() -> int:
         print(f"ERROR: plan file not found: {plan_path}", file=sys.stderr)
         return 1
     shots = load_plan(plan_path)
-    from phase3.plan import load_caption_events
-    caption_events = load_caption_events(plan_path)
+    from phase3.plan import load_caption_events, repair_caption_events
+    caption_events = repair_caption_events(
+        load_caption_events(plan_path), plan_path,
+        review_dir=args.review_dir or None)
     print(f"\nPlan   : {plan_path}  ({len(shots)} shots"
           + (f", {len(caption_events)} sentence captions" if caption_events
              else "") + ")")

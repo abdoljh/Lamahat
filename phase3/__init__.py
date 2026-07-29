@@ -52,6 +52,7 @@ from .plan import (
     build_shot_plan,
     load_caption_events,
     load_plan,
+    repair_caption_events,
     save_plan,
     summarise_plan,
 )
@@ -83,6 +84,7 @@ __all__ = [
     "CaptionEvent",
     "build_caption_events",
     "load_caption_events",
+    "repair_caption_events",
 ]
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -557,7 +559,9 @@ def render_from_review(
     cfg = config or RenderConfig()
     # Sentence-level caption track from the dossier's v2 plan (P7.2).
     if cfg.caption_events is None:
-        cfg.caption_events = load_caption_events(plan_path) or None
+        cfg.caption_events = repair_caption_events(
+            load_caption_events(plan_path), plan_path,
+            review_dir=review_dir) or None
     cfg.fetcher = Fetcher(FetcherConfig(
         anthropic_api_key=anthropic_api_key,
         pexels_api_key=pexels_api_key,
