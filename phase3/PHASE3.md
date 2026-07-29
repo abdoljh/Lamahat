@@ -412,6 +412,27 @@ branch `claude/phase3-movie-quality-d1n58l`:
   under `MIN_CLIPPED_WORDS = 3`; unclipped short events are untouched
   (61 → 54 caption lines on the reference plan).
 
+- **P7.9** (2026-07-29): **the root cause behind the whole caption bug
+  family — typography cards are not placed on the words they quote.**
+  The planner picks a resonant line and puts a card NEAR that beat, not
+  ON it: on the reference 84-shot plan only **4 of 33 cards sat within
+  0.5 s of their own words** (median drift 3.10 s; worst was up 10 s
+  early and gone 12 s before the line ended). Since a card also
+  suppresses the subtitle track, a drifted card shows sentence A in
+  silence while the narrator speaks sentence B — the duplicated-title
+  and repeated-phrase reports are both this. `plan.sync_typography_to_
+  speech()` repairs each card with one of two *bounded* edits: **trim**
+  (card's words are inside its own shot → tighten onto them, hand the
+  freed time to the immediate neighbour if it has cap room) or
+  **retext** (card quotes something spoken elsewhere → rewrite it to the
+  words actually spoken under it). Card/voice agreement went 0.50 →
+  1.00 median, 5/33 → 30/33 cards at ≥0.8, with shot count, contiguity
+  and cap compliance all unchanged. An earlier version that reflowed the
+  whole timeline scored higher on card placement but pushed 13 image
+  shots past `HARD_CAPS` — rejected; keep the edit local. Runs inside
+  `build_shot_plan` and, for existing dossiers, via
+  `regenerate_captions.py` (`--no-sync-cards` to skip).
+
 ### P5 batch (2026-07-05) — second-screening fixes
 
 After the user's 3-minute sample confirmed the P0–P4 stack on screen

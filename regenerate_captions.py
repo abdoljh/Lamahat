@@ -34,7 +34,8 @@ from pathlib import Path
 
 from phase3.align import load_word_timings
 from phase3.parser import parse_sections
-from phase3.plan import build_caption_events, load_plan, save_plan
+from phase3.plan import (build_caption_events, load_plan, save_plan,
+                         sync_typography_to_speech)
 
 log = logging.getLogger("regenerate_captions")
 
@@ -71,6 +72,8 @@ def main(argv=None) -> int:
     ap.add_argument("--plan", type=Path, default=None,
                     help="Repair only this plan (default: every shot_plan.json "
                          "in the review dir AND its parent)")
+    ap.add_argument("--no-sync-cards", action="store_true",
+                    help="skip the P7.9 typography/speech sync (captions only)")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args(argv)
 
@@ -108,6 +111,10 @@ def main(argv=None) -> int:
     for plan_path in plans:
         n_before, n_words_before = _n_with_words(plan_path)
         shots = load_plan(plan_path)
+        if not args.no_sync_cards:
+            shots, rep = sync_typography_to_speech(shots, timings)
+            log.info("card sync: %d trimmed, %d rewritten of %d card(s)",
+                     rep["trimmed"], rep["retexted"], rep["n_cards"])
         save_plan(shots, plan_path, caption_events=new_events)
         log.info("wrote %s (%d shots, %d captions; was %d captions / %d with "
                  "word timing)", plan_path, len(shots), len(new_events),
