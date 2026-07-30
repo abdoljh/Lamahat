@@ -1199,7 +1199,23 @@ def sync_typography_to_speech(
       completely untouched and `card_hides_captions` is set False
       instead: the design stays on screen and the sentence track keeps
       running underneath it, so the audience gets both instead of a
-      damaged version of one.
+      damaged version of one.  Only fires when the card's words are
+      genuinely NOT what's being said during its span — screened
+      against a real cut (2026-07-29), uncovering a card whose located
+      match merely overran its shot by a second or two (the sentence
+      continues into a neighbour) put a near-duplicate of the card's
+      own words on screen as the caption, which read as a stutter, not
+      a design.  `_coverage` below is the guard: a card whose match is
+      MOSTLY inside its own span (>=50% of its words) is left hidden
+      even when it missed the stricter trim window, on the reasoning
+      that a slightly-early or slightly-late caption is a smaller sin
+      than showing the audience the same sentence twice at once.
+
+    A card split across two auto-split shots (same text, adjacent, for
+    motion variety — see `_shots_can_merge`) is judged and decided as
+    ONE card over its combined span, not per piece: judging halves
+    independently could hide one piece's captions and uncover the
+    other's for what the audience reads as a single heading.
 
     Shot count and order are preserved, so a review dossier keyed by shot
     index stays valid — safe to run before a render-only pass.
@@ -1215,8 +1231,38 @@ def sync_typography_to_speech(
     uncovered: list[int] = []
     n_cards = 0
 
+    # Group split-card runs so they are judged (and decided) as one card.
+    split_group: dict[int, list[int]] = {}
+    seen: set[int] = set()
+    for i, s in enumerate(out):
+        if i in seen or s.visual not in _TYPO_VISUALS or not (s.typography_text or "").strip():
+            continue
+        run = [i]
+        j = i + 1
+        while (j < n and out[j].visual == s.visual
+               and (out[j].typography_text or "") == (s.typography_text or "")):
+            run.append(j)
+            j += 1
+        for k in run:
+            split_group[k] = run
+        seen.update(run)
+
     def _min_dur(k: int) -> float:
         return _MIN_DUR.get(out[k].visual, _MIN_DUR_DEFAULT)
+
+    def _coverage(card: list[str], hit: "tuple[int, int] | None",
+                  span: tuple[float, float]) -> float:
+        """Fraction of the located quote's words spoken inside `span`."""
+        if not hit:
+            return 0.0
+        lo, hi = hit
+        words = word_timings[lo:hi + 1]
+        if not words:
+            return 0.0
+        s0, s1 = span
+        inside = sum(1 for w in words if w.start >= s0 - tolerance
+                    and w.end <= s1 + tolerance)
+        return inside / len(words)
 
     for i, s in enumerate(out):
         if s.visual not in _TYPO_VISUALS:
@@ -1264,11 +1310,18 @@ def sync_typography_to_speech(
                 trimmed.append(i)
             continue
 
-        # Case 2 — the card quotes something spoken elsewhere, or nothing
-        # locatable at all.  Leave the text and timing exactly as planned
-        # (it is still a deliberate creative choice) and stop it from
-        # silencing the sentence track, so the audience gets the design
-        # AND the narration instead of a rewritten line and neither.
+        # Case 2 — the card missed the trim window.  Judge it (and, if
+        # split, its whole run) by how much of its quote falls inside its
+        # own on-screen span: mostly inside (>=50%) means the near-miss
+        # is a small timing overrun, and uncovering would put a
+        # near-duplicate of the card's own words on screen — worse than
+        # leaving it hidden.  Only a genuinely displaced quote earns the
+        # caption track running underneath it.
+        run = split_group.get(i, [i])
+        run_span = (out[run[0]].start, out[run[-1]].end)
+        cov = _coverage(card, hit, run_span)
+        if cov >= 0.5:
+            continue
         if s.card_hides_captions:
             out[i] = Shot(**{**asdict(s), "card_hides_captions": False})
             uncovered.append(i)

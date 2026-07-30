@@ -455,6 +455,21 @@ branch `claude/phase3-movie-quality-d1n58l`:
   Runs inside `build_shot_plan` and, for existing dossiers, via
   `regenerate_captions.py` (`--no-sync-cards` to skip).
 
+- **P7.9 second correction** (2026-07-30): the `card_hides_captions`
+  fix above uncovered too eagerly. A card that missed the strict trim
+  window (both ends within 0.35 s) only because its sentence runs a
+  couple seconds into a neighbouring shot was still treated as
+  "displaced elsewhere" — confirmed on screen putting a near-duplicate
+  of the card's own words on screen as the caption underneath it
+  (`من الموصل إلى الاستانة — رحلة التحديث والطموح` as the card, `من
+  الموصل إلى الاستانة رحلة التحديث والطموح` as the caption, same
+  moment). Fixed with a coverage gate: only uncover when **< 50 %** of
+  the located quote's words actually fall inside the card's own
+  on-screen span (measured 0.57–0.64 on the two duplicate cases vs 0.00
+  on a case that read fine). Split-card runs are judged once over their
+  combined span so both pieces get the same decision.
+  Uncovered count on the reference plan: 20 → 9.
+
 - **Pool-shuffle reproducibility bug** (found during P7.9 screening,
   2026-07-29): `decisions._list_portrait_pool` seeded its shuffle with
   `hash(tuple(...))` — Python salts str/tuple `hash()` per process
