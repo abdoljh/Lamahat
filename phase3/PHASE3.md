@@ -421,17 +421,51 @@ branch `claude/phase3-movie-quality-d1n58l`:
   suppresses the subtitle track, a drifted card shows sentence A in
   silence while the narrator speaks sentence B — the duplicated-title
   and repeated-phrase reports are both this. `plan.sync_typography_to_
-  speech()` repairs each card with one of two *bounded* edits: **trim**
-  (card's words are inside its own shot → tighten onto them, hand the
-  freed time to the immediate neighbour if it has cap room) or
-  **retext** (card quotes something spoken elsewhere → rewrite it to the
-  words actually spoken under it). Card/voice agreement went 0.50 →
-  1.00 median, 5/33 → 30/33 cards at ≥0.8, with shot count, contiguity
-  and cap compliance all unchanged. An earlier version that reflowed the
-  whole timeline scored higher on card placement but pushed 13 image
-  shots past `HARD_CAPS` — rejected; keep the edit local. Runs inside
-  `build_shot_plan` and, for existing dossiers, via
+  speech()` repairs each card with **trim** (card's words are inside its
+  own shot → tighten onto them, hand the freed time to the immediate
+  neighbour if it has cap room; 8/33 cards) or, when the words are
+  elsewhere, **`card_hides_captions = False`** (new `Shot` field; 20/33
+  cards) — the card's text and timing are left exactly as planned, and
+  the sentence track keeps running underneath it instead of going dark.
+  `render._write_captions`'s hidden-range computation now checks that
+  flag before treating a typography-kind shot as caption-suppressing.
+  Verified with a real `ffmpeg`+`libass` composite: a lower-third pull
+  quote (anchor 0.63) and the bottom-edge caption bar (margin 0.06)
+  never collide.
+
+  A first version of this pass instead **rewrote** the card to the
+  words spoken under it. Screened against a real cut it was a
+  regression on two counts: (1) the typography engine auto-shrinks
+  longer text, so a bold quote ("انقلابات ومكائد تحاك في كل زاوية.")
+  became a thin syntactically-broken line ("ومصالح شخصية تعترض طريق
+  الإصلاح الحقيقي كانت هذه فترة من") — 10 of 20 rewrites ended on a
+  dangling preposition or bare comma; (2) an auto-split card (same text,
+  two shots for motion variety) was rewritten independently per piece,
+  turning one heading into two unrelated fragments ("الصراع" /
+  "والسياسي بين"), confirmed on screen at 2:26–2:29. Reverted — a
+  card's `typography_text` is never rewritten now, split or not.
+
+  Card/voice **coverage** (voice heard, not overwritten) went 5/33 → 33/33
+  cards, with shot count, contiguity, cap compliance, and every card's
+  original text all unchanged. An even earlier version reflowed the
+  whole timeline to place every card exactly; it pushed 13 image shots
+  past `HARD_CAPS` and was rejected for the same reason — keep the edit
+  local, never trade the pacing work of P7.4 back away.
+
+  Runs inside `build_shot_plan` and, for existing dossiers, via
   `regenerate_captions.py` (`--no-sync-cards` to skip).
+
+- **Pool-shuffle reproducibility bug** (found during P7.9 screening,
+  2026-07-29): `decisions._list_portrait_pool` seeded its shuffle with
+  `hash(tuple(...))` — Python salts str/tuple `hash()` per process
+  (`PYTHONHASHSEED`), so the promised "reproducible across a re-render"
+  was false; three interpreter runs gave three different seeds.
+  Consequence on screen: the SAME dossier's shot 2 (labelled "first
+  glimpse of protagonist") landed on a different pool image every
+  render-only pass — including, once, a 3-D book-cover mockup instead of
+  a portrait, opening the film on three consecutive book images before
+  the protagonist's face ever appears. Fixed with an unsalted
+  `hashlib.sha256` seed.
 
 ### P5 batch (2026-07-05) — second-screening fixes
 

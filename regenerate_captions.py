@@ -113,8 +113,9 @@ def main(argv=None) -> int:
         shots = load_plan(plan_path)
         if not args.no_sync_cards:
             shots, rep = sync_typography_to_speech(shots, timings)
-            log.info("card sync: %d trimmed, %d rewritten of %d card(s)",
-                     rep["trimmed"], rep["retexted"], rep["n_cards"])
+            log.info("card sync: %d trimmed, %d left as designed but "
+                     "uncovering captions, of %d card(s)",
+                     rep["trimmed"], rep["uncovered"], rep["n_cards"])
         save_plan(shots, plan_path, caption_events=new_events)
         log.info("wrote %s (%d shots, %d captions; was %d captions / %d with "
                  "word timing)", plan_path, len(shots), len(new_events),
