@@ -376,7 +376,15 @@ class Decisions:
             if f.is_file() and f.suffix.lower() in self._PORTRAIT_POOL_EXTS:
                 pool.append(f)
         pool.sort(key=lambda x: x.name.lower())
-        seed = hash(tuple(f.name for f in pool)) & 0xFFFFFFFF
+        # Python salts str/tuple hash() per process (PYTHONHASHSEED), so
+        # seeding with hash() gave a DIFFERENT shuffle on every run despite
+        # this docstring's promise of reproducibility — confirmed directly
+        # (three interpreter runs, three different seeds) after a screening
+        # showed shot 2 land on a different portrait_pool image on every
+        # render-only pass of the identical dossier.  hashlib is unsalted.
+        import hashlib
+        digest = hashlib.sha256("\x00".join(f.name for f in pool).encode("utf-8")).digest()
+        seed = int.from_bytes(digest[:4], "big")
         random.Random(seed).shuffle(pool)
         return pool
 

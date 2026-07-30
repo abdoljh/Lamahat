@@ -103,6 +103,12 @@ class Shot:
     # Caption overlay (Arabic words spoken during this shot)
     caption_text: str = ""               # auto-filled by build_shot_plan
     show_caption: bool = True            # off for title_card / hero moments
+    card_hides_captions: bool = True     # P7.9: False when a typography
+                                         # card's quote is NOT what is being
+                                         # spoken during its span — the card
+                                         # stays a design element, but the
+                                         # sentence track keeps running
+                                         # underneath instead of going dark
 
     # Optional creative note from the planner (free-form, for debugging)
     note: str = ""
@@ -608,6 +614,7 @@ def _shot_from_dict(d: dict) -> Shot:
         typography_text=d.get("typography_text", "") or "",
         caption_text=d.get("caption_text", "") or "",
         show_caption=bool(d.get("show_caption", True)),
+        card_hides_captions=bool(d.get("card_hides_captions", True)),
         note=d.get("note", "") or "",
         section_id=d.get("section_id", "") or "",
     )
@@ -1169,30 +1176,43 @@ def sync_typography_to_speech(
     duplicated-title and repeated-phrase reports — clipping captions
     only treated the symptom.
 
-    Two bounded repairs, chosen per card:
+    One bounded repair, plus a fallback that changes no text:
 
     * **trim** — the card's words fall inside its own shot, so the shot
       is tightened onto them and the freed time is handed to the
       IMMEDIATE neighbour (never a global reflow: stretching the whole
       timeline pushed 13 image shots past `HARD_CAPS` and reintroduced
       the static-hold problem).
-    * **retext** — the card's words are somewhere else entirely, so the
-      card is rewritten to the words actually spoken during its span.
-      The line loses the planner's editorial trim but gains the thing
-      that matters: it says what the audience is hearing.
+    * **uncover** — the card's words are somewhere else entirely (or the
+      match is too diffuse to trust — this includes a card split across
+      two auto-split shots, whose combined text never fits inside either
+      piece).  An earlier version of this pass REWROTE the card to the
+      words spoken under it; screened against a real cut, that read as
+      a regression — a bold pull quote ("انقلابات ومكائد تحاك في كل
+      زاوية.") shrank to a thin, syntactically broken line ("ومصالح
+      شخصية تعترض طريق الإصلاح الحقيقي كانت هذه فترة من") because the
+      auto-fit shrinks longer text, so the typographic punctuation the
+      card exists for was lost at exactly the beats meant to carry the
+      most weight.  A split card's two pieces were also retexted
+      independently, turning one heading into two unrelated fragments
+      ("الصراع" / "والسياسي بين").  Now the card's text is left
+      completely untouched and `card_hides_captions` is set False
+      instead: the design stays on screen and the sentence track keeps
+      running underneath it, so the audience gets both instead of a
+      damaged version of one.
 
     Shot count and order are preserved, so a review dossier keyed by shot
     index stays valid — safe to run before a render-only pass.
     Returns `(shots, report)`.
     """
     if not shots or not word_timings:
-        return shots, {"trimmed": 0, "retexted": 0, "n_cards": 0}
+        return shots, {"trimmed": 0, "uncovered": 0, "n_cards": 0}
 
     narration = [(_norm_tokens(w.word) or [""])[0] for w in word_timings]
     out = [Shot(**asdict(s)) for s in shots]
     n = len(out)
     trimmed: list[int] = []
-    retexted: list[int] = []
+    uncovered: list[int] = []
     n_cards = 0
 
     def _min_dur(k: int) -> float:
@@ -1244,18 +1264,14 @@ def sync_typography_to_speech(
                 trimmed.append(i)
             continue
 
-        # Case 2 — the card quotes something spoken elsewhere (or nothing
-        # we can find).  Rewrite it to the words under it, so the card and
-        # the voice finally say the same thing.
-        spoken = [w.word for w in word_timings
-                  if w.start >= s.start - 0.05 and w.end <= s.end + 0.05]
-        text = " ".join(spoken).strip()
-        if not text or _norm_tokens(text) == card:
-            continue
-        out[i] = Shot(**{**asdict(s), "typography_text": text})
-        retexted.append(i)
-        log.debug("typography retext @%.2fs: %r -> %r",
-                  s.start, s.typography_text, text)
+        # Case 2 — the card quotes something spoken elsewhere, or nothing
+        # locatable at all.  Leave the text and timing exactly as planned
+        # (it is still a deliberate creative choice) and stop it from
+        # silencing the sentence track, so the audience gets the design
+        # AND the narration instead of a rewritten line and neither.
+        if s.card_hides_captions:
+            out[i] = Shot(**{**asdict(s), "card_hides_captions": False})
+            uncovered.append(i)
 
     # Re-stitch: only neighbours were touched, so this is a no-op check.
     for k in range(1, n):
@@ -1263,11 +1279,12 @@ def sync_typography_to_speech(
             out[k] = Shot(**{**asdict(out[k]), "start": out[k - 1].end})
 
     log.info("typography sync: %d card(s) trimmed onto their words, "
-             "%d rewritten to the words spoken under them (%d cards total)",
-             len(trimmed), len(retexted), n_cards)
-    return out, {"trimmed": len(trimmed), "retexted": len(retexted),
+             "%d left as designed but uncovering the caption track "
+             "beneath them (%d cards total)",
+             len(trimmed), len(uncovered), n_cards)
+    return out, {"trimmed": len(trimmed), "uncovered": len(uncovered),
                  "n_cards": n_cards,
-                 "trimmed_idx": trimmed, "retexted_idx": retexted}
+                 "trimmed_idx": trimmed, "uncovered_idx": uncovered}
 
 
 def repair_caption_events(

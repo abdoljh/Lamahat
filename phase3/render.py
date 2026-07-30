@@ -864,9 +864,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         # sentence that continues into the next shot (confirmed by
         # screenshot audit, 2026-07-28 — a clause vanished entirely
         # because the shot carrying it had show_caption=False).
+        # A card only earns silence when it is quoting the words spoken
+        # during its own span (P7.9 sync sets card_hides_captions=False
+        # otherwise) — a drifted card that stayed put keeps the sentence
+        # track running underneath it instead of going dark.
         hidden = sorted(
             (s.start, s.end) for s in shots
-            if s.visual in TYPOGRAPHY_VISUALS)
+            if s.visual in TYPOGRAPHY_VISUALS
+            and getattr(s, "card_hides_captions", True))
         MIN_SPAN = 0.4   # a clipped sliver shorter than this just flickers
         # A clipped span keeps only the words actually spoken while it was
         # on screen, which can leave a one- or two-word stub ("أن", "كان")
