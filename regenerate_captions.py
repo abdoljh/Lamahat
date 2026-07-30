@@ -112,7 +112,7 @@ def main(argv=None) -> int:
         n_before, n_words_before = _n_with_words(plan_path)
         shots = load_plan(plan_path)
         if not args.no_sync_cards:
-            shots, rep = sync_typography_to_speech(shots, timings)
+            shots, rep = sync_typography_to_speech(shots, timings, sections=sections)
             log.info("card sync: %d trimmed, %d left as designed but "
                      "uncovering captions, of %d card(s)",
                      rep["trimmed"], rep["uncovered"], rep["n_cards"])

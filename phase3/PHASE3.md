@@ -470,6 +470,24 @@ branch `claude/phase3-movie-quality-d1n58l`:
   combined span so both pieces get the same decision.
   Uncovered count on the reference plan: 20 → 9.
 
+- **P7.9 third correction** (2026-07-30): the second correction's
+  coverage metric (located-match words vs. shot bounds) was answering
+  the wrong question and still let two duplicates through, confirmed
+  on screen. What actually renders is not the located match — it's
+  whichever whole `CaptionEvent` overlaps the shot, un-clipped, since
+  clipping only fires against HIDDEN typography shots. Traced directly:
+  a card's own quote can BE the full text of an event whose own span
+  starts just before the shot ends and runs well past it — the located
+  match's timing looks fine (that's what scored 0.17/0.33, "safely
+  displaced") while the un-clipped event still burns its full text
+  across the overlap. Fixed with `_max_event_overlap`: builds the real
+  sentence-event track (`build_caption_events`, now sections-aware —
+  `sync_typography_to_speech` gained a `sections` param, wired through
+  `build_shot_plan` and `regenerate_captions.py`) and checks token
+  overlap, normalised by the smaller text, against every event
+  overlapping the card's span; uncovers only when every overlap scores
+  < 0.5. Uncovered count on the reference plan: 9 → 3.
+
 - **Pool-shuffle reproducibility bug** (found during P7.9 screening,
   2026-07-29): `decisions._list_portrait_pool` seeded its shuffle with
   `hash(tuple(...))` — Python salts str/tuple `hash()` per process

@@ -590,7 +590,7 @@ def build_shot_plan(
     # Put every typography card onto the words it quotes (P7.9).  Runs
     # after _validate_plan so it sees the final shot grid, and before
     # _fill_captions so each shot's caption_text reflects its real span.
-    shots, _ = sync_typography_to_speech(shots, word_timings)
+    shots, _ = sync_typography_to_speech(shots, word_timings, sections=sections)
     shots = _fill_captions(shots, word_timings)
 
     log.info("Plan produced: %d shots", len(shots))
@@ -1163,6 +1163,7 @@ def sync_typography_to_speech(
     shots: list[Shot],
     word_timings: list[WordTiming],
     *,
+    sections: "list[ScriptSection] | None" = None,
     tolerance: float = 0.35,
 ) -> tuple[list[Shot], dict]:
     """Make every typography card agree with the voice under it (P7.9).
@@ -1200,16 +1201,32 @@ def sync_typography_to_speech(
       instead: the design stays on screen and the sentence track keeps
       running underneath it, so the audience gets both instead of a
       damaged version of one.  Only fires when the card's words are
-      genuinely NOT what's being said during its span — screened
-      against a real cut (2026-07-29), uncovering a card whose located
-      match merely overran its shot by a second or two (the sentence
-      continues into a neighbour) put a near-duplicate of the card's
-      own words on screen as the caption, which read as a stutter, not
-      a design.  `_coverage` below is the guard: a card whose match is
-      MOSTLY inside its own span (>=50% of its words) is left hidden
-      even when it missed the stricter trim window, on the reasoning
-      that a slightly-early or slightly-late caption is a smaller sin
-      than showing the audience the same sentence twice at once.
+      genuinely NOT what's being said during its span.  Two screenings
+      found two different ways a card's own quote can still end up
+      duplicated by the caption track it no longer suppresses:
+      (i) a card whose located match merely overran its shot by a
+      second or two (the sentence continues into a neighbour) — first
+      caught 2026-07-29, checked by comparing the located match's own
+      timing against the shot's bounds; (ii) a card that fully or
+      mostly transcribes ONE sentence-level `CaptionEvent` whose own
+      time range only starts (or only ends) inside the card's shot —
+      that event is never CLIPPED against this shot (clipping only
+      happens at a HIDDEN typography boundary, and this shot no longer
+      counts as one), so it burns in full wherever it overlaps, which
+      is the card's own words repeated verbatim underneath it — caught
+      2026-07-30 from a real render ("بين دفتي هذا الكتاب ستجد نقاشا
+      صريحا..." as both the card and, seconds later inside the same
+      shot, the caption).  A located-word check like (i) cannot see
+      (ii): the event in that case starts, correctly, in the words
+      right after where the card's fuzzy match is anchored, so the
+      simple "is the match inside the shot" test scored it as safely
+      displaced.  `_max_event_overlap` below checks the thing that
+      actually renders — the sentence events overlapping the shot — not
+      an approximate located span, so it catches both.  A card is left
+      hidden whenever ANY overlapping event shares at least half of the
+      SMALLER of {card, event} in tokens, on the reasoning that a
+      slightly-early or slightly-late caption is a smaller sin than
+      showing the audience the same words twice at once.
 
     A card split across two auto-split shots (same text, adjacent, for
     motion variety — see `_shots_can_merge`) is judged and decided as
@@ -1250,19 +1267,31 @@ def sync_typography_to_speech(
     def _min_dur(k: int) -> float:
         return _MIN_DUR.get(out[k].visual, _MIN_DUR_DEFAULT)
 
-    def _coverage(card: list[str], hit: "tuple[int, int] | None",
-                  span: tuple[float, float]) -> float:
-        """Fraction of the located quote's words spoken inside `span`."""
-        if not hit:
-            return 0.0
-        lo, hi = hit
-        words = word_timings[lo:hi + 1]
-        if not words:
+    # The actual sentence-caption track the renderer will burn — matches
+    # render-time segmentation exactly when `sections` is available.
+    events = build_caption_events(word_timings, sections)
+
+    def _max_event_overlap(card: list[str], span: tuple[float, float]) -> float:
+        """Largest share of {card, event} (whichever is smaller) shared
+        with any CaptionEvent whose time range overlaps `span` — i.e. any
+        event the renderer will actually show while this card is on
+        screen, clipped or not."""
+        if not card:
             return 0.0
         s0, s1 = span
-        inside = sum(1 for w in words if w.start >= s0 - tolerance
-                    and w.end <= s1 + tolerance)
-        return inside / len(words)
+        card_set = set(card)
+        best = 0.0
+        for ev in events:
+            if ev.end <= s0 or ev.start >= s1:
+                continue
+            ev_set = set(_norm_tokens(ev.text))
+            if not ev_set:
+                continue
+            shared = len(card_set & ev_set)
+            denom = min(len(card_set), len(ev_set))
+            if denom:
+                best = max(best, shared / denom)
+        return best
 
     for i, s in enumerate(out):
         if s.visual not in _TYPO_VISUALS:
@@ -1311,16 +1340,16 @@ def sync_typography_to_speech(
             continue
 
         # Case 2 — the card missed the trim window.  Judge it (and, if
-        # split, its whole run) by how much of its quote falls inside its
-        # own on-screen span: mostly inside (>=50%) means the near-miss
-        # is a small timing overrun, and uncovering would put a
-        # near-duplicate of the card's own words on screen — worse than
-        # leaving it hidden.  Only a genuinely displaced quote earns the
-        # caption track running underneath it.
+        # split, its whole run) against every sentence event overlapping
+        # its span — not just the located match — since an overlapping
+        # event burns in full once this shot stops hiding captions,
+        # regardless of how the located-match test alone would have
+        # scored it.  >=50% shared with any one event means uncovering
+        # would put a near-duplicate of the card's own words on screen —
+        # worse than leaving it hidden.
         run = split_group.get(i, [i])
         run_span = (out[run[0]].start, out[run[-1]].end)
-        cov = _coverage(card, hit, run_span)
-        if cov >= 0.5:
+        if _max_event_overlap(card, run_span) >= 0.5:
             continue
         if s.card_hides_captions:
             out[i] = Shot(**{**asdict(s), "card_hides_captions": False})
