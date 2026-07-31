@@ -488,6 +488,32 @@ branch `claude/phase3-movie-quality-d1n58l`:
   overlapping the card's span; uncovers only when every overlap scores
   < 0.5. Uncovered count on the reference plan: 9 → 3.
 
+- **P7.10** (2026-07-30): **`audit_captions.py` + the actual root cause
+  of every "missing sentence" report.** Three screenings in a row found
+  another instance of the same defect class because each fix targeted
+  the frame that got screenshotted. The new tool audits the WHOLE
+  timeline — reconstructs what `_write_captions` burns, then classifies
+  all 651 narrated words as readable / LOST / DUPLICATED / LEAKED, exit
+  non-zero so it can gate a render. First run: **69 LOST words in 20
+  runs**, vs. the 2 that had been reported.
+  Root cause: `hidden` was the WHOLE shot span for any caption-
+  suppressing typography shot, but a card holds the frame far longer
+  than its line takes to say — every word of narration running past the
+  card's line inside that shot was deleted (`كيف يصنع العسكري ثورة؟`,
+  spoken 40.06–42.42, held to 44.54 and swallowed `وماذا يفعل عندما يقف
+  بين`). P7.8's `MIN_CLIPPED_WORDS=3` compounded it by dropping 1–2-word
+  spans outright.
+  Fixed with `_card_speech_window`: a card suppresses captions for
+  exactly the stretch its own words are spoken, located against the full
+  narration and used un-clipped — so narration the card doesn't carry
+  keeps its subtitle (0 LOST), the card's line is never re-printed in
+  the next shot (0 DUPLICATED), and nothing is lost to the wider window
+  since every word in it is printed on the card. `NEAR = 6.0 s` bounds
+  how far a card may be from its line before it carries nothing.
+  `MIN_CLIPPED_WORDS` removed; stubs are now merged into an adjacent cue
+  rather than dropped. Verified on three plan revisions: 651/651
+  readable, 0/0/0/0.
+
 - **Pool-shuffle reproducibility bug** (found during P7.9 screening,
   2026-07-29): `decisions._list_portrait_pool` seeded its shuffle with
   `hash(tuple(...))` — Python salts str/tuple `hash()` per process
