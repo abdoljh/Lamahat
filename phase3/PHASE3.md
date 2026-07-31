@@ -514,6 +514,30 @@ branch `claude/phase3-movie-quality-d1n58l`:
   rather than dropped. Verified on three plan revisions: 651/651
   readable, 0/0/0/0.
 
+- **P7.11** (2026-07-30): **a typography card must own the frame.**
+  P7.10's audit passed while the film still showed the defect, because
+  it was checking the wrong invariant: it silenced captions only for a
+  card's own line and treated a caption of *different* text under a card
+  as fine. A viewer checking the render shot-by-shot supplied the exact
+  list (15 typography shots) and the right diagnosis — "make sure of
+  disappearing the previous text before imposing the new typography".
+  Reproduced mechanically to within shot-numbering drift. The invariant
+  is now: **no caption is ever visible while a typography card is on
+  screen.**
+  Renderer: every typography shot silences at least its own span,
+  returned as TWO separate ranges (shot, line) — merging them was a real
+  bug, since a card 10 s from its line then silenced everything in
+  between. Plan: because a card now silences everything under it, the
+  trim shrinks cards onto the *overlap* with their line, and a new
+  Case 1b shrinks genuinely displaced cards to their minimum hold,
+  handing the seconds to neighbouring image shots (which may absorb
+  past `HARD_CAPS` by `CAP_SLACK = 1.5 s`, and absorb partially when
+  they cannot take it all). Cards trimmed 8 → 20; caption-over-card
+  14 → **0**; residual 38 words (5.8 %) heard but unreadable, all under
+  cards the planner placed away from their line — a planning defect a
+  re-plan fixes, not a render one. `audit_captions.py` gained
+  CAPTION-OVER-CARD as a hard failure.
+
 - **Pool-shuffle reproducibility bug** (found during P7.9 screening,
   2026-07-29): `decisions._list_portrait_pool` seeded its shuffle with
   `hash(tuple(...))` — Python salts str/tuple `hash()` per process

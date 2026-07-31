@@ -1305,39 +1305,97 @@ def sync_typography_to_speech(
                 else (word_timings[hit[0]].start,
                       word_timings[min(hit[1], len(word_timings) - 1)].end))
 
-        # Case 1 — the card's words live inside this shot: tighten onto them.
-        if (want and want[0] >= s.start - tolerance
-                and want[1] <= s.end + tolerance):
-            new_start = max(want[0], s.start)
-            new_end = min(want[1], s.end)
-            # A card may shrink to the length of its own line — holding a
-            # title for 1.7 s after its words are spoken buys nothing and
-            # costs a subtitle, since the card suppresses one.  1.5 s is
-            # the floor below which text stops being readable at all.
-            if new_end - new_start < 1.5:
-                continue
+        # Case 1 — the card's line overlaps this shot: tighten the shot
+        # onto the overlap.  Because the renderer silences the caption
+        # track for a card's WHOLE on-screen span (P7.10 — anything less
+        # puts a second block of text under a full-screen typography
+        # card, which screening flagged on 15 separate shots), every
+        # second a card holds beyond its own line is a second of
+        # narration the audience can hear but not read.  Shrinking the
+        # card to its line hands that time back to the neighbouring
+        # image shots, where captions run normally.  A neighbour is
+        # therefore allowed to absorb the time past its `HARD_CAPS`
+        # ceiling — a slightly long b-roll beat costs far less than a
+        # deleted clause.
+        overlap0 = max(want[0], s.start) if want else 0.0
+        overlap1 = min(want[1], s.end) if want else 0.0
+        if want and overlap1 - overlap0 >= 1.5:
+            new_start, new_end = overlap0, overlap1
             head = new_start - s.start          # time handed back
             tail = s.end - new_end              # time handed forward
-            if head > 0.05 and i > 0:
-                prev = out[i - 1]
-                if prev.duration + head <= HARD_CAPS.get(prev.visual, 8.0) + 0.1:
-                    out[i - 1] = Shot(**{**asdict(prev), "end": new_start})
+            CAP_SLACK = 1.5
+            if head > 0.05:
+                if i > 0:
+                    prev = out[i - 1]
+                    if (prev.duration + head
+                            <= HARD_CAPS.get(prev.visual, 8.0) + CAP_SLACK):
+                        out[i - 1] = Shot(**{**asdict(prev), "end": new_start})
+                    else:
+                        new_start = s.start     # neighbour genuinely full
                 else:
-                    new_start = s.start         # neighbour is full — keep as is
-            elif head > 0.05:
-                new_start = s.start
-            if tail > 0.05 and i + 1 < n:
-                nxt = out[i + 1]
-                if nxt.duration + tail <= HARD_CAPS.get(nxt.visual, 8.0) + 0.1:
-                    out[i + 1] = Shot(**{**asdict(nxt), "start": new_end})
+                    new_start = s.start
+            if tail > 0.05:
+                if i + 1 < n:
+                    nxt = out[i + 1]
+                    if (nxt.duration + tail
+                            <= HARD_CAPS.get(nxt.visual, 8.0) + CAP_SLACK):
+                        out[i + 1] = Shot(**{**asdict(nxt), "start": new_end})
+                    else:
+                        new_end = s.end
                 else:
                     new_end = s.end
-            elif tail > 0.05:
-                new_end = s.end
             if abs(new_start - s.start) > 0.05 or abs(new_end - s.end) > 0.05:
                 out[i] = Shot(**{**asdict(s), "start": new_start, "end": new_end})
                 trimmed.append(i)
             continue
+
+        # Case 1b — the card is DISPLACED: its line is spoken outside
+        # this shot entirely, so every second it holds is narration the
+        # audience hears with nothing readable on screen (the card owns
+        # the frame, P7.10).  We cannot move it onto its line without
+        # re-cutting the film, but we can stop it squatting: shrink it
+        # to the minimum readable hold and hand the rest to a
+        # neighbouring image shot, where captions run normally.
+        if want and len(split_group.get(i, [i])) == 1:
+            floor = _MIN_DUR.get(s.visual, _MIN_DUR_DEFAULT)
+            excess = s.duration - floor
+            if excess > 0.4:
+                CAP_SLACK = 1.5
+                # The card's line lies after this shot → hold the card as
+                # LATE as possible (shrink its head, the previous image
+                # shot absorbs).  Line lies before → hold it as EARLY as
+                # possible (shrink its tail, the next shot absorbs).
+                # Either way the card ends up nearer its own words and
+                # covers less unrelated narration.
+                # Absorb as much as the neighbour has room for rather
+                # than refusing outright — a partial shrink still hands
+                # real seconds back to a captioned shot, and all-or-
+                # nothing was rejecting fixes that missed the ceiling by
+                # fractions (shot 51 needed 9.69 s against a 9.5 s
+                # limit, and its whole clause stayed unreadable).
+                line_is_after = want[0] >= s.end
+                if line_is_after and i > 0:
+                    prev = out[i - 1]
+                    room = (HARD_CAPS.get(prev.visual, 8.0) + CAP_SLACK
+                            - prev.duration)
+                    take = min(excess, max(0.0, room))
+                    if take > 0.4:
+                        cut = s.start + take
+                        out[i - 1] = Shot(**{**asdict(prev), "end": cut})
+                        out[i] = Shot(**{**asdict(s), "start": cut})
+                        trimmed.append(i)
+                        continue
+                elif not line_is_after and i + 1 < n:
+                    nxt = out[i + 1]
+                    room = (HARD_CAPS.get(nxt.visual, 8.0) + CAP_SLACK
+                            - nxt.duration)
+                    take = min(excess, max(0.0, room))
+                    if take > 0.4:
+                        cut = s.end - take
+                        out[i] = Shot(**{**asdict(s), "end": cut})
+                        out[i + 1] = Shot(**{**asdict(nxt), "start": cut})
+                        trimmed.append(i)
+                        continue
 
         # Case 2 — the card missed the trim window.  Judge it (and, if
         # split, its whole run) against every sentence event overlapping

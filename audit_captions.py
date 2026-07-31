@@ -115,10 +115,9 @@ def audit(plan_path: Path, timings_path: Path | None,
             continue
         if not getattr(s, "card_hides_captions", True):
             continue
-        w = _card_speech_window(s, narr)
-        if w:
-            card_windows.append((w[0], w[1],
-                                 set(_norm_tokens(s.typography_text or "")), s))
+        toks = set(_norm_tokens(s.typography_text or ""))
+        for w in (_card_speech_window(s, narr) or []):
+            card_windows.append((w[0], w[1], toks, s))
 
     # Index the burned caption tokens by time.
     burned_tok = [(a, b, set(_norm_tokens(t)), t) for a, b, t in burned]
@@ -190,6 +189,20 @@ def audit(plan_path: Path, timings_path: Path | None,
         if extra:
             leaked.append((a, b, sorted(extra), text))
 
+    # LEAKAGE (the defect a viewer named on 15 separate shots): a
+    # subtitle sharing the frame with a full-screen typography card.
+    # Whatever the two texts say, two blocks of text at once reads as
+    # corruption — the previous caption must be gone before the card
+    # lands.
+    leak = []
+    for s in shots:
+        if s.visual not in TYPOGRAPHY_VISUALS:
+            continue
+        for a, b, _toks, text in burned_tok:
+            if b > s.start + 0.12 and a < s.end - 0.12:
+                leak.append((s.start, s.end, text, s))
+                break
+
     # Stubs: one- or two-word caption flashes.  Not a correctness bug —
     # the words ARE spoken then — but they read as flicker, so they are
     # reported separately rather than being silently dropped (dropping
@@ -197,7 +210,7 @@ def audit(plan_path: Path, timings_path: Path | None,
     stubs = [(a, b, t) for a, b, toks, t in burned_tok if len(t.split()) <= 2]
 
     return {"ok": ok, "lost": lost, "duplicated": dup, "leaked": leaked,
-            "stubs": stubs,
+            "stubs": stubs, "leak": leak,
             "n_words": len(timings), "n_burned": len(burned),
             "shots": shots, "events": events, "timings": timings}
 
@@ -229,13 +242,15 @@ def main(argv=None) -> int:
                 break
 
     r = audit(plan, wt, sc)
-    n_bad = len(r["lost"]) + len(r["duplicated"]) + len(r["leaked"])
+    n_bad = (len(r["lost"]) + len(r["duplicated"]) + len(r["leaked"])
+             + len(r["leak"]))
     print(f"\nAudit of {plan}")
     print(f"  {r['n_words']} narrated words, {r['n_burned']} burned caption lines")
     print(f"  readable      : {r['ok']}")
     print(f"  LOST          : {len(r['lost'])}")
     print(f"  DUPLICATED    : {len(r['duplicated'])}")
     print(f"  LEAKED lines  : {len(r['leaked'])}")
+    print(f"  CAPTION-OVER-CARD: {len(r['leak'])}")
     print(f"  stub captions : {len(r['stubs'])}  (1–2 words; flicker, not loss)")
 
     def _runs(items):
@@ -264,6 +279,13 @@ def main(argv=None) -> int:
             print(f"  {t:7.2f}s [{s.visual}] {share:.0%} shared")
             print(f"      card   : {s.typography_text}")
             print(f"      caption: {text}")
+    if r["leak"]:
+        print("\n── CAPTION VISIBLE DURING A TYPOGRAPHY CARD ──")
+        for a, b, text, s in r["leak"]:
+            print(f"  {a:7.2f}-{b:7.2f} [{s.visual}]")
+            print(f"      card   : {s.typography_text[:70]}")
+            print(f"      caption: {text[:70]}")
+
     if r["leaked"] and args.verbose:
         print("\n── LEAKED (burned but not spoken then) ──")
         for a, b, extra, text in r["leaked"]:
