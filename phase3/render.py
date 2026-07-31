@@ -815,7 +815,10 @@ def _card_speech_window(shot, words) -> "tuple[float, float] | None":
     # heading underneath itself.
     hit = _locate_card(card, [t for t, _, _ in words])
     if hit is None:
-        return None
+        # The card's line is nowhere in the narration (a credit card, a
+        # heading the script never speaks).  It still owns the frame, so
+        # nothing may be printed under it.
+        return [(shot.start, shot.end)]
     lo, hi = hit
     t0, t1 = words[lo][1], words[min(hi, len(words) - 1)][2]
 
@@ -829,19 +832,33 @@ def _card_speech_window(shot, words) -> "tuple[float, float] | None":
     if min(t1, shot.end) - max(t0, shot.start) <= 0.05:
         gap = max(t0 - shot.end, shot.start - t1)
         if gap > NEAR:
-            return None
+            # The line belongs to a distant part of the film; this card
+            # does not carry it.  Still silence the card's own span.
+            return [(shot.start, shot.end)]
 
-    # Suppress the caption for the card's WHOLE line, not just the part
-    # inside this shot.  A card typically holds for less time than its
-    # sentence takes to say, and clipping the window at the shot edge
-    # let the overflow be captioned in the next shot — re-printing, word
-    # for word, the line the audience had just read on the card (the
-    # duplication caught in screening at 6:07, and 7 more like it found
-    # by `audit_captions.py`).  Nothing is lost by hiding the overflow:
-    # every word in this range is, by construction, displayed on the
-    # card.  The audience reads it there, a beat before or after it is
-    # spoken — the ordinary offset of a pull quote.
-    return (t0, t1)
+    # Suppress the caption across BOTH the card's whole on-screen span
+    # and its whole spoken line (P7.10):
+    #
+    #  * the on-screen span, because a full-screen typography card must
+    #    never share the frame with a subtitle — screening found this on
+    #    15 separate shots ("shot 9, 15, 18, 24, 27, 33, 42, 45, 51, 57,
+    #    67, 70, 74, 76, 78 caused leakage"), and the viewer's note was
+    #    exactly right: the previous text has to be gone before the new
+    #    typography lands;
+    #  * the whole spoken line, because a card usually holds for less
+    #    time than its sentence takes to say, and clipping at the shot
+    #    edge let the overflow be captioned in the NEXT shot — reprinting
+    #    the line the audience had just read.
+    #
+    # `sync_typography_to_speech` shrinks each card onto its line first,
+    # so these stay close together and the remaining time goes back to
+    # neighbouring image shots, where captions run normally.
+    #
+    # Returned as TWO ranges, never merged into one: for a displaced
+    # card the shot and its line can be ten seconds apart, and a single
+    # spanning interval would silence everything in between — narration
+    # belonging to entirely unrelated shots.
+    return [(shot.start, shot.end), (t0, t1)]
 
 
 def _write_captions(shots: list[Shot], dest: Path,
@@ -944,13 +961,23 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         # frame to 44.54 and swallowed "وماذا يفعل عندما يقف بين".
         # `_card_speech_window` locates the card's own words inside the
         # shot; everything else in that shot keeps its subtitle.
+        # EVERY typography shot silences the caption track for at least
+        # its own on-screen span — a full-screen text card must never
+        # share the frame with a subtitle, whatever its text says.
+        # `card_hides_captions=False` no longer exempts a card from
+        # that; it now only means "do not extend the silence beyond this
+        # shot to cover the card's line elsewhere".
         _narr = _narration_words(events)
-        hidden = sorted(
-            w for w in (
-                _card_speech_window(s, _narr) for s in shots
-                if s.visual in TYPOGRAPHY_VISUALS
-                and getattr(s, "card_hides_captions", True))
-            if w is not None)
+        hidden = []
+        for s in shots:
+            if s.visual not in TYPOGRAPHY_VISUALS:
+                continue
+            if not getattr(s, "card_hides_captions", True):
+                hidden.append((s.start, s.end))
+                continue
+            for w in (_card_speech_window(s, _narr) or [(s.start, s.end)]):
+                hidden.append(w)
+        hidden.sort()
         # Never drop a sliver on word-count: doing so deleted narration
         # outright (P7.8 shipped MIN_CLIPPED_WORDS=3 to suppress "أن"/
         # "كان" stubs, which the same audit showed were themselves the
