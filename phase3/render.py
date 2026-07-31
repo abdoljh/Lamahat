@@ -775,6 +775,75 @@ def _escape_ass(text: str) -> str:
     return text.replace("\\", "\\\\").replace("{", r"\{").replace("\n", r"\N")
 
 
+def _narration_words(events) -> list[tuple[str, float, float]]:
+    """Flat, ordered (token, start, end) for the whole narration."""
+    from .plan import _norm_tokens
+    out: list[tuple[str, float, float]] = []
+    for ev in events or []:
+        for w in (getattr(ev, "words", None) or []):
+            tok = (_norm_tokens(str(w[0])) or [""])[0]
+            if tok:
+                out.append((tok, float(w[1]), float(w[2])))
+    out.sort(key=lambda x: x[1])
+    return out
+
+
+def _card_speech_window(shot, words) -> "tuple[float, float] | None":
+    """When, inside `shot`, is the card's OWN text actually being spoken?
+
+    Returns the (start, end) sub-window the card genuinely covers, or
+    None when the card's words are not spoken inside this shot at all
+    (a displaced quote, a section heading, a credit card) — in which
+    case the shot must not silence the caption track.
+
+    This is the fix for the "missing sentence" class of bug (P7.10).
+    Treating the WHOLE shot as hidden deletes any narration the card
+    does not carry: a card holding the frame for 5.5 s while its own
+    line takes 2.4 s to say swallows the 3 s of sentence that follows.
+    """
+    from .plan import _locate_card, _norm_tokens
+
+    card = _norm_tokens(getattr(shot, "typography_text", "") or "")
+    if not card or not words:
+        return None
+
+    # Locate the card's line in the FULL narration.  Locating only
+    # within the shot would reject a quote that legitimately starts a
+    # beat earlier or runs a beat later — and a card split across two
+    # shots for motion variety would match neither half (each holds well
+    # under half the line), leaving the caption track to re-print the
+    # heading underneath itself.
+    hit = _locate_card(card, [t for t, _, _ in words])
+    if hit is None:
+        return None
+    lo, hi = hit
+    t0, t1 = words[lo][1], words[min(hi, len(words) - 1)][2]
+
+    # The card must be on screen over its own line, or close enough to
+    # it that the audience reads the two as one beat.  A card that lags
+    # (or leads) its line by a shot still "carries" it — suppressing the
+    # caption there means the words appear once, on the card, instead of
+    # twice.  A card quoting something said minutes away carries
+    # nothing, and must not silence it.
+    NEAR = 6.0
+    if min(t1, shot.end) - max(t0, shot.start) <= 0.05:
+        gap = max(t0 - shot.end, shot.start - t1)
+        if gap > NEAR:
+            return None
+
+    # Suppress the caption for the card's WHOLE line, not just the part
+    # inside this shot.  A card typically holds for less time than its
+    # sentence takes to say, and clipping the window at the shot edge
+    # let the overflow be captioned in the next shot — re-printing, word
+    # for word, the line the audience had just read on the card (the
+    # duplication caught in screening at 6:07, and 7 more like it found
+    # by `audit_captions.py`).  Nothing is lost by hiding the overflow:
+    # every word in this range is, by construction, displayed on the
+    # card.  The audience reads it there, a beat before or after it is
+    # spoken — the ordinary offset of a pull quote.
+    return (t0, t1)
+
+
 def _write_captions(shots: list[Shot], dest: Path,
                    width: int, height: int,
                    *,
@@ -864,21 +933,32 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         # sentence that continues into the next shot (confirmed by
         # screenshot audit, 2026-07-28 — a clause vanished entirely
         # because the shot carrying it had show_caption=False).
-        # A card only earns silence when it is quoting the words spoken
-        # during its own span (P7.9 sync sets card_hides_captions=False
-        # otherwise) — a drifted card that stayed put keeps the sentence
-        # track running underneath it instead of going dark.
+        # A card silences the caption track ONLY for the stretch of time
+        # its own words are actually being spoken — not for its whole
+        # shot (P7.10).  Hiding the whole shot was the bug behind every
+        # "missing sentence" report: a 5.5 s card carrying one sentence
+        # sits over 5.5 s of narration that often runs on past it, and
+        # every word of that overrun was silently deleted — a
+        # whole-timeline audit found 69 such words in 20 runs, e.g. the
+        # card "كيف يصنع العسكري ثورة؟" (spoken 40.06–42.42) held the
+        # frame to 44.54 and swallowed "وماذا يفعل عندما يقف بين".
+        # `_card_speech_window` locates the card's own words inside the
+        # shot; everything else in that shot keeps its subtitle.
+        _narr = _narration_words(events)
         hidden = sorted(
-            (s.start, s.end) for s in shots
-            if s.visual in TYPOGRAPHY_VISUALS
-            and getattr(s, "card_hides_captions", True))
-        MIN_SPAN = 0.4   # a clipped sliver shorter than this just flickers
-        # A clipped span keeps only the words actually spoken while it was
-        # on screen, which can leave a one- or two-word stub ("أن", "كان")
-        # flashing after a typography card — noise, not a subtitle.  The
-        # card itself already carried that sentence's text, so dropping
-        # the stub loses nothing the viewer hasn't read (P7.8).
-        MIN_CLIPPED_WORDS = 3
+            w for w in (
+                _card_speech_window(s, _narr) for s in shots
+                if s.visual in TYPOGRAPHY_VISUALS
+                and getattr(s, "card_hides_captions", True))
+            if w is not None)
+        # Never drop a sliver on word-count: doing so deleted narration
+        # outright (P7.8 shipped MIN_CLIPPED_WORDS=3 to suppress "أن"/
+        # "كان" stubs, which the same audit showed were themselves the
+        # symptom of hiding whole shots).  With precise windows the
+        # stubs disappear at the source, so the only guard left is a
+        # true sub-frame sliver.
+        MIN_SPAN = 0.2
+        cues: list[list] = []      # [start, end, text] before stub-merging
         for ev in events:
             ev_text = (getattr(ev, "text", "") or "").strip()
             ev_start = float(getattr(ev, "start", 0.0))
@@ -910,14 +990,51 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 if ev_words and (a, b) != (ev_start, ev_end):
                     sub = [w for w in ev_words
                           if float(w[1]) >= a - 0.05 and float(w[2]) <= b + 0.05]
-                    span_text = " ".join(w[0] for w in sub).strip() or ev_text
-                    if len(span_text.split()) < MIN_CLIPPED_WORDS:
+                    span_text = " ".join(w[0] for w in sub).strip()
+                    if not span_text:
                         continue
                 else:
                     span_text = ev_text
-                body = _wrap_caption(_escape_ass(span_text), max_words_per_line=8)
-                lines.append(
-                    f"Dialogue: 0,{_ts(a)},{_ts(b)},Caption,,0,0,0,,{body}")
+                cues.append([a, b, span_text])
+
+        # Merge one- and two-word flashes into a neighbour rather than
+        # dropping them.  A detached "لأن" or "مستقل؟" on screen for
+        # 0.6 s reads as flicker, but deleting it would delete narration
+        # — the mistake P7.8 made.  Merging keeps every word and simply
+        # lets it share its neighbour's line.
+        cues.sort(key=lambda c: c[0])
+        STUB_WORDS, STUB_DUR, JOIN_GAP, MAX_WORDS = 2, 1.6, 0.45, 14
+        i = 0
+        while i < len(cues):
+            a, b, txt = cues[i]
+            if len(txt.split()) > STUB_WORDS or (b - a) > STUB_DUR:
+                i += 1
+                continue
+            prev = cues[i - 1] if i > 0 else None
+            nxt = cues[i + 1] if i + 1 < len(cues) else None
+            cand = None
+            if prev and a - prev[1] <= JOIN_GAP and \
+                    len(prev[2].split()) + len(txt.split()) <= MAX_WORDS:
+                cand = ("prev", prev)
+            elif nxt and nxt[0] - b <= JOIN_GAP and \
+                    len(nxt[2].split()) + len(txt.split()) <= MAX_WORDS:
+                cand = ("next", nxt)
+            if cand is None:
+                i += 1
+                continue
+            where, target = cand
+            if where == "prev":
+                target[1] = b
+                target[2] = f"{target[2]} {txt}".strip()
+            else:
+                target[0] = a
+                target[2] = f"{txt} {target[2]}".strip()
+            cues.pop(i)
+
+        for a, b, txt in cues:
+            body = _wrap_caption(_escape_ass(txt), max_words_per_line=8)
+            lines.append(
+                f"Dialogue: 0,{_ts(a)},{_ts(b)},Caption,,0,0,0,,{body}")
         if not lines:
             return None
         dest.parent.mkdir(parents=True, exist_ok=True)
