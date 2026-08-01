@@ -98,8 +98,27 @@ def audit(plan_path: Path, timings_path: Path | None,
         if sections:
             events = build_caption_events(timings, sections)
 
+    # Model the render loop's time-limited overlays (P7.14): a card drawn
+    # over footage only owns the frame while its own line is spoken.  The
+    # over-image path needs a prior real image to sit on, so it engages
+    # only after the first non-typography shot — mirrored here exactly.
+    from phase3.render import (_narration_words, _overlay_visible_window,
+                               _OVERLAY_VISUALS)
+    narr = _narration_words(events)
+    overlay_windows: dict[int, tuple[float, float]] = {}
+    seen_real = False
+    for i, s in enumerate(shots):
+        if s.visual not in TYPOGRAPHY_VISUALS:
+            seen_real = True
+            continue
+        if s.visual in _OVERLAY_VISUALS and seen_real:
+            w = _overlay_visible_window(s, narr)
+            if w:
+                overlay_windows[i] = w
+
     ass_path = plan_path.parent / ".audit_captions.ass"
-    _write_captions(shots, ass_path, 1920, 1080, events=events)
+    _write_captions(shots, ass_path, 1920, 1080, events=events,
+                    overlay_windows=overlay_windows)
     burned = _parse_ass(ass_path)
     ass_path.unlink(missing_ok=True)
 
@@ -107,15 +126,26 @@ def audit(plan_path: Path, timings_path: Path | None,
     # each.  A word inside one of these is readable ON THAT CARD — a
     # card holds for less time than its sentence takes to say, so its
     # line is deliberately suppressed for its whole spoken extent.
-    from phase3.render import _card_speech_window, _narration_words
-    narr = _narration_words(events)
+    from phase3.render import _card_speech_window
     card_windows = []
-    for s in shots:
+    for i, s in enumerate(shots):
         if s.visual not in TYPOGRAPHY_VISUALS:
+            continue
+        toks = set(_norm_tokens(s.typography_text or ""))
+        if i in overlay_windows:
+            # Time-limited overlay.  It is only ON SCREEN for its window
+            # (that is what the leak check uses), but while it is on
+            # screen it displays its ENTIRE line — so every word of that
+            # line has been read by the audience, including the ones
+            # spoken after the text has gone.  Credit readability across
+            # the whole line, visibility only across the window.
+            card_windows.append((*overlay_windows[i], toks, s))
+            for w in (_card_speech_window(s, narr) or []):
+                if w != (s.start, s.end):
+                    card_windows.append((w[0], w[1], toks, s))
             continue
         if not getattr(s, "card_hides_captions", True):
             continue
-        toks = set(_norm_tokens(s.typography_text or ""))
         for w in (_card_speech_window(s, narr) or []):
             card_windows.append((w[0], w[1], toks, s))
 
@@ -165,10 +195,11 @@ def audit(plan_path: Path, timings_path: Path | None,
     for a, b, toks, text in burned_tok:
         if len(toks) < MIN_DUP_TOKENS:
             continue
-        for s in shots:
+        for i, s in enumerate(shots):
             if s.visual not in TYPOGRAPHY_VISUALS:
                 continue
-            if s.end <= a or s.start >= b:
+            v0, v1 = overlay_windows.get(i, (s.start, s.end))
+            if v1 <= a or v0 >= b:
                 continue
             card = set(_norm_tokens(s.typography_text or ""))
             if not card:
@@ -195,12 +226,13 @@ def audit(plan_path: Path, timings_path: Path | None,
     # corruption — the previous caption must be gone before the card
     # lands.
     leak = []
-    for s in shots:
+    for i, s in enumerate(shots):
         if s.visual not in TYPOGRAPHY_VISUALS:
             continue
+        v0, v1 = overlay_windows.get(i, (s.start, s.end))
         for a, b, _toks, text in burned_tok:
-            if b > s.start + 0.12 and a < s.end - 0.12:
-                leak.append((s.start, s.end, text, s))
+            if b > v0 + 0.12 and a < v1 - 0.12:
+                leak.append((v0, v1, text, s))
                 break
 
     # Stubs: one- or two-word caption flashes.  Not a correctness bug —

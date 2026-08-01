@@ -576,6 +576,29 @@ branch `claude/phase3-movie-quality-d1n58l`:
   content across a shot for word-reveal, so this is tractable and is the
   right next structural step).
 
+- **P7.14** (2026-07-30): **time-limited typography overlay — the
+  structural fix.** Since P7.11 every card faced a forced choice:
+  silence narration it doesn't carry (LOST words) or share the frame
+  with a subtitle (leakage). That dilemma only existed because a card
+  was assumed to own its shot for the shot's full length. In
+  `typography-over-image` mode it needn't: the card is text over
+  footage, so it can appear only while its own line is spoken and let
+  the rest of the shot play as ordinary captioned footage. FFmpeg's
+  `overlay` already takes `enable='between(t,a,b)'` and the renderer was
+  already emitting timed enables for word-reveal — the mechanism existed,
+  applied to the wrong axis. `_overlay_png_on_clip` /
+  `_overlay_steps_on_clip` gained a `window`; the reveal now builds up
+  inside it. **Verified in a real encode** (window (2,4) on a 6 s clip:
+  hidden at 1 s, visible at 3 s, hidden at 5 s; reveal 0/1620/6420/0 lit
+  px). The window is **recorded by the render loop and passed to
+  `_write_captions`, never re-derived** — the over-image path falls back
+  to a static card with no prior image to sit on, so a re-derived window
+  could disagree with what was drawn. 28/33 cards now time-limited;
+  `LOST 21 → 14`, `DUPLICATED/LEAKED/CAPTION-OVER-CARD` all 0.
+  Residual 14 words (2.2 %) sit under displaced cards already at the
+  1.6 s readability floor — disabling Case 1b to make room measured
+  *worse* (18), so this is the floor for this plan; a re-plan closes it.
+
 - **Pool-shuffle reproducibility bug** (found during P7.9 screening,
   2026-07-29): `decisions._list_portrait_pool` seeded its shuffle with
   `hash(tuple(...))` — Python salts str/tuple `hash()` per process
