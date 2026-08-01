@@ -775,6 +775,55 @@ def _escape_ass(text: str) -> str:
     return text.replace("\\", "\\\\").replace("{", r"\{").replace("\n", r"\N")
 
 
+# P7.14 — the shortest a time-limited overlay may be before it is not
+# worth flashing at all; below this the card simply holds its whole shot.
+_MIN_OVERLAY_WINDOW = 1.2
+# How long a DISPLACED card (one whose line is spoken outside its shot)
+# holds the frame before yielding it back to the caption track.
+_DISPLACED_OVERLAY_HOLD = 2.5
+# Don't split a shot for this if what's left would be too short to read.
+_MIN_CAPTIONABLE_REMAINDER = 1.0
+
+
+def _overlay_visible_window(shot, words) -> "tuple[float, float] | None":
+    """Absolute (start, end) during which a card's text should be ON SCREEN.
+
+    In typography-over-image mode the "card" is text composited over
+    footage, so it does not have to occupy its whole shot.  Showing it
+    only while its own line is spoken lets the rest of the shot play as
+    ordinary footage with a normal subtitle — which dissolves the
+    trade-off that P7.11–P7.13 could only mitigate: a card no longer has
+    to choose between silencing narration it doesn't carry (words LOST)
+    and sharing the frame with a subtitle (leakage).
+
+    Returns None when the card should hold its whole shot: no locatable
+    line, or a line that barely overlaps this shot, where flashing the
+    text for a fraction of a second would look like a glitch.
+    """
+    win = _card_speech_window(shot, words)
+    if not win or len(win) < 2:
+        return None
+    t0, t1 = win[1]                      # the card's own spoken line
+    a = max(t0, shot.start)
+    b = min(t1, shot.end)
+    if b - a >= _MIN_OVERLAY_WINDOW:
+        return (a, b)
+
+    # DISPLACED card: its line is spoken outside this shot, so there is
+    # no in-shot stretch to sync to.  Rather than let it hold the whole
+    # shot — silencing narration it does not carry, which was the last
+    # remaining source of unreadable words — give it a short readable
+    # beat placed against its own line (at the shot's end if the line
+    # comes after, at the start if it came before) and let the rest of
+    # the shot play captioned.
+    hold = min(_DISPLACED_OVERLAY_HOLD, shot.duration)
+    if shot.duration - hold < _MIN_CAPTIONABLE_REMAINDER:
+        return None                      # too short to be worth splitting
+    if (t0 + t1) / 2.0 >= (shot.start + shot.end) / 2.0:
+        return (shot.end - hold, shot.end)
+    return (shot.start, shot.start + hold)
+
+
 def _narration_words(events) -> list[tuple[str, float, float]]:
     """Flat, ordered (token, start, end) for the whole narration."""
     from .plan import _norm_tokens
@@ -867,7 +916,8 @@ def _write_captions(shots: list[Shot], dest: Path,
                    caption_size: float = 1.0,
                    caption_color: "str | None" = None,
                    caption_pos: "float | None" = None,
-                   events: "list | None" = None) -> Path | None:
+                   events: "list | None" = None,
+                   overlay_windows: "dict | None" = None) -> Path | None:
     """
     Generate an ASS subtitle file.
 
@@ -969,15 +1019,27 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         # shot to cover the card's line elsewhere".
         _narr = _narration_words(events)
         hidden = []
-        for s in shots:
+        for idx, s in enumerate(shots):
             if s.visual not in TYPOGRAPHY_VISUALS:
+                continue
+            # P7.14: when the renderer actually drew this card as a
+            # TIME-LIMITED overlay, it only owns the frame for that
+            # window — the rest of its shot is plain footage and must
+            # keep its subtitle.  `overlay_windows` is recorded by the
+            # render loop itself, never re-derived here, so the two can
+            # never disagree about what was drawn.
+            win = (overlay_windows or {}).get(idx)
+            if win is not None:
+                hidden.append(win)
+                for w in (_card_speech_window(s, _narr) or []):
+                    hidden.append(w) if w != (s.start, s.end) else None
                 continue
             if not getattr(s, "card_hides_captions", True):
                 hidden.append((s.start, s.end))
                 continue
             for w in (_card_speech_window(s, _narr) or [(s.start, s.end)]):
                 hidden.append(w)
-        hidden.sort()
+        hidden = sorted(w for w in hidden if w)
         # Never drop a sliver on word-count: doing so deleted narration
         # outright (P7.8 shipped MIN_CLIPPED_WORDS=3 to suppress "أن"/
         # "كان" stubs, which the same audit showed were themselves the
@@ -1205,16 +1267,40 @@ def _bg_motion_clip(asset_path: Path, out_path: Path, duration: float,
     return out_path
 
 
+def _enable_expr(window: "tuple[float, float] | None",
+                 after: float = 0.0) -> str:
+    """FFmpeg `overlay` enable clause for a time-limited overlay (P7.14).
+
+    `window` is (start, end) in seconds RELATIVE to the clip.  None means
+    "visible for the whole clip", which is the historical behaviour.
+    `after` additionally delays the overlay (used by the word-by-word
+    reveal, where step k appears at its own time and stays).
+    """
+    if window is None:
+        return f":enable='gte(t,{after:.3f})'" if after else ""
+    a, b = window
+    a = max(a, after)
+    if b <= a:
+        return ":enable='0'"
+    return f":enable='between(t,{a:.3f},{b:.3f})'"
+
+
 def _overlay_png_on_clip(bg_clip: Path, overlay_png: Path, out_path: Path, *,
-                         fps: int) -> Path:
+                         fps: int,
+                         window: "tuple[float, float] | None" = None) -> Path:
     """Burn a static RGBA overlay PNG over a moving clip, re-encoding with the
     pipeline-standard profile (libx264/ultrafast/crf22/yuv420p) so
-    concat-by-copy stays valid."""
+    concat-by-copy stays valid.
+
+    With `window`, the text is only on screen for that sub-range of the
+    clip; outside it the shot plays as plain footage and the subtitle
+    track runs normally (P7.14)."""
     cmd = [
         "ffmpeg", "-y", "-loglevel", "error",
         "-i", str(bg_clip),
         "-i", str(overlay_png),
-        "-filter_complex", "[0:v][1:v]overlay=0:0:format=auto,format=yuv420p",
+        "-filter_complex",
+        f"[0:v][1:v]overlay=0:0:format=auto{_enable_expr(window)},format=yuv420p",
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
         "-pix_fmt", "yuv420p", "-r", str(fps),
         str(out_path),
@@ -1269,7 +1355,8 @@ def _rotate_backdrop(fetcher, src_shot_index: int | None,
 
 
 def _overlay_steps_on_clip(bg_clip: Path, steps: list[Path], out_path: Path, *,
-                           fps: int, duration: float) -> Path:
+                           fps: int, duration: float,
+                           window: "tuple[float, float] | None" = None) -> Path:
     """Word-by-word reveal (§7.9): stack CUMULATIVE overlay PNGs with timed
     FFmpeg enables.  Step k appears at its time and stays (each later step
     fully covers the earlier ones, so the topmost active overlay is the most
@@ -1280,9 +1367,13 @@ def _overlay_steps_on_clip(bg_clip: Path, steps: list[Path], out_path: Path, *,
     quote is fully readable for most of its hold.
     """
     if len(steps) == 1:
-        return _overlay_png_on_clip(bg_clip, steps[0], out_path, fps=fps)
+        return _overlay_png_on_clip(bg_clip, steps[0], out_path, fps=fps,
+                                    window=window)
 
-    reveal_span = min(1.6, duration * 0.45)
+    # With a window the reveal runs inside it, not across the whole clip.
+    w0 = window[0] if window else 0.0
+    span_avail = ((window[1] - window[0]) if window else duration)
+    reveal_span = min(1.6, max(span_avail, 0.1) * 0.45)
     interval = reveal_span / (len(steps) - 1)
 
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(bg_clip)]
@@ -1291,9 +1382,9 @@ def _overlay_steps_on_clip(bg_clip: Path, steps: list[Path], out_path: Path, *,
     parts = []
     prev = "[0:v]"
     for k in range(len(steps)):
-        t_k = k * interval
+        t_k = w0 + k * interval
         out_lbl = f"[v{k+1}]"
-        enable = f":enable='gte(t,{t_k:.3f})'" if k else ""
+        enable = _enable_expr(window, after=t_k)
         parts.append(f"{prev}[{k+1}:v]overlay=0:0:format=auto{enable}{out_lbl}")
         prev = out_lbl
     filter_graph = ";".join(parts) + f";{prev}format=yuv420p[vout]"
@@ -1769,6 +1860,12 @@ def render_video(shots: list[Shot], out_path: Path, *,
         _footage_run_start: float | None = None
         _backdrop_src_index: int | None = None
         _backdrop_alt_ptr: dict[int, int] = {}
+        # P7.14 — shot index -> (start, end) the card's text was actually
+        # composited for, when it was drawn as a time-limited overlay.
+        # Recorded from the render itself and handed to _write_captions,
+        # so the caption track can never disagree with what was drawn.
+        _overlay_windows: dict[int, tuple[float, float]] = {}
+        _narr_words = _narration_words(config.caption_events)
         for i, shot in enumerate(shots):
             asset_path = assets_dir / f"shot_{i:03d}.png"
             clip_path  = clips_dir  / f"shot_{i:03d}.mp4"
@@ -1849,9 +1946,20 @@ def render_video(shots: list[Shot], out_path: Path, *,
                         else:
                             _bg_motion_clip(last_real_asset, bg_clip,
                                             shot.duration, config)
+                        # Show the text only while its own line is spoken;
+                        # the rest of the shot plays as plain footage and
+                        # keeps its subtitle (P7.14).
+                        _abs_win = (_overlay_visible_window(shot, _narr_words)
+                                    if _narr_words else None)
+                        _rel_win = ((_abs_win[0] - shot.start,
+                                     _abs_win[1] - shot.start)
+                                    if _abs_win else None)
                         _overlay_steps_on_clip(bg_clip, overlay_steps,
                                                clip_path, fps=config.fps,
-                                               duration=shot.duration)
+                                               duration=shot.duration,
+                                               window=_rel_win)
+                        if _abs_win:
+                            _overlay_windows[i] = _abs_win
                         rendered = True
                     except Exception as exc:
                         log.warning("Shot %d typography-over-image failed (%s) "
@@ -1976,7 +2084,8 @@ def render_video(shots: list[Shot], out_path: Path, *,
                                        caption_size=config.caption_size,
                                        caption_color=config.caption_color,
                                        caption_pos=config.caption_pos,
-                                       events=config.caption_events)
+                                       events=config.caption_events,
+                                       overlay_windows=_overlay_windows)
 
         # ── Final mux: burn captions + mux audio + hard-trim ──────── #
         _prog("mux audio and captions", 0.92)
