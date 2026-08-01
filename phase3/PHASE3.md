@@ -538,6 +538,26 @@ branch `claude/phase3-movie-quality-d1n58l`:
   re-plan fixes, not a render one. `audit_captions.py` gained
   CAPTION-OVER-CARD as a hard failure.
 
+- **P7.12** (2026-07-30): **stale `card_hides_captions` survived every
+  re-run.** The user's audit reported two DUPLICATED on a plan whose
+  sync had just logged "0 uncovering captions" — the card's own line,
+  captioned right after the card, at 139.43 s and 365.61 s.
+  `sync_typography_to_speech` only ever CLEARED the flag, never set it
+  back, so cards marked `False` by the P7.9-era logic kept that value
+  through every later regeneration and no re-run could repair them; with
+  the flag `False` the renderer hides only the shot span, leaving the
+  card's line free to be captioned in the next shot. Reproduced
+  deterministically (same two shots, same timestamps, same text). Fixed
+  by resetting the flag to `True` for every shot before deciding, so the
+  decision is recomputed from scratch each run — verified with EVERY
+  card deliberately marked `False` on two plan revisions, results
+  identical to a clean plan. Rule for this pass generally: a
+  repair pass that can only ever clear a flag cannot repair a plan that
+  already has it set. Also: Case 1b now compares span CENTRES rather
+  than `want[0] >= s.end` when choosing which end of a displaced card to
+  shrink (the edge test moved cards away from their own words when the
+  line straddled the shot end). LOST 38 → 37.
+
 - **Pool-shuffle reproducibility bug** (found during P7.9 screening,
   2026-07-29): `decisions._list_portrait_pool` seeded its shuffle with
   `hash(tuple(...))` — Python salts str/tuple `hash()` per process

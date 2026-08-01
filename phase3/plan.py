@@ -1242,7 +1242,14 @@ def sync_typography_to_speech(
         return shots, {"trimmed": 0, "uncovered": 0, "n_cards": 0}
 
     narration = [(_norm_tokens(w.word) or [""])[0] for w in word_timings]
-    out = [Shot(**asdict(s)) for s in shots]
+    # Recompute `card_hides_captions` from scratch every run.  This pass
+    # only ever CLEARS the flag, so without resetting it first a plan
+    # carried across code revisions keeps a stale False forever and the
+    # re-run silently cannot repair it — confirmed against a real
+    # dossier (2026-07-30): two cards marked uncovered by the P7.9-era
+    # logic still had their line captioned right after the card, at
+    # 139.43 s and 365.61 s, on a plan whose sync reported "0 uncovered".
+    out = [Shot(**{**asdict(s), "card_hides_captions": True}) for s in shots]
     n = len(out)
     trimmed: list[int] = []
     uncovered: list[int] = []
@@ -1373,7 +1380,13 @@ def sync_typography_to_speech(
                 # nothing was rejecting fixes that missed the ceiling by
                 # fractions (shot 51 needed 9.69 s against a 9.5 s
                 # limit, and its whole clause stayed unreadable).
-                line_is_after = want[0] >= s.end
+                # Compare CENTRES, not edges.  `want[0] >= s.end` was too
+                # strict: a line that starts just inside the shot and runs
+                # well past it is centred after the card, but failed the
+                # test and got shrunk from the tail — moving the card
+                # AWAY from its own words instead of toward them.
+                line_is_after = ((want[0] + want[1]) / 2.0
+                                 >= (s.start + s.end) / 2.0)
                 if line_is_after and i > 0:
                     prev = out[i - 1]
                     room = (HARD_CAPS.get(prev.visual, 8.0) + CAP_SLACK
