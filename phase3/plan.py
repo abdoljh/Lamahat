@@ -1331,26 +1331,33 @@ def sync_typography_to_speech(
             head = new_start - s.start          # time handed back
             tail = s.end - new_end              # time handed forward
             CAP_SLACK = 1.5
+            # Absorb as much as each neighbour has room for.  All-or-
+            # nothing here was the single biggest remaining source of
+            # unreadable narration: shot 9 needed to hand over 2.12 s to
+            # a neighbour with 2.10 s of room and so handed over nothing,
+            # keeping its whole tail clause off screen.
             if head > 0.05:
+                take = 0.0
                 if i > 0:
                     prev = out[i - 1]
-                    if (prev.duration + head
-                            <= HARD_CAPS.get(prev.visual, 8.0) + CAP_SLACK):
-                        out[i - 1] = Shot(**{**asdict(prev), "end": new_start})
-                    else:
-                        new_start = s.start     # neighbour genuinely full
-                else:
-                    new_start = s.start
+                    room = (HARD_CAPS.get(prev.visual, 8.0) + CAP_SLACK
+                            - prev.duration)
+                    take = min(head, max(0.0, room))
+                    if take > 0.05:
+                        out[i - 1] = Shot(**{**asdict(prev),
+                                             "end": s.start + take})
+                new_start = s.start + take
             if tail > 0.05:
+                take = 0.0
                 if i + 1 < n:
                     nxt = out[i + 1]
-                    if (nxt.duration + tail
-                            <= HARD_CAPS.get(nxt.visual, 8.0) + CAP_SLACK):
-                        out[i + 1] = Shot(**{**asdict(nxt), "start": new_end})
-                    else:
-                        new_end = s.end
-                else:
-                    new_end = s.end
+                    room = (HARD_CAPS.get(nxt.visual, 8.0) + CAP_SLACK
+                            - nxt.duration)
+                    take = min(tail, max(0.0, room))
+                    if take > 0.05:
+                        out[i + 1] = Shot(**{**asdict(nxt),
+                                             "start": s.end - take})
+                new_end = s.end - take
             if abs(new_start - s.start) > 0.05 or abs(new_end - s.end) > 0.05:
                 out[i] = Shot(**{**asdict(s), "start": new_start, "end": new_end})
                 trimmed.append(i)
