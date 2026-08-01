@@ -558,6 +558,24 @@ branch `claude/phase3-movie-quality-d1n58l`:
   shrink (the edge test moved cards away from their own words when the
   line straddled the shot end). LOST 38 → 37.
 
+- **P7.13** (2026-07-30): **partial absorption in the main trim.** With
+  every reported defect at zero, 36 words remained heard-but-unreadable.
+  One dominant cause: Case 1 (the main trim) was still all-or-nothing —
+  partial absorption had only been added to Case 1b — so cards missing
+  by fractions handed over *nothing* (shot 9 kept its whole tail clause
+  off screen rather than overrun a neighbour by 0.02 s). Case 1 now
+  absorbs whatever room each neighbour has: cards trimmed 20 → 24,
+  LOST 36 → **22**. `CAP_SLACK` re-tuned (0.0 → 52 lost/0 over-cap,
+  1.0 → 31/14, **1.5 → 22/14**, worst overrun 1.5 s, longest shot
+  9.50 s). Verified on two plan revisions × clean and fully-stale flags:
+  `DUPLICATED 0, LEAKED 0, CAPTION-OVER-CARD 0`, contiguous, 84 shots.
+  Residual 22 words (3.4 %) is the last fraction by which a card's span
+  exceeds its line where the neighbour is at its ceiling — closable only
+  by a re-plan, or by making the typography-over-image overlay
+  time-limited to its own line (the renderer already varies overlay
+  content across a shot for word-reveal, so this is tractable and is the
+  right next structural step).
+
 - **Pool-shuffle reproducibility bug** (found during P7.9 screening,
   2026-07-29): `decisions._list_portrait_pool` seeded its shuffle with
   `hash(tuple(...))` — Python salts str/tuple `hash()` per process
