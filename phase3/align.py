@@ -28,9 +28,20 @@ Backends (auto-selected in this order)
 
 The WhisperX/Whisper backends transcribe the audio independently and
 align *their* transcript to *their* timing.  We then map the script's
-known words onto that timeline by token order, not by string match —
-TTS systems sometimes pronounce a word with a slight phonetic variation
-that breaks string equality.  Order is much more reliable.
+known words onto that timeline by CONTENT — matching runs of script
+tokens against ASR tokens and anchoring on them, interpolating only
+inside the gaps between anchors (P7.15).
+
+This used to be done by token ORDER alone ("order is much more
+reliable"), with a proportional stretch whenever the counts differed.
+That assumption is wrong in a way that gets worse the longer the film
+runs: ASR errors are LOCAL (a dropped word here, two words merged
+there) but proportional mapping is GLOBAL, so a single three-word drop
+smears its error across the whole timeline — measured on a synthetic
+200-token script, one 3-word deletion put every token out by up to 2 s,
+including tokens BEFORE the error.  That is the "captions drift out of
+sync with the narration partway through" failure.  Anchoring on matched
+content confines each ASR error to its own gap.
 
 Output
 ------
@@ -334,6 +345,24 @@ def _interpolate(tokens: list[str], total_duration_sec: float) -> list[WordTimin
 
 # ── Token → ASR word alignment ───────────────────────────────────────────── #
 
+def _norm_for_match(token: str) -> str:
+    """Fold a token to its bare comparison form (P7.15).
+
+    Strips diacritics and punctuation and folds the orthographic
+    variants that routinely differ between a written script and an ASR
+    transcript, so an anchor isn't lost to a hamza seat or a final
+    ta-marbuta.  Kept local to this module: `plan.py` imports `align`,
+    so importing its twin from here would be circular.
+    """
+    import unicodedata
+    t = unicodedata.normalize("NFKD", token)
+    t = "".join(ch for ch in t if not unicodedata.combining(ch))
+    t = re.sub(r"[^\w]", "", t, flags=re.UNICODE)
+    for a, b in (("أ", "ا"), ("إ", "ا"), ("آ", "ا"), ("ى", "ي"), ("ة", "ه")):
+        t = t.replace(a, b)
+    return t
+
+
 def _map_tokens_to_asr(
     tokens: list[str],
     asr_words: list[tuple[str, float, float]],
@@ -341,48 +370,122 @@ def _map_tokens_to_asr(
     source: str,
 ) -> list[WordTiming]:
     """
-    Pair each script token with an ASR word by position.
+    Pair each script token with its ASR word by CONTENT, not position.
 
-    The ASR may produce a slightly different word count than the script
-    (mismatched tokenisation, dropped/added words, fillers).  Strategy:
+    The script is the authoritative TEXT (it is what the audience must
+    read); the ASR supplies only TIMING.  The job is therefore to find,
+    for each script token, the moment it is actually spoken.
 
-    - If counts match exactly: 1-to-1 pairing.
-    - If ASR has fewer words: distribute the missing tokens proportionally
-      across the nearest neighbouring ASR words.
-    - If ASR has more words: collapse extra ASR words into the nearest
-      script token (keep the union of timestamps).
+    Strategy — anchor, then interpolate inside gaps:
 
-    This is a much simpler heuristic than dynamic-programming alignment
-    but works well in practice for TTS audio (which faithfully reads the
-    script in order).
+    1. Normalise both token streams for comparison (diacritics stripped,
+       hamza/alef-maqsura/ta-marbuta folded) so a phonetic or
+       orthographic wobble doesn't break a match.
+    2. `difflib.SequenceMatcher` gives the matching blocks — long runs
+       where script and ASR agree.  These are ANCHORS and take their
+       ASR word's timing verbatim.
+    3. Script tokens between two anchors are spread evenly across the
+       time between those anchors.  An ASR error is therefore contained
+       inside its own gap and cannot move anything outside it.
+    4. Tokens before the first / after the last anchor extrapolate from
+       the audio's own bounds.
+
+    Why not the old proportional mapping: ASR errors are local, that
+    mapping was global.  One 3-word deletion in a 200-token script put
+    EVERY token out by up to 2 s, including tokens before the deletion.
+    Anchoring holds drift to zero wherever script and ASR agree, which
+    on TTS narration is the overwhelming majority of the film.
     """
+    import difflib
+
     n_script = len(tokens)
     n_asr = len(asr_words)
     if n_script == 0 or n_asr == 0:
         return []
 
-    # Exact match — easy path
-    if n_script == n_asr:
+    a_norm = [_norm_for_match(t) for t in tokens]
+    b_norm = [_norm_for_match(w) for w, _, _ in asr_words]
+
+    # Fast path ONLY when the two streams genuinely say the same thing.
+    # Equal LENGTH is not the same test and must never be used as one: a
+    # transcript that drops four words and invents four others has the
+    # identical count while every pairing after the first drop is wrong.
+    # (Caught in testing, 2026-07-30 — a 4-drop/4-insert case scored the
+    # same 1.28 s drift as the old proportional mapping because it took
+    # this branch.)
+    if n_script == n_asr and a_norm == b_norm:
         return [
             WordTiming(word=tok, start=s, end=e, source=source)
             for tok, (_, s, e) in zip(tokens, asr_words)
         ]
+    sm = difflib.SequenceMatcher(a=a_norm, b=b_norm, autojunk=False)
 
-    # Proportional remapping
-    timings: list[WordTiming] = []
-    for i, tok in enumerate(tokens):
-        # Project script index i ∈ [0, n_script) onto ASR index range
-        asr_idx_low = int(i * n_asr / n_script)
-        asr_idx_high = int((i + 1) * n_asr / n_script)
-        asr_idx_low = max(0, min(n_asr - 1, asr_idx_low))
-        asr_idx_high = max(asr_idx_low + 1, min(n_asr, asr_idx_high))
+    starts: list[float | None] = [None] * n_script
+    ends: list[float | None] = [None] * n_script
+    n_anchor = 0
+    for blk in sm.get_matching_blocks():
+        for k in range(blk.size):
+            i, j = blk.a + k, blk.b + k
+            if i < n_script and j < n_asr:
+                starts[i], ends[i] = asr_words[j][1], asr_words[j][2]
+                n_anchor += 1
 
-        start = asr_words[asr_idx_low][1]
-        end = asr_words[asr_idx_high - 1][2]
-        timings.append(WordTiming(word=tok, start=start, end=end, source=source))
+    audio_start = asr_words[0][1]
+    audio_end = asr_words[-1][2]
 
-    log.info("Token/ASR count mismatch (%d script vs %d ASR) — "
-             "used proportional mapping", n_script, n_asr)
+    # Fill the gaps between anchors by even spread.
+    anchored = [i for i in range(n_script) if starts[i] is not None]
+    if not anchored:
+        # Nothing matched at all — fall back to a single even spread over
+        # the audio rather than pretending to know more than we do.
+        log.warning("Alignment: no content anchors between script (%d) and "
+                    "ASR (%d) — spreading evenly over the audio",
+                    n_script, n_asr)
+        step = (audio_end - audio_start) / max(n_script, 1)
+        return [WordTiming(word=tok,
+                           start=audio_start + i * step,
+                           end=audio_start + (i + 1) * step,
+                           source=source)
+                for i, tok in enumerate(tokens)]
+
+    def _fill(lo: int, hi: int, t0: float, t1: float) -> None:
+        """Spread tokens lo..hi-1 evenly across [t0, t1]."""
+        n = hi - lo
+        if n <= 0:
+            return
+        span = max(t1 - t0, 0.0)
+        step = span / n if n else 0.0
+        for k in range(n):
+            starts[lo + k] = t0 + k * step
+            ends[lo + k] = t0 + (k + 1) * step
+
+    first, last = anchored[0], anchored[-1]
+    _fill(0, first, audio_start, starts[first])
+    for x, y in zip(anchored, anchored[1:]):
+        if y > x + 1:
+            _fill(x + 1, y, ends[x], starts[y])
+    _fill(last + 1, n_script, ends[last], audio_end)
+
+    timings = [WordTiming(word=tok, start=float(starts[i]), end=float(ends[i]),
+                          source=source)
+               for i, tok in enumerate(tokens)]
+
+    # Enforce monotonicity — a pathological anchor pair could otherwise
+    # emit a caption that starts before the previous one ended.
+    for i in range(1, n_script):
+        if timings[i].start < timings[i - 1].start:
+            timings[i].start = timings[i - 1].start
+        if timings[i].end < timings[i].start:
+            timings[i].end = timings[i].start
+
+    pct = 100.0 * n_anchor / n_script
+    msg = ("Alignment: %d script tokens vs %d ASR words — %d anchored on "
+           "content (%.0f%%), rest interpolated inside gaps")
+    if pct < 60.0:
+        log.warning(msg + "; LOW anchor rate, captions may drift",
+                    n_script, n_asr, n_anchor, pct)
+    else:
+        log.info(msg, n_script, n_asr, n_anchor, pct)
     return timings
 
 

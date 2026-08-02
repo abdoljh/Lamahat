@@ -57,6 +57,8 @@ Alignment
 ---------
     --align-backend NAME    auto | whisperx | whisper | interpolated
                             [default: auto — tries each in order]
+    --word-timings PATH     Reuse timings from an earlier --align-only run
+                            (--plan-only) instead of aligning again
 
 Output extras
 -------------
@@ -183,6 +185,9 @@ def _build_parser() -> argparse.ArgumentParser:
     # Alignment
     p.add_argument("--align-backend", default="auto",
                    choices=["auto", "whisperx", "whisper", "interpolated"])
+    p.add_argument("--word-timings", metavar="PATH",
+                   help="Reuse a word-timings JSON from an earlier "
+                        "--align-only run instead of re-aligning (--plan-only)")
 
     # Output extras
     p.add_argument("--save-plan", metavar="PATH",
@@ -293,8 +298,17 @@ def _run_plan_only(args, script_text: str, anthropic_key: str) -> None:
 
     print("── Step 1: Forced alignment " + "─" * 39)
     t0 = time.perf_counter()
-    timings = align(script_text, audio_path, total_dur,
-                    prefer_backend=args.align_backend)
+    if args.word_timings:
+        # Reuse timings computed (and verified) by an earlier --align-only
+        # run.  WhisperX takes minutes; planning against the exact array a
+        # verify_narration.py gate passed also removes any chance of the
+        # two steps disagreeing about what was said.
+        from phase3.align import load_word_timings
+        timings = load_word_timings(args.word_timings)
+        print(f"  loaded {len(timings)} word timings from {args.word_timings}")
+    else:
+        timings = align(script_text, audio_path, total_dur,
+                        prefer_backend=args.align_backend)
     backend = timings[0].source if timings else "n/a"
     print(f"  {len(timings)} words aligned via {backend} "
           f"({time.perf_counter() - t0:.1f}s)\n")

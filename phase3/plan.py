@@ -586,10 +586,13 @@ def build_shot_plan(
         shots, word_timings, _global_punct_flags(sections, word_timings))
     shots = _assign_sections(shots, section_word_map)
     shots = _normalise_fields(shots)
+    # Pin each typography card to the moment its line is actually spoken
+    # (P7.16).  Runs BEFORE _validate_plan so the caps, runaway splitter
+    # and merge pass clean up after the rebuild.
+    shots, _ = relocate_typography_cards(shots, word_timings)
     shots = _validate_plan(shots, total_duration_sec)
-    # Put every typography card onto the words it quotes (P7.9).  Runs
-    # after _validate_plan so it sees the final shot grid, and before
-    # _fill_captions so each shot's caption_text reflects its real span.
+    # Then fine-trim onto the words each card quotes (P7.9): relocation
+    # gets a card to its line, this squares off the remaining fractions.
     shots, _ = sync_typography_to_speech(shots, word_timings, sections=sections)
     shots = _fill_captions(shots, word_timings)
 
@@ -1157,6 +1160,148 @@ def _locate_card(card: list[str], narration: list[str],
     if (hi - lo + 1) > 1.5 * len(card) + 2:
         return None
     return lo, hi
+
+
+def relocate_typography_cards(
+    shots: list[Shot],
+    word_timings: list[WordTiming],
+    *,
+    min_card: float = 1.6,
+    min_image: float = 1.4,
+) -> tuple[list[Shot], dict]:
+    """Pin every typography card to the moment its own line is spoken (P7.16).
+
+    The planner receives the word timings but still places pull quotes by
+    narrative feel rather than by the clock.  Measured on a fresh 85-shot
+    plan: only 12 of 35 cards sat within 0.5 s of their own line, median
+    drift 2.6 s, worst **16 seconds early** ("الإصلاح الحقيقي لا يتوقف
+    على التسليح…" on screen at 102.5 s, spoken at 118.3 s).  The viewer
+    reads one sentence while hearing another, then reads it AGAIN when
+    the caption track reaches it — exactly the "differences between
+    narration and captions, repetition also noted" report, whose first
+    offender sits at 73.3 s ≈ the 1:12 mark that was flagged.
+
+    `sync_typography_to_speech` cannot repair this — it only trims a card
+    onto a line that already overlaps its shot.  Nor can a simple
+    reorder: moving one card shifts every later shot, so cards that were
+    correct fall off their lines and the pass thrashes (measured: 85
+    moves, no improvement in the within-0.5 s count).
+
+    So this rebuilds the timeline instead of nudging it.  Card spans come
+    from the NARRATION and are therefore correct by construction; the
+    image shots keep their original order and are distributed across the
+    gaps between cards in proportion to their planned durations.  Cards
+    whose text cannot be located in the narration (credits, headings the
+    script never speaks) keep their planned position.
+
+    Safe only BEFORE the dossier exists — shot indices move — which is
+    where `build_shot_plan` calls it.  Never run it against a plan whose
+    `decisions.json` has already been built.
+    """
+    if not shots or not word_timings:
+        return shots, {"pinned": 0, "n_cards": 0}
+
+    narration = [(_norm_tokens(w.word) or [""])[0] for w in word_timings]
+    t_start, t_end = shots[0].start, shots[-1].end
+
+    # 1. Locate each card's own line in the narration.
+    pinned: list[tuple[Shot, float, float]] = []
+    floating: list[Shot] = []
+    n_cards = 0
+    for s in shots:
+        if s.visual in _TYPO_VISUALS and (s.typography_text or "").strip():
+            n_cards += 1
+            hit = _locate_card(_norm_tokens(s.typography_text), narration)
+            if hit is not None:
+                lo, hi = hit
+                a = word_timings[lo].start
+                b = word_timings[min(hi, len(word_timings) - 1)].end
+                if b - a >= min_card * 0.5:
+                    pinned.append((s, a, max(b, a + min_card)))
+                    continue
+        floating.append(s)
+
+    if not pinned:
+        return shots, {"pinned": 0, "n_cards": n_cards}
+
+    # 2. Cards in narration order, overlaps resolved by clipping forward.
+    pinned.sort(key=lambda x: x[1])
+    fixed: list[tuple[Shot, float, float]] = []
+    cursor = t_start
+    for s, a, b in pinned:
+        a2 = max(a, cursor)
+        b2 = max(b, a2 + min_card)
+        if b2 > t_end:
+            b2 = t_end
+            a2 = min(a2, max(t_start, b2 - min_card))
+        if a2 >= t_end or b2 - a2 < min_card * 0.5:
+            floating.append(s)
+            continue
+        fixed.append((s, a2, b2))
+        cursor = b2
+
+    # 3. Distribute the floating (image) shots across the gaps between
+    #    cards, preserving their order and relative durations.
+    gaps: list[tuple[float, float]] = []
+    prev = t_start
+    for _, a, b in fixed:
+        if a - prev > 0.01:
+            gaps.append((prev, a))
+        prev = b
+    if t_end - prev > 0.01:
+        gaps.append((prev, t_end))
+
+    total_gap = sum(b - a for a, b in gaps)
+    total_float = sum(max(s.duration, 0.05) for s in floating) or 1.0
+    out: list[Shot] = []
+    fi = 0
+    # How many floats each gap can take, by proportional share of time.
+    for gi, (ga, gb) in enumerate(gaps):
+        span = gb - ga
+        share = span / total_gap if total_gap else 0.0
+        want = span
+        take: list[Shot] = []
+        acc = 0.0
+        while fi < len(floating):
+            d = max(floating[fi].duration, 0.05)
+            is_last_gap = (gi == len(gaps) - 1)
+            if not is_last_gap and take and acc + d > want + 0.01:
+                break
+            take.append(floating[fi]); acc += d; fi += 1
+            if not is_last_gap and acc >= want - 0.01:
+                break
+        if not take:
+            continue
+        scale = span / acc if acc else 1.0
+        t = ga
+        for s in take:
+            d2 = max(max(s.duration, 0.05) * scale, min_image * 0.5)
+            out.append(Shot(**{**asdict(s), "start": t, "end": min(t + d2, gb)}))
+            t = out[-1].end
+        if out:
+            out[-1] = Shot(**{**asdict(out[-1]), "end": gb})
+    # Any floats that didn't fit go to the tail of the last gap.
+    for s in floating[fi:]:
+        out.append(Shot(**{**asdict(s), "start": t_end, "end": t_end}))
+
+    out.extend(Shot(**{**asdict(s), "start": a, "end": b}) for s, a, b in fixed)
+    out.sort(key=lambda s: (s.start, s.end))
+
+    # 4. Re-stitch to strict contiguity, dropping degenerate slivers.
+    final: list[Shot] = []
+    t = t_start
+    for s in out:
+        if s.end - s.start < 0.15 and final:
+            continue
+        final.append(Shot(**{**asdict(s), "start": t,
+                             "end": max(s.end, t + 0.15)}))
+        t = final[-1].end
+    if final:
+        final[-1] = Shot(**{**asdict(final[-1]), "end": t_end})
+
+    log.info("typography relocation: pinned %d/%d card(s) to their own line "
+             "(%d shots -> %d)", len(fixed), n_cards, len(shots), len(final))
+    return final, {"pinned": len(fixed), "n_cards": n_cards}
 
 
 def sync_typography_to_speech(

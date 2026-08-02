@@ -599,6 +599,98 @@ branch `claude/phase3-movie-quality-d1n58l`:
   1.6 s readability floor — disabling Case 1b to make room measured
   *worse* (18), so this is the floor for this plan; a re-plan closes it.
 
+- **P7.15** (2026-07-30): **alignment mapped script→audio by POSITION,
+  not content.** `align._map_tokens_to_asr` paired tokens by index and
+  stretched proportionally when counts differed. ASR errors are local,
+  that mapping is global: on a 200-token test one 3-word deletion put
+  every token out by up to 2.00 s, including tokens BEFORE the deletion.
+  Fixed by anchoring on `difflib` matching blocks and interpolating only
+  inside gaps — drift falls to ≤0.09 s max / ≈0.00 s mean across drop,
+  insertion and mixed-error scenarios. A bug inside the fix, worth
+  remembering: the `n_script == n_asr` fast path is unsound, since a
+  transcript that drops four words and invents four others has the same
+  count with every pairing wrong; narrowed to genuine content equality.
+  `verify_narration.py` (new) gates a run by comparing script to
+  narration by content.
+  **Retraction attached:** this section originally blamed a
+  script/narration divergence at 4:16. That was false — it came from a
+  stale `audit/main_script.txt` cached from a Drive zip on 26 July. The
+  repo script matches the narration 651/651 (100 %). The alignment
+  defect is real; it is *not* established as the cause of the reported
+  1:12 drift. **Confirm which artifact you are testing before reasoning
+  from it.**
+
+- **P7.16** (2026-08-01): **the planner places pull quotes off their
+  words — diagnosed from the real run's artifacts.** Script/narration
+  100 %, caption events clean, burned text matching spoken words
+  exactly — but only **12 of 35 cards sat within 0.5 s of their own
+  line** (median drift 2.62 s, worst 16 s early), and the first bad card
+  is at 73.3 s, matching the reported "~1:12". A card showing a sentence
+  early makes the viewer read one thing while hearing another, and the
+  caption track then prints that sentence again when it is spoken —
+  both reported symptoms from one cause.
+  `relocate_typography_cards()` takes card spans from the NARRATION
+  (correct by construction) and distributes the image shots across the
+  gaps, running before `_validate_plan` so caps clean up after. A naive
+  reorder was tried first and thrashes — moving one card shifts every
+  later shot. Result on the real plan: median drift 2.62 → **0.00 s**,
+  LOST 34 → **10**, 0 over cap. Total-solution only (shot indices move);
+  `regenerate_captions.py` does not call it, so render-only dossiers
+  stay valid.
+
+- **P7.17** (2026-08-02): **the notebooks could not deliver the fixes.**
+  Reviewing `resources/_phase3_main.ipynb` before the next total-solution
+  run turned up four defects that would have wasted the run:
+  1. `BRANCH = "main"` in both notebooks — `origin/main` carries **none**
+     of P7.7–P7.16 (`relocate_typography_cards` appears 0 times there and
+     `verify_narration.py` does not exist). Running either notebook as
+     committed reproduces exactly the 1:13 drift that was just fixed.
+     Both are now pinned to `claude/phase3-movie-quality-d1n58l`; put
+     them back to `"main"` when it merges.
+  2. The render cells passed `--no-captions`, while the user's own
+     `render.log` shows `captions=on` — the flag was being hand-deleted
+     in Colab every run, and a stale comment in the settings cell said
+     the `CAPTION_*` knobs were inert. Removed; `main`'s render cell now
+     also passes the `--title-size/-color`, `--caption-size/-color/-pos`
+     flags it was silently dropping.
+  3. Nothing checked the plan before a ~40-minute render. Added two
+     gates that raise (so "Run all" stops): `verify_narration.py` after
+     alignment, `audit_captions.py` after planning — and one gate before
+     the render-only render. `audit_captions.py` gained `--max-lost N`:
+     DUPLICATED / LEAKED / CAPTION-OVER-CARD still fail at 1 (defects),
+     while the residual LOST count gets a budget (10 on the verified
+     plan, notebook budget 12) so the gate is honest rather than
+     permanently red.
+  4. The align cell used `--align-backend interpolated` (a smoke test)
+     and the plan cell then re-aligned from scratch. Alignment is now
+     computed once with the real backend, verified, and reused via a new
+     `phase3_run.py --word-timings PATH` flag — so WhisperX runs once and
+     planner and captions cannot disagree about what was said.
+  Also: `prebuild_assets.py` never copies `shot_plan.json`,
+  `word_timings.json` or `script.txt` into the dossier (only
+  `build_total_solution` does), so a CLI-built `review.zip` was not
+  self-contained and neither `audit_captions.py` nor
+  `regenerate_captions.py` could run against it. The main notebook's zip
+  cell now copies all three in first.
+
+  **Branch hygiene, learned the hard way in the same session.** The
+  first version of this work was committed onto a branch that had been
+  cut before several rounds of the user's own uploads to `main`, so the
+  notebooks it edited were stale copies: `main` already had the curated
+  photo bank, a one-word script correction (`والخرائط` removed — the
+  narration never says it), `TITLE_SUBTITLE`/`CAPTION_SIZE` set,
+  `--no-captions` already deleted from the render-only render cell, and
+  two hand-added cells (`regenerate_captions.py`, `audit_captions.py`).
+  Merging that branch would have reverted all of it. The branch was
+  rebuilt on top of `origin/main` and the notebook edits re-applied to
+  `main`'s versions — keeping the user's cells and settings, adding only
+  the gates and the flags that were being dropped. **The rule: this repo
+  is edited from two directions (commits here, GitHub-UI uploads to
+  `main`). Before editing a file that the user also uploads —
+  notebooks, scripts, resources — diff the branch copy against
+  `origin/main` first.** It is the same "which artifact am I testing"
+  failure as the stale-script episode, one level up.
+
 - **Pool-shuffle reproducibility bug** (found during P7.9 screening,
   2026-07-29): `decisions._list_portrait_pool` seeded its shuffle with
   `hash(tuple(...))` — Python salts str/tuple `hash()` per process
