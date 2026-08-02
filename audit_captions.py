@@ -253,6 +253,12 @@ def main(argv=None) -> int:
     ap.add_argument("--plan", required=True, type=Path)
     ap.add_argument("--word-timings", type=Path, default=None)
     ap.add_argument("--script", type=Path, default=None)
+    ap.add_argument("--max-lost", type=int, default=0, metavar="N",
+                    help="tolerate up to N lost words before failing "
+                         "(default 0).  DUPLICATED / LEAKED / "
+                         "CAPTION-OVER-CARD always fail at 1 — those are "
+                         "defects, whereas a handful of lost words is the "
+                         "current floor on a real plan")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
@@ -274,12 +280,14 @@ def main(argv=None) -> int:
                 break
 
     r = audit(plan, wt, sc)
-    n_bad = (len(r["lost"]) + len(r["duplicated"]) + len(r["leaked"])
-             + len(r["leak"]))
+    n_defect = len(r["duplicated"]) + len(r["leaked"]) + len(r["leak"])
+    n_lost_over = max(0, len(r["lost"]) - args.max_lost)
+    n_bad = n_defect + n_lost_over
     print(f"\nAudit of {plan}")
     print(f"  {r['n_words']} narrated words, {r['n_burned']} burned caption lines")
     print(f"  readable      : {r['ok']}")
-    print(f"  LOST          : {len(r['lost'])}")
+    print(f"  LOST          : {len(r['lost'])}"
+          f"{f'   (budget {args.max_lost})' if args.max_lost else ''}")
     print(f"  DUPLICATED    : {len(r['duplicated'])}")
     print(f"  LEAKED lines  : {len(r['leaked'])}")
     print(f"  CAPTION-OVER-CARD: {len(r['leak'])}")
@@ -323,7 +331,17 @@ def main(argv=None) -> int:
         for a, b, extra, text in r["leaked"]:
             print(f"  {a:7.2f}-{b:7.2f}  extra={extra}\n      {text}")
 
-    print(f"\n{'FAIL' if n_bad else 'PASS'}: {n_bad} violation(s)")
+    if n_bad:
+        detail = []
+        if n_defect:
+            detail.append(f"{n_defect} caption defect(s)")
+        if n_lost_over:
+            detail.append(f"{n_lost_over} lost word(s) over the "
+                          f"{args.max_lost}-word budget")
+        print(f"\nFAIL: {', '.join(detail)}")
+    else:
+        tail = f"; {len(r['lost'])} lost word(s) within budget" if r["lost"] else ""
+        print(f"\nPASS: no caption defects{tail}")
     return 1 if n_bad else 0
 
 
