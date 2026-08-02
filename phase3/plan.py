@@ -1148,18 +1148,37 @@ def _locate_card(card: list[str], narration: list[str],
     blocks = [b for b in sm.get_matching_blocks() if b.size]
     if not blocks:
         return None
-    if sum(b.size for b in blocks) < min_cover * len(card):
+
+    # A real quote occupies roughly its own length in the narration, so a
+    # match is only believed inside a window of that size.  A section
+    # heading like "الصراع الأيديولوجي والسياسي — بين الولاء والحلم" joins
+    # two phrases the narration keeps seconds apart; spanning both would
+    # stretch the card across half a minute.
+    span_limit = 1.5 * len(card) + 2
+
+    # Score CLUSTERS, not the global min..max of the matching blocks.  A
+    # common word of the card usually also appears somewhere far away —
+    # "رجل" in "رجل تردد وتألم واختار بشجاعة" matches both the closing
+    # line at 380 s and "رجل واحد حمل سلاحا" in the opening hook at 2 s.
+    # Taking min..max then produced a 650-token span, the window rejected
+    # it, and the card was reported UNLOCATABLE: `relocate_typography_cards`
+    # left it wherever the planner had put it (on screen at 405 s, quoting
+    # a line spoken at 380 s — visible in the 2026-08-02 cut at 6:46).
+    best: tuple[int, int, int] | None = None   # (covered, lo, hi)
+    for seed in blocks:
+        lo, hi, covered = seed.a, seed.a + seed.size - 1, 0
+        for b in blocks:
+            n_lo = min(lo, b.a)
+            n_hi = max(hi, b.a + b.size - 1)
+            if (n_hi - n_lo + 1) <= span_limit:
+                lo, hi, covered = n_lo, n_hi, covered + b.size
+        if covered < min_cover * len(card):
+            continue
+        if best is None or (covered, -(hi - lo)) > (best[0], -(best[2] - best[1])):
+            best = (covered, lo, hi)
+    if best is None:
         return None
-    lo = min(b.a for b in blocks)
-    hi = max(b.a + b.size for b in blocks) - 1
-    # Reject a DIFFUSE match.  A section heading like "الصراع الأيديولوجي
-    # والسياسي — بين الولاء والحلم" joins two phrases the narration keeps
-    # seconds apart; matching the first and last of them spans everything
-    # in between and would stretch the card across half a minute.  A real
-    # quote occupies roughly its own length in the narration.
-    if (hi - lo + 1) > 1.5 * len(card) + 2:
-        return None
-    return lo, hi
+    return best[1], best[2]
 
 
 def relocate_typography_cards(

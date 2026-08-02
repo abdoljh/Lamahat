@@ -691,6 +691,26 @@ branch `claude/phase3-movie-quality-d1n58l`:
   `origin/main` first.** It is the same "which artifact am I testing"
   failure as the stale-script episode, one level up.
 
+- **P7.18** (2026-08-02): **`_locate_card` lost cards to a stray common
+  word** — found by auditing the first good cut (95 shots, 641/651
+  readable, 0 caption defects). One card still sat 25 s from its line:
+  «رجل تردد وتألم واختار بشجاعة.» on screen at 405.3 s (over the closing
+  credits) while the sentence is spoken at 380.4 s — verified on the
+  rendered frame at 6:46. Cause: the locator took the global
+  `min..max` of difflib's matching blocks, and «رجل» also appears in the
+  opening hook («رجل واحد حمل سلاحا») at 2 s. The span came out ~650
+  tokens, the diffuse-match window rejected it, and the card was
+  reported UNLOCATABLE — so `relocate_typography_cards` left it wherever
+  the planner put it. Now the blocks are clustered and the best cluster
+  wins, so a far-away duplicate of one word no longer poisons the match;
+  the diffuse guard still rejects a genuinely split heading, because a
+  half-heading cluster falls under `min_cover`. Replayed through the
+  full post-planner pipeline on that run's own raw Sonnet response:
+  pinned 25/26 cards, the card lands at 380.37 s (drift 0), plan
+  95 → 96 shots, **LOST 10 → 6**, stubs 3 → 2, DUPLICATED / LEAKED /
+  CAPTION-OVER-CARD still 0/0/0. Both render-only reference plans audit
+  unchanged (10 and 21 LOST, 0 defects, same shot counts).
+
 - **Pool-shuffle reproducibility bug** (found during P7.9 screening,
   2026-07-29): `decisions._list_portrait_pool` seeded its shuffle with
   `hash(tuple(...))` — Python salts str/tuple `hash()` per process
