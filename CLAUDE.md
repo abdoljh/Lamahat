@@ -33,7 +33,11 @@ phase3_run.py             # Phase 3 v2 CLI: dry-run / align / plan / full render
 render_plan.py            # Render a saved shot plan JSON → MP4
 prebuild_assets.py        # Build the review/ dossier (candidate images + pins)
 condition_assets.py       # Normalise captured assets before render
-audit_plan.py             # Quality audit of a saved shot plan
+audit_plan.py             # Structural audit of a plan (+ text-vs-imagery balance)
+audit_captions.py         # Whole-timeline caption audit — gates a render
+verify_narration.py       # Script vs narration agreement — gates a render
+regenerate_captions.py    # Re-derive a dossier's caption track (no API call)
+overlay_card.py           # Still-frame sandbox: card over image, no render
 .streamlit/config.toml    # server.maxUploadSize=400 (bigger dossier .zip uploads)
 fonts/                    # Amiri TTFs (incl. AmiriQuranColored for Family C)
 resources/                # Sample inputs + the two Colab notebooks
@@ -430,34 +434,69 @@ Phase 4 is complete once Phase 3 produces broadcast-quality output.
 
 ## Immediate Next Steps (start here next session)
 
-> Full session handover: **phase3/PHASE3.md §0 "Session handover"** and
-> the screening ledger **phase3/SCREENING_REVIEW.md**.  Both routes
-> (Total solution + Rendering only) and the P0–P5 batches are verified;
-> what remains is curation, the first ElevenLabs render, and screening
-> decisions.
+> **Session handover — 2026-08-02.**  Deep reference: **phase3/PHASE3.md
+> §0** (P7.15–P7.19 entries at the end of the "Open / waiting" list carry
+> this session's findings).  Screening ledger: **phase3/SCREENING_REVIEW.md**.
 
-1. **Merge `claude/phase3-review-plan-8sbeue` to `main`** (all five
-   P-batches live there), then point the notebooks' `BRANCH` back to
-   `"main"`.
+**Where things stand.** The caption-synchronisation work is finished and
+verified on a real cut: script↔narration 651/651, 641/651 words readable,
+**0 duplicated / 0 leaked / 0 caption-over-card**, cards at median 0.00 s
+from the line they quote.  The film is good; what remains is curation and
+one open experiment.
 
-2. **Curation pass** (SCREENING_REVIEW.md §5.1): add 3–4 bank photos
-   for the education / CUP beats, fix the four era-miss shots via the
-   dossier, keep `PHOTO_BANK_MAX_USES = 2`.
+Active branch: **`claude/phase3-movie-quality-d1n58l`** (PR #69, one
+commit, based on current `main`).  Both notebooks pin this branch —
+put `BRANCH` back to `"main"` when the PR lands.
 
-3. **First ElevenLabs render**: set `ELEVENLABS_API_KEY` /
-   `ELEVENLABS_VOICE_ID` secrets, regenerate the MP3 in the Phase 2
-   tab, re-run WhisperX alignment on Colab, re-plan + render.
+1. **Render-only pass on the kept 95-shot dossier.**  Drop the revised
+   plan in as `output/shot_plan.json` and run
+   `resources/_phase3_render_only.ipynb`.  Two index-preserving edits
+   (shot 91 retexted to a credits card, shot 94 captioned) take LOST
+   10 → 6 with no planner call.  **Safe render-only plan edits:**
+   `typography_text`, `typography_template`, `show_caption`, and per-shot
+   image swaps (`my_*.jpg` in the shot folder, or `chosen_file` in
+   `decisions.json`).  **Never** add, remove or reorder shots — the
+   dossier is keyed by shot index.
 
-4. **Screening decisions** on the new cut: make `--word-reveal` a
-   default?  `--backdrop-rotate 10` cadence right?  Try a
-   `grade_map.json` three-act arc (`{"opening":"neutral",
-   "point_3":"cool","closing":"warm"}`)?  Verify the `Wikipedia: N
-   lead-image candidates` log line (source still ⚠ not live-verified).
+2. **Curation** (both fix things seen on screen):
+   - `resources/character/` holds three book renders (`memoirs_3dw1`,
+     `memoirs_3dw2`, `memoirs_in_shelf`).  `memoirs_3dw2` wins rank 0 and
+     lands on shot 2 — *"first reveal of the protagonist"* — so the film
+     opens on a book, not a face.  Move them to `photo_bank/`.
+   - 5 Pexels stills survive as era-gated last resorts (modern stock in a
+     1900s film).  Bank photos for those beats close the loop.
 
-5. **Real alignment on Cloud** (unchanged constraint): compute
-   `word_timings.json` off-Cloud (Colab / `phase3_run.py --align-only`)
-   and upload it in the Total-solution *Alignment* expander — WhisperX
-   won't fit in Cloud's ~1 GB RAM.
+3. **Do NOT re-plan hoping for a better cut.**  Tried 2026-08-02: a fresh
+   Sonnet roll scored a *perfect* `LOST 0` and was rejected on sight —
+   44 % typography vs the kept cut's 31 %, a 16.3 s wall of text.
+   `audit_plan.py` now prints a **Text vs imagery** block that catches
+   this before rendering.  Treat LOST as a floor, not a target.
+
+4. **Open experiment**: `overlay_card.py` (new) composites a card over a
+   still in one second instead of a 40-minute render — text mode uses the
+   renderer's own overlay path, card mode keys/blends an existing
+   `card_preview.png`.  The user has an idea to test with it.
+
+5. **Unchanged constraint**: WhisperX will not fit in Streamlit Cloud's
+   ~1 GB RAM.  Compute `word_timings.json` off-Cloud (Colab or
+   `phase3_run.py --align-only`) and upload it in the Total-solution
+   *Alignment* expander.
+
+**Gates before any render** (both wired into the notebooks, both raise):
+`verify_narration.py` after alignment, `audit_captions.py --max-lost 12`
+after planning.  Reference numbers on a good plan: 641 readable, ~10 LOST
+(credits tail), 0/0/0 defects.
+
+**Two standing lessons from this session**, both earned the hard way:
+- *Confirm which artifact you are testing.*  A stale script cached
+  earlier in a session, and stale notebook copies on a branch cut before
+  the user's own uploads to `main`, each produced confident but wrong
+  conclusions.  This repo is edited from two directions — commits here
+  and GitHub-UI uploads to `main` — so diff against `origin/main` before
+  editing anything the user also uploads.
+- *A metric can be gamed by the thing it measures.*  `audit_captions.py`
+  rewards printing narration on cards; it cannot see whether the result
+  is a film.
 
 ---
 
@@ -516,8 +555,12 @@ Phase 4 is complete once Phase 3 produces broadcast-quality output.
 - All file paths in session state are absolute paths
 
 ### Git workflow
-- Active development branch: `claude/phase3-review-plan-8sbeue`
-  (holds the P0–P5 batches; merge to `main`, then branch fresh per task)
+- Active development branch: `claude/phase3-movie-quality-d1n58l`
+  (PR #69 — P7.15–P7.19; merge to `main`, then branch fresh per task)
+- **`main` also receives GitHub-UI uploads from the user** (notebooks,
+  photo bank, script).  Before editing one of those files, diff the branch
+  copy against `origin/main` — a branch cut days ago holds a stale copy,
+  and merging it would revert the user's own work.
 - Commit message format: `Phase N: <what changed>`
 - Push to the active branch after each logical unit of work
 
