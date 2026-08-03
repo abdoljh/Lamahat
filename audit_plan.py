@@ -191,6 +191,74 @@ def _effective_holds(plan: list[dict], review_dir: Path | None,
     print()
 
 
+_CARD_VISUALS = _OVERLAY_VISUALS | {"title_card"}
+# Reference points from two real cuts of the same 418 s narration, judged
+# by eye rather than by metric: the accepted cut ran 31 % text with a
+# longest unbroken text run of 9.6 s; the rejected one ran 44 % with a
+# 16.3 s run.  Thresholds sit between them.
+_TEXT_SHARE_WARN, _TEXT_SHARE_FAIL = 0.35, 0.42
+_TEXT_RUN_WARN = 12.0
+
+
+def _text_balance(plan: list[dict]) -> None:
+    """How much of the film is reading rather than watching.
+
+    `audit_captions.py` cannot see this.  It asks whether every spoken
+    word is readable somewhere, and a plan can score a perfect zero LOST
+    by printing the narration onto cards instead of playing it over
+    photographs — which is exactly how a plan that audits perfectly can
+    still feel like a slideshow (measured 2026-08-02: the 44 %-text cut
+    scored LOST 0 and was rejected on sight; the 31 % cut scored LOST 10
+    and was kept).  So this reports the balance the caption audit is
+    blind to, before ~40 minutes of rendering.
+
+    With `--typography-over-image` a card still carries the previous
+    shot's footage behind its text, so these seconds are not blank — but
+    the viewer is reading them, not watching, which is what the number
+    is about.
+    """
+    total = plan[-1]["end"] - plan[0]["start"]
+    if total <= 0:
+        return
+    card_t = sum(s["end"] - s["start"] for s in plan if s["visual"] in _CARD_VISUALS)
+    n_cards = sum(1 for s in plan if s["visual"] in _CARD_VISUALS)
+    share = card_t / total
+
+    # Longest unbroken stretch of cards — the "wall of text" measure.
+    best_t = best_n = cur_t = cur_n = 0.0
+    best_at = cur_at = 0
+    for i, s in enumerate(plan, 1):
+        if s["visual"] in _CARD_VISUALS:
+            if not cur_n:
+                cur_at = i
+            cur_t += s["end"] - s["start"]
+            cur_n += 1
+            if cur_t > best_t:
+                best_t, best_n, best_at = cur_t, cur_n, cur_at
+        else:
+            cur_t = cur_n = 0.0
+
+    marker = ("✓" if share < _TEXT_SHARE_WARN
+              else "⚠" if share < _TEXT_SHARE_FAIL else "❌")
+    print("Text vs imagery:")
+    print(f"   {marker}  typography on screen  {card_t:6.0f}s / {total:.0f}s "
+          f"({share:.0%} of the film, {n_cards} card shots)")
+    print(f"      imagery on screen     {total - card_t:6.0f}s "
+          f"({1 - share:.0%}, {len(plan) - n_cards} shots)")
+    run_marker = "✓" if best_t < _TEXT_RUN_WARN else "⚠"
+    print(f"   {run_marker}  longest text run      {best_t:6.1f}s "
+          f"({int(best_n)} consecutive card shots, from shot {best_at})")
+    if share >= _TEXT_SHARE_WARN or best_t >= _TEXT_RUN_WARN:
+        print(f"      Reference: the accepted cut ran 31 % text with a 9.6 s "
+              f"longest run;")
+        print(f"      the cut rejected on sight ran 44 % with 16.3 s — and "
+              f"scored LOST 0.")
+        print(f"      A text-heavy plan wins the caption audit for the wrong "
+              f"reason.  Re-plan")
+        print(f"      before rendering, or accept it deliberately.")
+    print()
+
+
 def audit(plan: list[dict],
           script_text: str | None,
           audio_duration: float | None,
@@ -266,6 +334,9 @@ def audit(plan: list[dict],
     for sid, c in sections.most_common():
         print(f"   {sid:<14} {c:>3} shots")
     print()
+
+    # ── Text vs imagery balance ─────────────────────────────────────── #
+    _text_balance(plan)
 
     # ── Auto-split fragmentation ────────────────────────────────────── #
     split_shots = [s for s in plan if "auto-split" in s.get("note", "")]

@@ -711,6 +711,33 @@ branch `claude/phase3-movie-quality-d1n58l`:
   CAPTION-OVER-CARD still 0/0/0. Both render-only reference plans audit
   unchanged (10 and 21 LOST, 0 defects, same shot counts).
 
+- **P7.19** (2026-08-02): **a plan can win the caption audit by becoming
+  a slideshow.** A fresh total solution on the same narration scored
+  `LOST 0` — every one of the 651 words readable, zero defects, better
+  than the cut before it (LOST 10) — and was rejected on sight. Measured
+  against the kept cut: typography **31 % → 44 %** of screen time,
+  imagery 289 s → 233 s, longest unbroken text run 9.6 s (2 shots) →
+  **16.3 s (4 shots)**. It scored perfectly *because* more of the
+  narration was printed on cards instead of played over photographs.
+  `audit_captions.py` asks whether the audience can READ the script; it
+  has nothing to say about whether they are watching a film, and a plan
+  that prints everything maximises its score. Treat LOST as a floor, not
+  a target. `audit_plan.py` now prints a **Text vs imagery** block —
+  typography share, imagery share and the longest consecutive-card run —
+  with thresholds set between the two real cuts (warn 35 %, fail 42 %;
+  text run warn 12 s), so a text-heavy plan is caught before ~40 minutes
+  of rendering rather than after a screening.
+
+  Also recorded from that round: a render-only revision of an existing
+  dossier can fix a mis-placed card **without a planner call**, as long
+  as the edit preserves shot COUNT and ORDER (the dossier is keyed by
+  index). Editing `typography_text` / `typography_template` /
+  `show_caption` on a shot is safe; adding, removing or reordering shots
+  is not. On the kept cut, retexting shot 91 (a pull quote whose line is
+  spoken 25 s earlier) into a credits card and captioning shot 94 took
+  LOST 10 → **6** — the same figure the full P7.18 re-plan reaches —
+  with every `start`/`end` unchanged.
+
 - **Pool-shuffle reproducibility bug** (found during P7.9 screening,
   2026-07-29): `decisions._list_portrait_pool` seeded its shuffle with
   `hash(tuple(...))` — Python salts str/tuple `hash()` per process
