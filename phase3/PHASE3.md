@@ -14,6 +14,33 @@ Phase 3 v2 is integrated into the app. The rest of this document is the
 original design handoff; where it conflicts with this section, **this section
 wins**. Nothing below has been deleted so the design rationale stays on record.
 
+### Session handover (2026-08-02) — start a new session here
+
+The caption-synchronisation arc is **finished and verified on a real
+cut**: script↔narration 651/651, 641/651 words readable, 0 duplicated /
+0 leaked / 0 caption-over-card, typography cards at median 0.00 s from
+the line they quote.  What this session shipped, newest first — the
+detailed entries are at the end of the "Open / waiting" list below:
+
+| Entry | One-liner |
+|---|---|
+| **P7.19** | `audit_plan.py` reports **text vs imagery** balance; a plan that scores `LOST 0` by printing narration on cards is caught before rendering |
+| **P7.18** | `_locate_card` clusters difflib blocks — a stray duplicate of one word no longer makes a card unlocatable (fixed a card 25 s off its line) |
+| **P7.17** | Notebooks made able to deliver the fixes: branch pin, captions on, two raising gates, alignment computed once and reused (`--word-timings`) |
+| **P7.16** | `relocate_typography_cards` — cards pinned to the narration, image shots redistributed around them |
+| **P7.15** | Alignment anchors script→audio by CONTENT, not position; `verify_narration.py` |
+
+**Next**: render-only refinement of the kept 95-shot dossier, plus the
+two curation items (book renders in `resources/character/`; 5 Pexels
+stills).  Full list in `../CLAUDE.md` → "Immediate Next Steps".
+
+**Tools now standing between a plan and a wasted render**:
+`verify_narration.py` (data), `audit_captions.py --max-lost N`
+(readability), `audit_plan.py` (structure + text balance),
+`overlay_card.py` (look, on one still, in a second).
+
+---
+
 ### Session handover (2026-07-05) — start a new session here
 
 The screening-review cycle (`phase3/SCREENING_REVIEW.md`) drove five
